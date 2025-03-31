@@ -1008,17 +1008,19 @@
             }
         }
 
-        function updateHistoryDisplay() {
-            historyListDiv.innerHTML = '';
-            spinHistory.forEach((spin, index) => {
-                const spinElement = document.createElement('div');
-                spinElement.className = `history-item ${spin.color}`;
-                spinElement.textContent = spin.number;
-                spinElement.title = `Spin ${index + 1}: ${spin.number} ${spin.color} (${spin.direction.toUpperCase()})`;
-                historyListDiv.appendChild(spinElement);
-            });
-            
-            historyCountSpan.textContent = `${spinHistory.length} spins recorded`;
+function updateHistoryDisplay() {
+    historyListDiv.innerHTML = '';
+    // Reverse the array to show newest first
+    [...spinHistory].reverse().forEach((spin, index) => {
+        const spinElement = document.createElement('div');
+        spinElement.className = `history-item ${spin.color}`;
+        spinElement.textContent = spin.number;
+        spinElement.title = `Spin ${spinHistory.length - index}: ${spin.number} ${spin.color} (${spin.direction.toUpperCase()})`;
+        historyListDiv.appendChild(spinElement);
+    });
+    
+    historyCountSpan.textContent = `${spinHistory.length} spins recorded`;
+}
         }
 
         function resetPrediction() {
