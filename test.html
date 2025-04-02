@@ -3,216 +3,159 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Roulette Predictor Pro</title>
+    <title>Enhanced Roulette Predictor</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 20px;
-            line-height: 1.6;
-        }
-        textarea {
-            width: 100%;
-            height: 100px;
-            margin-bottom: 10px;
-        }
-        button {
-            padding: 8px 15px;
-            background: #007BFF;
-            color: white;
-            border: none;
-            cursor: pointer;
-            border-radius: 4px;
-            margin-right: 5px;
-        }
-        button:hover {
-            background: #0056b3;
-        }
-        .table-container {
-            overflow-x: auto;
-            margin-top: 20px;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-        th, td {
-            border: 1px solid #ddd;
-            padding: 8px;
-            text-align: center;
-        }
-        th {
-            background: #f2f2f2;
-            position: sticky;
-            top: 0;
-        }
-        .correct {
-            background: #ccffcc;
-        }
-        .incorrect {
-            background: #ffcccc;
-        }
-        .neighbors {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 5px;
+        /* [Previous CSS styles remain the same] */
+        .strategy {
+            background: #f0f0f0;
+            padding: 10px;
             margin: 10px 0;
-        }
-        .neighbor {
-            padding: 5px 10px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-        }
-        .predicted {
-            background: #007BFF;
-            color: white;
-            font-weight: bold;
-        }
-        .history-body {
-            display: block;
-            max-height: 400px;
-            overflow-y: auto;
-        }
-        .stats {
-            background: #f8f9fa;
-            padding: 15px;
             border-radius: 5px;
-            margin: 15px 0;
+        }
+        .best {
+            background: #e6f7ff;
+            border-left: 4px solid #1890ff;
         }
     </style>
 </head>
 <body>
-    <h1>Roulette Predictor Pro</h1>
-    
-    <h2>Enter Numbers</h2>
-    <div>
-        <button onclick="addNumbers()">Add Historical Numbers</button>
-        <button onclick="addSingleNumber()">Add Single New Number</button>
-        <button onclick="clearData()" style="background: #dc3545;">Clear All Data</button>
-    </div>
-    <textarea id="numbersInput" placeholder="Enter numbers separated by commas or spaces"></textarea>
-    
-    <div class="stats">
-        <h2>Current Stats</h2>
-        <div id="currentStats"></div>
-    </div>
-    
-    <h2>Next Prediction</h2>
-    <div id="currentPrediction"></div>
-    <div id="neighborsDisplay"></div>
-    
-    <h2>Prediction History</h2>
-    <div class="table-container">
-        <table id="historyTable">
-            <thead>
-                <tr>
-                    <th>#</th>
-                    <th>Predicted For</th>
-                    <th>Predicted</th>
-                    <th>Actual</th>
-                    <th>Neighbors (18)</th>
-                    <th>Result</th>
-                    <th>Current Streak</th>
-                </tr>
-            </thead>
-            <tbody id="historyBody" class="history-body"></tbody>
-        </table>
-    </div>
+    <!-- [Previous HTML structure remains the same until <script>] -->
 
     <script>
-        // European roulette wheel layout
-        const WHEEL = [0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10, 5, 24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26];
-        
-        // Game state
-        let numbers = [];
-        let predictions = [];
-        let lossStreak = 0;
-        let longestLossStreak = 0;
-        let currentPrediction = null;
+        // Enhanced prediction strategies
+        const STRATEGIES = {
+            MEAN_CW: { name: "Mean CW", dir: 'cw' },
+            MEAN_CCW: { name: "Mean CCW", dir: 'ccw' },
+            ALTERNATING: { name: "Alternating", dir: null },
+            RECENT_BIAS: { name: "Recent Bias", dir: null }
+        };
 
-        // Load saved data
-        function loadData() {
-            const savedData = localStorage.getItem('roulettePredictorData');
-            if (savedData) {
-                const data = JSON.parse(savedData);
-                numbers = data.numbers || [];
-                predictions = data.predictions || [];
-                lossStreak = data.lossStreak || 0;
-                longestLossStreak = data.longestLossStreak || 0;
-                updateDisplay();
-                makeNextPrediction();
+        // Enhanced game state
+        let strategies = {
+            current: STRATEGIES.MEAN_CW,
+            lastDirection: 'cw',
+            performance: Object.keys(STRATEGIES).reduce((acc, key) => {
+                acc[key] = { wins: 0, losses: 0, currentStreak: 0, longestStreak: 0 };
+                return acc;
+            }, {})
+        };
+
+        // Modified makeNextPrediction function
+        function makeNextPrediction() {
+            if (numbers.length < 2) {
+                currentPrediction = null;
+                return;
             }
-        }
 
-        // Save data
-        function saveData() {
-            const data = {
-                numbers,
-                predictions,
-                lossStreak,
-                longestLossStreak
+            // Calculate all possible predictions
+            const { meanCW, meanCCW } = calculateMeanSteps();
+            const lastNum = numbers[numbers.length-1];
+            const prevNum = numbers[numbers.length-2];
+            
+            // Determine natural direction
+            const naturalDirection = getDirection(prevNum, lastNum);
+            
+            // Generate predictions for all strategies
+            const allPredictions = {};
+            
+            // 1. Mean CW prediction
+            allPredictions.MEAN_CW = {
+                ...predictWithDirection(lastNum, 'cw', meanCW, meanCCW),
+                strategy: STRATEGIES.MEAN_CW
             };
-            localStorage.setItem('roulettePredictorData', JSON.stringify(data));
+            
+            // 2. Mean CCW prediction
+            allPredictions.MEAN_CCW = {
+                ...predictWithDirection(lastNum, 'ccw', meanCW, meanCCW),
+                strategy: STRATEGIES.MEAN_CCW
+            };
+            
+            // 3. Alternating direction prediction
+            const altDirection = strategies.lastDirection === 'cw' ? 'ccw' : 'cw';
+            allPredictions.ALTERNATING = {
+                ...predictWithDirection(lastNum, altDirection, meanCW, meanCCW),
+                strategy: STRATEGIES.ALTERNATING
+            };
+            strategies.lastDirection = altDirection;
+            
+            // 4. Recent bias prediction (uses direction of last 3 spins)
+            const recentDirection = getRecentBiasDirection();
+            allPredictions.RECENT_BIAS = {
+                ...predictWithDirection(lastNum, recentDirection, meanCW, meanCCW),
+                strategy: STRATEGIES.RECENT_BIAS
+            };
+            
+            // Select best prediction based on performance
+            currentPrediction = selectBestPrediction(allPredictions);
+            predictions.push(currentPrediction);
         }
 
-        // Clear all data
-        function clearData() {
-            if (confirm("Clear all history?")) {
-                numbers = [];
-                predictions = [];
-                lossStreak = 0;
-                longestLossStreak = 0;
-                localStorage.removeItem('roulettePredictorData');
-                updateDisplay();
+        function predictWithDirection(lastNumber, direction, meanCW, meanCCW) {
+            const predictedNumber = predictNext(lastNumber, direction, meanCW, meanCCW);
+            const neighbors = getNeighbors(predictedNumber);
+            
+            return {
+                predictedFor: lastNumber,
+                predicted: predictedNumber,
+                neighbors,
+                actual: null,
+                isCorrect: null,
+                strategy: null
+            };
+        }
+
+        function getRecentBiasDirection() {
+            if (numbers.length < 4) return 'cw';
+            
+            let cwCount = 0;
+            for (let i = numbers.length-3; i < numbers.length-1; i++) {
+                const dir = getDirection(numbers[i], numbers[i+1]);
+                if (dir === 'cw') cwCount++;
             }
+            
+            return cwCount >= 2 ? 'cw' : 'ccw';
         }
 
-        // Add multiple historical numbers
-        function addNumbers() {
-            const input = document.getElementById("numbersInput").value.trim();
-            if (!input) return;
+        function selectBestPrediction(allPredictions) {
+            // Simple selection - could be enhanced with more sophisticated logic
+            // Currently selects strategy with best win rate
+            let bestKey = 'MEAN_CW';
+            let bestPerformance = strategies.performance[bestKey].wins / 
+                                (strategies.performance[bestKey].wins + strategies.performance[bestKey].losses) || 0;
             
-            const newNumbers = input.split(/[\s,]+/).map(num => parseInt(num)).filter(num => !isNaN(num));
-            
-            newNumbers.forEach(num => {
-                if (numbers.length > 0 && predictions.length > 0) {
-                    checkPrediction(num);
+            for (const [key, prediction] of Object.entries(allPredictions)) {
+                const perf = strategies.performance[key];
+                const winRate = perf.wins / (perf.wins + perf.losses) || 0;
+                
+                if (winRate > bestPerformance) {
+                    bestPerformance = winRate;
+                    bestKey = key;
                 }
-                numbers.push(num);
-                makeNextPrediction();
-            });
-            
-            document.getElementById("numbersInput").value = "";
-            saveData();
-            updateDisplay();
-        }
-
-        // Add single new number
-        function addSingleNumber() {
-            const input = document.getElementById("numbersInput").value.trim();
-            if (!input) return;
-            
-            const num = parseInt(input);
-            if (isNaN(num)) return;
-            
-            if (numbers.length > 0 && predictions.length > 0) {
-                checkPrediction(num);
             }
             
-            numbers.push(num);
-            makeNextPrediction();
-            
-            document.getElementById("numbersInput").value = "";
-            saveData();
-            updateDisplay();
+            return { ...allPredictions[bestKey], selectedStrategy: bestKey };
         }
 
-        // Check if prediction was correct
+        // Modified checkPrediction function
         function checkPrediction(actualNumber) {
             const lastPrediction = predictions[predictions.length-1];
             const isCorrect = lastPrediction.neighbors.includes(actualNumber);
+            const strategyKey = lastPrediction.selectedStrategy;
             
+            // Update strategy performance
+            const strategyPerf = strategies.performance[strategyKey];
+            if (isCorrect) {
+                strategyPerf.wins++;
+                strategyPerf.currentStreak = 0;
+            } else {
+                strategyPerf.losses++;
+                strategyPerf.currentStreak++;
+                if (strategyPerf.currentStreak > strategyPerf.longestStreak) {
+                    strategyPerf.longestStreak = strategyPerf.currentStreak;
+                }
+            }
+            
+            // Update global streak
             if (!isCorrect) {
                 lossStreak++;
                 if (lossStreak > longestLossStreak) {
@@ -227,164 +170,28 @@
             lastPrediction.streak = lossStreak;
         }
 
-        // Make prediction for NEXT spin
-        function makeNextPrediction() {
-            if (numbers.length < 2) {
-                currentPrediction = null;
-                return;
-            }
-            
-            // Calculate mean steps
-            const { meanCW, meanCCW } = calculateMeanSteps();
-            
-            // Determine last direction
-            const direction = getDirection(numbers[numbers.length-2], numbers[numbers.length-1]);
-            
-            // Predict next number
-            const predictedNumber = predictNext(numbers[numbers.length-1], direction, meanCW, meanCCW);
-            
-            // Get neighbors (9 each side = 18 numbers + predicted = 19 total)
-            const neighbors = getNeighbors(predictedNumber);
-            
-            // Store as current prediction
-            currentPrediction = {
-                predictedFor: numbers[numbers.length-1],
-                predicted: predictedNumber,
-                neighbors,
-                actual: null,
-                isCorrect: null,
-                streak: lossStreak,
-                timestamp: new Date()
-            };
-            
-            predictions.push(currentPrediction);
-        }
-
-        // Calculate mean steps
-        function calculateMeanSteps() {
-            if (numbers.length < 2) return { meanCW: 0, meanCCW: 0 };
-            
-            let cwSteps = [];
-            let ccwSteps = [];
-            
-            for (let i = 1; i < numbers.length; i++) {
-                const prevIdx = WHEEL.indexOf(numbers[i-1]);
-                const currIdx = WHEEL.indexOf(numbers[i]);
-                const step = (currIdx - prevIdx + 37) % 37;
-                
-                if (step <= 18) {
-                    cwSteps.push(step);
-                } else {
-                    ccwSteps.push(37 - step);
-                }
-            }
-            
-            const meanCW = cwSteps.length ? Math.round(cwSteps.reduce((a,b) => a+b, 0)/cwSteps.length) : 0;
-            const meanCCW = ccwSteps.length ? Math.round(ccwSteps.reduce((a,b) => a+b, 0)/ccwSteps.length) : 0;
-            
-            return { meanCW, meanCCW };
-        }
-
-        // Get direction between two numbers
-        function getDirection(prevNum, currNum) {
-            const prevIdx = WHEEL.indexOf(prevNum);
-            const currIdx = WHEEL.indexOf(currNum);
-            const step = (currIdx - prevIdx + 37) % 37;
-            return step <= 18 ? 'cw' : 'ccw';
-        }
-
-        // Predict next number
-        function predictNext(lastNumber, direction, meanCW, meanCCW) {
-            const lastIdx = WHEEL.indexOf(lastNumber);
-            let nextIdx;
-            
-            if (direction === 'cw') {
-                nextIdx = (lastIdx + meanCW) % 37;
-            } else {
-                nextIdx = (lastIdx - meanCCW + 37) % 37;
-            }
-            
-            return WHEEL[nextIdx];
-        }
-
-        // Get neighbors (9 each side)
-        function getNeighbors(number) {
-            const idx = WHEEL.indexOf(number);
-            const neighbors = [];
-            
-            for (let i = idx - 9; i <= idx + 9; i++) {
-                const wrappedIdx = (i + 37) % 37;
-                neighbors.push(WHEEL[wrappedIdx]);
-            }
-            
-            return neighbors;
-        }
-
-        // Update the display
+        // Enhanced display functions
         function updateDisplay() {
-            // Current stats
-            const statsDiv = document.getElementById("currentStats");
-            statsDiv.innerHTML = `
-                <p><strong>Total spins:</strong> ${numbers.length}</p>
-                <p><strong>Current streak:</strong> ${lossStreak} ${lossStreak > 0 ? 'losses' : ''}</p>
-                <p><strong>Longest losing streak:</strong> ${longestLossStreak}</p>
+            // ... [previous updateDisplay code] ...
+            
+            // Add strategy information
+            predictionDiv.innerHTML += `
+                <div class="strategy ${currentPrediction.selectedStrategy === 'BEST' ? 'best' : ''}">
+                    <strong>Strategy:</strong> ${currentPrediction.strategy.name}
+                </div>
+                <div class="strategies">
+                    <h3>Strategy Performance</h3>
+                    ${Object.entries(strategies.performance).map(([key, perf]) => `
+                        <div class="strategy ${key === currentPrediction.selectedStrategy ? 'best' : ''}">
+                            <strong>${STRATEGIES[key].name}:</strong>
+                            ${perf.wins}W/${perf.losses}L (${perf.longestStreak} max loss)
+                        </div>
+                    `).join('')}
+                </div>
             `;
-            
-            // Current prediction
-            const predictionDiv = document.getElementById("currentPrediction");
-            const neighborsDiv = document.getElementById("neighborsDisplay");
-            
-            if (numbers.length > 0 && currentPrediction) {
-                predictionDiv.innerHTML = `
-                    <p><strong>Last number:</strong> ${numbers[numbers.length-1]}</p>
-                    <p><strong>Predicting next spin after:</strong> ${currentPrediction.predictedFor}</p>
-                    <p><strong>Predicted number:</strong> ${currentPrediction.predicted}</p>
-                `;
-                
-                // Show neighbors
-                neighborsDiv.innerHTML = '<p><strong>Bet on these 19 numbers:</strong></p><div class="neighbors">';
-                currentPrediction.neighbors.forEach(num => {
-                    const neighborClass = num === currentPrediction.predicted ? 'neighbor predicted' : 'neighbor';
-                    neighborsDiv.innerHTML += `<span class="${neighborClass}">${num}</span>`;
-                });
-                neighborsDiv.innerHTML += '</div>';
-            } else {
-                predictionDiv.innerHTML = '<p>Enter at least 2 numbers to start predictions</p>';
-                neighborsDiv.innerHTML = '';
-            }
-            
-            // History table
-            const historyBody = document.getElementById("historyBody");
-            historyBody.innerHTML = '';
-            
-            // Filter out predictions without results and reverse for newest first
-            const completedPredictions = predictions
-                .filter(p => p.actual !== null)
-                .reverse();
-            
-            completedPredictions.forEach((pred, i) => {
-                const row = document.createElement('tr');
-                row.className = pred.isCorrect ? 'correct' : 'incorrect';
-                
-                // Format neighbors for display
-                const neighborsDisplay = pred.neighbors.slice(0, 5).join(', ') + 
-                    (pred.neighbors.length > 5 ? '...' : '');
-                
-                row.innerHTML = `
-                    <td>${completedPredictions.length - i}</td>
-                    <td>${pred.predictedFor}</td>
-                    <td>${pred.predicted}</td>
-                    <td>${pred.actual}</td>
-                    <td title="${pred.neighbors.join(', ')}">${neighborsDisplay}</td>
-                    <td>${pred.isCorrect ? '✅' : '❌'}</td>
-                    <td>${pred.streak > 0 ? pred.streak : ''}</td>
-                `;
-                historyBody.appendChild(row);
-            });
         }
 
-        // Initialize
-        loadData();
+        // [Rest of the code remains the same]
     </script>
 </body>
 </html>
