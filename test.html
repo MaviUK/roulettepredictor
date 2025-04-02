@@ -130,6 +130,22 @@
             background: #e3f2fd;
             font-weight: bold;
         }
+        .streak-details {
+            margin-top: 15px;
+            padding: 15px;
+            background: #f0f7ff;
+            border-radius: 5px;
+            border-left: 4px solid #3498db;
+        }
+        .streak-item {
+            margin: 8px 0;
+            padding: 5px;
+            border-bottom: 1px dashed #ddd;
+        }
+        .streak-value {
+            font-weight: bold;
+            color: #e74c3c;
+        }
     </style>
 </head>
 <body>
@@ -155,6 +171,26 @@
         <div id="currentPrediction"></div>
         <div id="neighborsDisplay"></div>
         <div id="strategyInfo"></div>
+        
+        <div class="streak-details">
+            <h3>Directional Streak Analysis</h3>
+            <div class="streak-item">
+                <strong>Longest CW Losing Streak:</strong> 
+                <span id="cwMaxStreak" class="streak-value">0</span> consecutive losses
+            </div>
+            <div class="streak-item">
+                <strong>Longest CCW Losing Streak:</strong> 
+                <span id="ccwMaxStreak" class="streak-value">0</span> consecutive losses
+            </div>
+            <div class="streak-item">
+                <strong>Current CW Losing Streak:</strong> 
+                <span id="cwCurrentStreak" class="streak-value">0</span> consecutive losses
+            </div>
+            <div class="streak-item">
+                <strong>Current CCW Losing Streak:</strong> 
+                <span id="ccwCurrentStreak" class="streak-value">0</span> consecutive losses
+            </div>
+        </div>
     </div>
     
     <div class="history-container">
@@ -223,6 +259,12 @@
                 return acc;
             }, {})
         };
+        
+        // Directional streak tracking
+        let cwLossStreak = 0;
+        let ccwLossStreak = 0;
+        let maxCwLossStreak = 0;
+        let maxCcwLossStreak = 0;
 
         // Initialize on load
         window.onload = function() {
@@ -245,6 +287,10 @@
                         return acc;
                     }, {})
                 };
+                cwLossStreak = data.cwLossStreak || 0;
+                ccwLossStreak = data.ccwLossStreak || 0;
+                maxCwLossStreak = data.maxCwLossStreak || 0;
+                maxCcwLossStreak = data.maxCcwLossStreak || 0;
                 updateDisplay();
                 makeNextPrediction();
             }
@@ -257,7 +303,11 @@
                 predictions,
                 lossStreak,
                 longestLossStreak,
-                strategies
+                strategies,
+                cwLossStreak,
+                ccwLossStreak,
+                maxCwLossStreak,
+                maxCcwLossStreak
             };
             localStorage.setItem('roulettePredictorData', JSON.stringify(data));
         }
@@ -276,6 +326,10 @@
                         return acc;
                     }, {})
                 };
+                cwLossStreak = 0;
+                ccwLossStreak = 0;
+                maxCwLossStreak = 0;
+                maxCcwLossStreak = 0;
                 localStorage.removeItem('roulettePredictorData');
                 updateDisplay();
             }
@@ -296,9 +350,7 @@
                 return;
             }
             
-            // Process each number
             newNumbers.forEach(num => {
-                // Check if we need to verify a prediction
                 if (numbers.length > 0 && predictions.length > 0) {
                     const lastPred = predictions[predictions.length-1];
                     if (lastPred.actual === null) {
@@ -306,10 +358,7 @@
                     }
                 }
                 
-                // Add the number
                 numbers.push(num);
-                
-                // Make new prediction
                 makeNextPrediction();
             });
             
@@ -332,7 +381,6 @@
                 return;
             }
             
-            // Check previous prediction if exists
             if (numbers.length > 0 && predictions.length > 0) {
                 const lastPred = predictions[predictions.length-1];
                 if (lastPred.actual === null) {
@@ -340,10 +388,7 @@
                 }
             }
             
-            // Add the number
             numbers.push(num);
-            
-            // Make new prediction
             makeNextPrediction();
             
             document.getElementById("numbersInput").value = "";
@@ -356,6 +401,27 @@
             const lastPrediction = predictions[predictions.length-1];
             const isCorrect = lastPrediction.neighbors.includes(actualNumber);
             const strategyKey = lastPrediction.selectedStrategy;
+            
+            // Update directional streaks
+            if (strategyKey === 'MEAN_CW') {
+                if (!isCorrect) {
+                    cwLossStreak++;
+                    if (cwLossStreak > maxCwLossStreak) {
+                        maxCwLossStreak = cwLossStreak;
+                    }
+                } else {
+                    cwLossStreak = 0;
+                }
+            } else if (strategyKey === 'MEAN_CCW') {
+                if (!isCorrect) {
+                    ccwLossStreak++;
+                    if (ccwLossStreak > maxCcwLossStreak) {
+                        maxCcwLossStreak = ccwLossStreak;
+                    }
+                } else {
+                    ccwLossStreak = 0;
+                }
+            }
             
             // Update strategy performance
             const strategyPerf = strategies.performance[strategyKey];
@@ -381,7 +447,6 @@
                 lossStreak = 0;
             }
             
-            // Update prediction record
             lastPrediction.actual = actualNumber;
             lastPrediction.isCorrect = isCorrect;
             lastPrediction.streak = lossStreak;
@@ -394,7 +459,6 @@
                 return;
             }
             
-            // Calculate mean steps
             const { meanCW, meanCCW } = calculateMeanSteps();
             const lastNum = numbers[numbers.length-1];
             
@@ -432,7 +496,6 @@
                 strategyKey: 'RECENT_BIAS'
             };
             
-            // Select best prediction
             currentPrediction = selectBestPrediction(allPredictions);
             predictions.push(currentPrediction);
         }
@@ -471,11 +534,10 @@
             // First check if any strategy is on a bad streak
             for (const [key, pred] of Object.entries(allPredictions)) {
                 const perf = strategies.performance[key];
-                if (perf.currentStreak >= 3) { // If a strategy has 3+ losses, skip it
+                if (perf.currentStreak >= 3) {
                     continue;
                 }
                 
-                // Prefer strategies with better win rates
                 const winRate = perf.wins / (perf.wins + perf.losses) || 0;
                 const otherKeys = Object.keys(allPredictions).filter(k => k !== key);
                 let isBetter = true;
@@ -498,7 +560,6 @@
                 }
             }
             
-            // Default to alternating if all strategies are on bad streaks
             return { 
                 ...allPredictions.ALTERNATING,
                 selectedStrategy: 'ALTERNATING',
@@ -571,6 +632,7 @@
             updateStats();
             updateCurrentPrediction();
             updateHistory();
+            updateStreakDisplays();
         }
 
         function updateStats() {
@@ -588,6 +650,13 @@
             `;
         }
 
+        function updateStreakDisplays() {
+            document.getElementById('cwMaxStreak').textContent = maxCwLossStreak;
+            document.getElementById('ccwMaxStreak').textContent = maxCcwLossStreak;
+            document.getElementById('cwCurrentStreak').textContent = cwLossStreak;
+            document.getElementById('ccwCurrentStreak').textContent = ccwLossStreak;
+        }
+
         function updateCurrentPrediction() {
             const predictionDiv = document.getElementById("currentPrediction");
             const neighborsDiv = document.getElementById("neighborsDisplay");
@@ -600,7 +669,6 @@
                     <p><strong>Predicted number:</strong> ${currentPrediction.predicted}</p>
                 `;
                 
-                // Show neighbors
                 neighborsDiv.innerHTML = '<p><strong>Bet on these 19 numbers (predicted + 9 neighbors each side):</strong></p><div class="neighbors">';
                 currentPrediction.neighbors.forEach(num => {
                     const neighborClass = num === currentPrediction.predicted ? 'neighbor predicted-number' : 'neighbor';
@@ -608,7 +676,6 @@
                 });
                 neighborsDiv.innerHTML += '</div>';
                 
-                // Show strategy info
                 strategyDiv.innerHTML = `
                     <div class="strategy-perf">
                         <h3>Current Strategy: <span style="color: ${currentPrediction.strategy.color}">${currentPrediction.strategy.name}</span></h3>
@@ -641,7 +708,6 @@
             const historyBody = document.getElementById("historyBody");
             historyBody.innerHTML = '';
             
-            // Filter out predictions without results and reverse for newest first
             const completedPredictions = predictions
                 .filter(p => p.actual !== null)
                 .reverse();
@@ -650,7 +716,6 @@
                 const row = document.createElement('tr');
                 row.className = pred.isCorrect ? 'correct' : 'incorrect';
                 
-                // Format neighbors for display (show first few)
                 const neighborsDisplay = pred.neighbors.slice(0, 3).join(', ') + 
                     (pred.neighbors.length > 3 ? '...' : '');
                 
