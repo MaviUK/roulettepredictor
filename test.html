@@ -3,159 +3,388 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Enhanced Roulette Analyst</title>
+    <title>Roulette Predictor Pro</title>
     <style>
-        /* [Keep all your existing CSS styles] */
-        /* ... (all your CSS remains exactly the same) ... */
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        textarea {
+            width: 100%;
+            height: 100px;
+            margin-bottom: 10px;
+        }
+        button {
+            padding: 8px 15px;
+            background: #007BFF;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 4px;
+            margin-right: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .table-container {
+            overflow-x: auto;
+            margin-top: 20px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: center;
+        }
+        th {
+            background: #f2f2f2;
+            position: sticky;
+            top: 0;
+        }
+        .correct {
+            background: #ccffcc;
+        }
+        .incorrect {
+            background: #ffcccc;
+        }
+        .neighbors {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            margin: 10px 0;
+        }
+        .neighbor {
+            padding: 5px 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .predicted {
+            background: #007BFF;
+            color: white;
+            font-weight: bold;
+        }
+        .history-body {
+            display: block;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .stats {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 15px 0;
+        }
     </style>
 </head>
 <body>
-    <!-- [Keep all your existing HTML structure] -->
-    <!-- ... (all your HTML remains exactly the same) ... -->
+    <h1>Roulette Predictor Pro</h1>
+    
+    <h2>Enter Numbers</h2>
+    <div>
+        <button onclick="addNumbers()">Add Historical Numbers</button>
+        <button onclick="addSingleNumber()">Add Single New Number</button>
+        <button onclick="clearData()" style="background: #dc3545;">Clear All Data</button>
+    </div>
+    <textarea id="numbersInput" placeholder="Enter numbers separated by commas or spaces"></textarea>
+    
+    <div class="stats">
+        <h2>Current Stats</h2>
+        <div id="currentStats"></div>
+    </div>
+    
+    <h2>Next Prediction</h2>
+    <div id="currentPrediction"></div>
+    <div id="neighborsDisplay"></div>
+    
+    <h2>Prediction History</h2>
+    <div class="table-container">
+        <table id="historyTable">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Predicted For</th>
+                    <th>Predicted</th>
+                    <th>Actual</th>
+                    <th>Neighbors (18)</th>
+                    <th>Result</th>
+                    <th>Current Streak</th>
+                </tr>
+            </thead>
+            <tbody id="historyBody" class="history-body"></tbody>
+        </table>
+    </div>
 
     <script>
-        // European wheel layout (single zero)
-        const wheelLayout = [
-            0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10, 5, 24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26
-        ];
+        // European roulette wheel layout
+        const WHEEL = [0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10, 5, 24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26];
+        
+        // Game state
+        let numbers = [];
+        let predictions = [];
+        let lossStreak = 0;
+        let longestLossStreak = 0;
+        let currentPrediction = null;
 
-        // [Keep all your existing variable declarations]
-        // ... (all your variables remain the same) ...
+        // Load saved data
+        function loadData() {
+            const savedData = localStorage.getItem('roulettePredictorData');
+            if (savedData) {
+                const data = JSON.parse(savedData);
+                numbers = data.numbers || [];
+                predictions = data.predictions || [];
+                lossStreak = data.lossStreak || 0;
+                longestLossStreak = data.longestLossStreak || 0;
+                updateDisplay();
+                makeNextPrediction();
+            }
+        }
 
-        // Initialize - Modified to ensure proper event binding
-        document.addEventListener('DOMContentLoaded', function() {
-            createWheel();
-            updateHistoryDisplay();
-            updateStatsDisplay();
-            updateMartingaleDisplay();
-            updateModelDisplay();
-            updateSectorStats();
+        // Save data
+        function saveData() {
+            const data = {
+                numbers,
+                predictions,
+                lossStreak,
+                longestLossStreak
+            };
+            localStorage.setItem('roulettePredictorData', JSON.stringify(data));
+        }
+
+        // Clear all data
+        function clearData() {
+            if (confirm("Clear all history?")) {
+                numbers = [];
+                predictions = [];
+                lossStreak = 0;
+                longestLossStreak = 0;
+                localStorage.removeItem('roulettePredictorData');
+                updateDisplay();
+            }
+        }
+
+        // Add multiple historical numbers
+        function addNumbers() {
+            const input = document.getElementById("numbersInput").value.trim();
+            if (!input) return;
             
-            // Load from localStorage if available
-            loadFromLocalStorage();
+            const newNumbers = input.split(/[\s,]+/).map(num => parseInt(num)).filter(num => !isNaN(num));
             
-            // Add event listeners - Fixed binding issues
-            addSpinBtn.addEventListener('click', addSingleSpin);
-            batchAddBtn.addEventListener('click', addBatchSpins);
-            clearHistoryBtn.addEventListener('click', clearHistory);
-            exportHistoryBtn.addEventListener('click', exportHistory);
-            exportMartingaleBtn.addEventListener('click', exportMartingaleData);
-            
-            spinInput.addEventListener('keypress', function(e) {
-                if (e.key === 'Enter') addSingleSpin();
-            });
-            
-            neighborCountSelect.addEventListener('change', function() {
-                if (spinHistory.length > 0) {
-                    generatePrediction();
+            newNumbers.forEach(num => {
+                if (numbers.length > 0 && predictions.length > 0) {
+                    checkPrediction(num);
                 }
+                numbers.push(num);
+                makeNextPrediction();
             });
             
-            baseBetInput.addEventListener('change', updateMartingaleSettings);
-            bankrollInput.addEventListener('change', updateMartingaleSettings);
-            maxLossesInput.addEventListener('change', updateMartingaleSettings);
-            resetMartingaleBtn.addEventListener('click', resetMartingale);
+            document.getElementById("numbersInput").value = "";
+            saveData();
+            updateDisplay();
+        }
+
+        // Add single new number
+        function addSingleNumber() {
+            const input = document.getElementById("numbersInput").value.trim();
+            if (!input) return;
             
-            modelSensitivitySelect.addEventListener('change', updateModelSettings);
-            maxConsecutiveLossesInput.addEventListener('change', updateModelSettings);
-            resetModelBtn.addEventListener('click', resetModel);
-        });
+            const num = parseInt(input);
+            if (isNaN(num)) return;
+            
+            if (numbers.length > 0 && predictions.length > 0) {
+                checkPrediction(num);
+            }
+            
+            numbers.push(num);
+            makeNextPrediction();
+            
+            document.getElementById("numbersInput").value = "";
+            saveData();
+            updateDisplay();
+        }
 
-        // [Keep all your existing functions]
-        // ... (all your functions remain the same) ...
+        // Check if prediction was correct
+        function checkPrediction(actualNumber) {
+            const lastPrediction = predictions[predictions.length-1];
+            const isCorrect = lastPrediction.neighbors.includes(actualNumber);
+            
+            if (!isCorrect) {
+                lossStreak++;
+                if (lossStreak > longestLossStreak) {
+                    longestLossStreak = lossStreak;
+                }
+            } else {
+                lossStreak = 0;
+            }
+            
+            lastPrediction.actual = actualNumber;
+            lastPrediction.isCorrect = isCorrect;
+            lastPrediction.streak = lossStreak;
+        }
 
-        // Modified addSingleSpin function to ensure it works
-        function addSingleSpin() {
-            const number = parseInt(spinInput.value);
-            if (isNaN(number) || number < 0 || number > 36) {
-                alert('Please enter a valid number between 0 and 36');
+        // Make prediction for NEXT spin
+        function makeNextPrediction() {
+            if (numbers.length < 2) {
+                currentPrediction = null;
                 return;
             }
             
-            recordSpin(number);
-            spinInput.value = '';
-            spinInput.focus();
+            // Calculate mean steps
+            const { meanCW, meanCCW } = calculateMeanSteps();
+            
+            // Determine last direction
+            const direction = getDirection(numbers[numbers.length-2], numbers[numbers.length-1]);
+            
+            // Predict next number
+            const predictedNumber = predictNext(numbers[numbers.length-1], direction, meanCW, meanCCW);
+            
+            // Get neighbors (9 each side = 18 numbers + predicted = 19 total)
+            const neighbors = getNeighbors(predictedNumber);
+            
+            // Store as current prediction
+            currentPrediction = {
+                predictedFor: numbers[numbers.length-1],
+                predicted: predictedNumber,
+                neighbors,
+                actual: null,
+                isCorrect: null,
+                streak: lossStreak,
+                timestamp: new Date()
+            };
+            
+            predictions.push(currentPrediction);
         }
 
-        // Modified recordSpin function to ensure proper updates
-        function recordSpin(number) {
-            const color = getColorForNumber(number);
-            const direction = currentDirection;
+        // Calculate mean steps
+        function calculateMeanSteps() {
+            if (numbers.length < 2) return { meanCW: 0, meanCCW: 0 };
             
-            // Calculate travel distance if we have previous spins
-            let travelDistance = 0;
-            if (spinHistory.length > 0) {
-                const lastSpin = spinHistory[spinHistory.length - 1];
-                const lastIndex = wheelLayout.indexOf(lastSpin.number);
-                const currentIndex = wheelLayout.indexOf(number);
+            let cwSteps = [];
+            let ccwSteps = [];
+            
+            for (let i = 1; i < numbers.length; i++) {
+                const prevIdx = WHEEL.indexOf(numbers[i-1]);
+                const currIdx = WHEEL.indexOf(numbers[i]);
+                const step = (currIdx - prevIdx + 37) % 37;
                 
-                if (lastSpin.direction === 'cw') {
-                    travelDistance = (lastIndex - currentIndex + wheelLayout.length) % wheelLayout.length;
+                if (step <= 18) {
+                    cwSteps.push(step);
                 } else {
-                    travelDistance = (currentIndex - lastIndex + wheelLayout.length) % wheelLayout.length;
+                    ccwSteps.push(37 - step);
                 }
-                
-                // Record travel pattern
-                stats.travelPatterns.unshift({
-                    from: lastSpin.number,
-                    to: number,
-                    direction: lastSpin.direction,
-                    distance: travelDistance
-                });
-                
-                if (stats.travelPatterns.length > 5) {
-                    stats.travelPatterns.pop();
-                }
-
-                // Update prediction model statistics
-                updateModelStatistics(lastSpin, number, travelDistance);
             }
             
-            // Add to history
-            spinHistory.push({
-                number,
-                color,
-                direction,
-                timestamp: new Date().toISOString()
-            });
+            const meanCW = cwSteps.length ? Math.round(cwSteps.reduce((a,b) => a+b, 0)/cwSteps.length) : 0;
+            const meanCCW = ccwSteps.length ? Math.round(ccwSteps.reduce((a,b) => a+b, 0)/ccwSteps.length) : 0;
             
-            // Update direction-specific stats
-            if (direction === 'cw') {
-                stats.cw.total++;
-                stats.cw.travelDistances.push(travelDistance);
-            } else {
-                stats.ccw.total++;
-                stats.ccw.travelDistances.push(travelDistance);
-            }
-            
-            // Check if this number was in our current selection
-            if (currentSelection.length > 0) {
-                updateStats(number);
-                updateMartingaleStats(number);
-                updateModelResults(number);
-            }
-            
-            // Alternate direction for next spin
-            currentDirection = currentDirection === 'cw' ? 'ccw' : 'cw';
-            
-            // Generate new prediction
-            generatePrediction();
-            
-            // Update all displays
-            updateHistoryDisplay();
-            updateStatsDisplay();
-            updateWheelDisplay();
-            updateTravelPatternsDisplay();
-            updateMartingaleDisplay();
-            updateModelDisplay();
-            updateSectorStats();
-            
-            // Save to localStorage
-            saveToLocalStorage();
+            return { meanCW, meanCCW };
         }
 
-        // [Keep all your other existing functions]
-        // ... (all other functions remain exactly the same) ...
+        // Get direction between two numbers
+        function getDirection(prevNum, currNum) {
+            const prevIdx = WHEEL.indexOf(prevNum);
+            const currIdx = WHEEL.indexOf(currNum);
+            const step = (currIdx - prevIdx + 37) % 37;
+            return step <= 18 ? 'cw' : 'ccw';
+        }
+
+        // Predict next number
+        function predictNext(lastNumber, direction, meanCW, meanCCW) {
+            const lastIdx = WHEEL.indexOf(lastNumber);
+            let nextIdx;
+            
+            if (direction === 'cw') {
+                nextIdx = (lastIdx + meanCW) % 37;
+            } else {
+                nextIdx = (lastIdx - meanCCW + 37) % 37;
+            }
+            
+            return WHEEL[nextIdx];
+        }
+
+        // Get neighbors (9 each side)
+        function getNeighbors(number) {
+            const idx = WHEEL.indexOf(number);
+            const neighbors = [];
+            
+            for (let i = idx - 9; i <= idx + 9; i++) {
+                const wrappedIdx = (i + 37) % 37;
+                neighbors.push(WHEEL[wrappedIdx]);
+            }
+            
+            return neighbors;
+        }
+
+        // Update the display
+        function updateDisplay() {
+            // Current stats
+            const statsDiv = document.getElementById("currentStats");
+            statsDiv.innerHTML = `
+                <p><strong>Total spins:</strong> ${numbers.length}</p>
+                <p><strong>Current streak:</strong> ${lossStreak} ${lossStreak > 0 ? 'losses' : ''}</p>
+                <p><strong>Longest losing streak:</strong> ${longestLossStreak}</p>
+            `;
+            
+            // Current prediction
+            const predictionDiv = document.getElementById("currentPrediction");
+            const neighborsDiv = document.getElementById("neighborsDisplay");
+            
+            if (numbers.length > 0 && currentPrediction) {
+                predictionDiv.innerHTML = `
+                    <p><strong>Last number:</strong> ${numbers[numbers.length-1]}</p>
+                    <p><strong>Predicting next spin after:</strong> ${currentPrediction.predictedFor}</p>
+                    <p><strong>Predicted number:</strong> ${currentPrediction.predicted}</p>
+                `;
+                
+                // Show neighbors
+                neighborsDiv.innerHTML = '<p><strong>Bet on these 19 numbers:</strong></p><div class="neighbors">';
+                currentPrediction.neighbors.forEach(num => {
+                    const neighborClass = num === currentPrediction.predicted ? 'neighbor predicted' : 'neighbor';
+                    neighborsDiv.innerHTML += `<span class="${neighborClass}">${num}</span>`;
+                });
+                neighborsDiv.innerHTML += '</div>';
+            } else {
+                predictionDiv.innerHTML = '<p>Enter at least 2 numbers to start predictions</p>';
+                neighborsDiv.innerHTML = '';
+            }
+            
+            // History table
+            const historyBody = document.getElementById("historyBody");
+            historyBody.innerHTML = '';
+            
+            // Filter out predictions without results and reverse for newest first
+            const completedPredictions = predictions
+                .filter(p => p.actual !== null)
+                .reverse();
+            
+            completedPredictions.forEach((pred, i) => {
+                const row = document.createElement('tr');
+                row.className = pred.isCorrect ? 'correct' : 'incorrect';
+                
+                // Format neighbors for display
+                const neighborsDisplay = pred.neighbors.slice(0, 5).join(', ') + 
+                    (pred.neighbors.length > 5 ? '...' : '');
+                
+                row.innerHTML = `
+                    <td>${completedPredictions.length - i}</td>
+                    <td>${pred.predictedFor}</td>
+                    <td>${pred.predicted}</td>
+                    <td>${pred.actual}</td>
+                    <td title="${pred.neighbors.join(', ')}">${neighborsDisplay}</td>
+                    <td>${pred.isCorrect ? '✅' : '❌'}</td>
+                    <td>${pred.streak > 0 ? pred.streak : ''}</td>
+                `;
+                historyBody.appendChild(row);
+            });
+        }
+
+        // Initialize
+        loadData();
     </script>
 </body>
 </html>
