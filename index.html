@@ -714,11 +714,11 @@
             const lastSpin = spinHistory[spinHistory.length - 1];
             const lastIndex = wheelLayout.indexOf(lastSpin.number);
             
-            // Get the last 3 spins in the current direction
+            // Get the last 2 spins in the current direction
             const recentDirectionSpins = spinHistory
                 .slice().reverse() // Start from most recent
                 .filter(spin => spin.direction === currentDirection)
-                .slice(0, 3); // Take up to 3 most recent
+                .slice(0, 2); // Take up to 2 most recent
             
             // If we don't have enough spins in this direction, use what we have
             if (recentDirectionSpins.length < 1) {
