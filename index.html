@@ -714,14 +714,25 @@
             const lastSpin = spinHistory[spinHistory.length - 1];
             const lastIndex = wheelLayout.indexOf(lastSpin.number);
             
-            // Get the last 3 spins in the current direction
+            // Get the last 15 spins in the current direction
             const recentDirectionSpins = spinHistory
                 .slice().reverse() // Start from most recent
                 .filter(spin => spin.direction === currentDirection)
-                .slice(0, 3); // Take up to 3 most recent
+                .slice(0, 15); // Take up to 15 most recent
+            
+            // If we don't have enough spins in this direction, use what we have
+            if (recentDirectionSpins.length < 1) {
+                resetPrediction();
+                return;
+            }
             
             // Calculate weights - more recent spins have higher weight
-            const weights = [0.5, 0.3, 0.2]; // Weights for [most recent, middle, oldest]
+            // Create weights that decrease linearly from most recent to oldest
+            const weights = [];
+            const totalSpins = recentDirectionSpins.length;
+            for (let i = 0; i < totalSpins; i++) {
+                weights.push((totalSpins - i) / totalSpins);
+            }
             
             // Calculate weighted average travel distance for these spins
             let weightedAvgTravel = 0;
@@ -748,62 +759,11 @@
                 }
             }
             
-            // If we have recent direction spins, use their weighted average
-            // Otherwise fall back to the general direction average
-            let avgTravel;
-            if (totalWeight > 0) {
-                avgTravel = weightedAvgTravel / totalWeight;
-                
-                // Blend with the general average (30% general, 70% recent)
-                const generalStats = currentDirection === 'cw' ? stats.cw : stats.ccw;
-                const generalAvg = generalStats.travelDistances.length > 0 ?
-                    generalStats.travelDistances.reduce((a, b) => a + b, 0) / 
-                    generalStats.travelDistances.length : 10;
-                
-                avgTravel = (avgTravel * 0.7) + (generalAvg * 0.3);
-            } else {
-                // No recent spins in this direction - use general average
-                const generalStats = currentDirection === 'cw' ? stats.cw : stats.ccw;
-                avgTravel = generalStats.travelDistances.length > 0 ?
-                    generalStats.travelDistances.reduce((a, b) => a + b, 0) / 
-                    generalStats.travelDistances.length : 10;
-            }
+            // Calculate average travel distance using only these spins
+            let avgTravel = weightedAvgTravel / totalWeight;
             
             // Apply some randomness to simulate real variance (smaller range now)
             avgTravel = avgTravel * (0.95 + Math.random() * 0.1);
-            
-            // Find similar historical patterns from last 3 spins
-            const similarPatterns = [];
-            for (let i = Math.min(3, spinHistory.length - 1); i > 0; i--) {
-                const spin = spinHistory[spinHistory.length - i];
-                const prevSpin = spinHistory[spinHistory.length - i - 1];
-                
-                similarPatterns.push({
-                    from: prevSpin.number,
-                    to: spin.number,
-                    direction: spin.direction,
-                    distance: (() => {
-                        const prevIndex = wheelLayout.indexOf(prevSpin.number);
-                        const currentIndex = wheelLayout.indexOf(spin.number);
-                        
-                        if (spin.direction === 'cw') {
-                            return (prevIndex - currentIndex + wheelLayout.length) % wheelLayout.length;
-                        } else {
-                            return (currentIndex - prevIndex + wheelLayout.length) % wheelLayout.length;
-                        }
-                    })()
-                });
-            }
-            
-            // Adjust prediction based on similar patterns
-            if (similarPatterns.length > 0) {
-                const patternAvg = similarPatterns.reduce(
-                    (sum, p) => sum + p.distance, 0
-                ) / similarPatterns.length;
-                
-                // Blend the average with pattern-specific average (60% current calc, 40% patterns)
-                avgTravel = (avgTravel * 0.6) + (patternAvg * 0.4);
-            }
             
             // Predict landing position
             let predictedIndex;
