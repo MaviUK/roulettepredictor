@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Roulette</title>
+    <title>Enhanced Roulette Analyst</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -39,6 +39,13 @@
         }
         button:hover {
             background-color: #2980b9;
+        }
+        #exportMartingaleBtn {
+            background-color: #27ae60;
+            margin-top: 10px;
+        }
+        #exportMartingaleBtn:hover {
+            background-color: #219653;
         }
         input[type="number"], input[type="text"], select {
             padding: 8px;
@@ -127,6 +134,7 @@
             font-size: 12px;
             color: white;
             transform-origin: center;
+            transition: box-shadow 0.3s ease;
         }
         .wheel-number.green {
             background: #008000;
@@ -266,11 +274,46 @@
             color: #e67e22;
             font-weight: bold;
         }
+        .prediction-model {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f0f7ff;
+            border-radius: 5px;
+        }
+        .model-stats {
+            margin-top: 10px;
+        }
+        .model-accuracy {
+            font-weight: bold;
+            color: #2980b9;
+        }
+        .sector-stats {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            margin-top: 10px;
+        }
+        .sector {
+            padding: 5px;
+            border-radius: 3px;
+            font-size: 0.8em;
+            text-align: center;
+            flex: 1;
+            min-width: 60px;
+        }
+        .hot-sector {
+            background-color: rgba(231, 76, 60, 0.2);
+            border: 1px solid #e74c3c;
+        }
+        .cold-sector {
+            background-color: rgba(52, 152, 219, 0.2);
+            border: 1px solid #3498db;
+        }
     </style>
 </head>
 <body>
-    <h1>Advanced Roulette Analyst</h1>
-    <p>19-Number Prediction with Directional Learning & Martingale System</p>
+    <h1>Enhanced Roulette Analyst</h1>
+    <p>Dynamic Prediction System with Pattern Recognition</p>
     
     <div class="container">
         <div class="panel">
@@ -287,21 +330,22 @@
             <button id="batchAddBtn">Add Multiple Spins</button>
             
             <div class="martingale-panel">
-                <h3>Martingale Betting System</h3>
+                <h3>Smart Betting System</h3>
                 <div>
                     <label for="baseBet">Base Bet per Number:</label>
-                    <input type="number" id="baseBet" min="1" value="1" step="0.5">
+                    <input type="number" id="baseBet" min="0.5" value="1" step="0.5">
                 </div>
                 <div>
                     <label for="bankroll">Starting Bankroll:</label>
-                    <input type="number" id="bankroll" min="1" value="100" step="1">
+                    <input type="number" id="bankroll" min="10" value="100" step="1">
                 </div>
                 <div>
                     <label for="maxLosses">Max Losses in a Row:</label>
-                    <input type="number" id="maxLosses" min="1" value="10" step="1">
+                    <input type="number" id="maxLosses" min="1" max="8" value="6">
                     <span class="warning">(System will reset after this many losses)</span>
                 </div>
-                <button id="resetMartingaleBtn">Reset Martingale</button>
+                <button id="resetMartingaleBtn">Reset System</button>
+                <button id="exportMartingaleBtn">Download Betting Data</button>
                 
                 <div class="martingale-stats">
                     <div class="stats-row">
@@ -332,9 +376,37 @@
                         <span>Total Bets Lost:</span>
                         <span id="betsLost">0</span>
                     </div>
+                </div>
+            </div>
+
+            <div class="prediction-model">
+                <h3>Prediction Model</h3>
+                <div>
+                    <label for="modelSensitivity">Model Sensitivity:</label>
+                    <select id="modelSensitivity">
+                        <option value="1">Low (Conservative)</option>
+                        <option value="2" selected>Medium (Balanced)</option>
+                        <option value="3">High (Aggressive)</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="maxConsecutiveLosses">Max Consecutive Losses:</label>
+                    <input type="number" id="maxConsecutiveLosses" min="1" max="10" value="6">
+                </div>
+                <button id="resetModelBtn">Reset Model</button>
+                
+                <div class="model-stats">
                     <div class="stats-row">
-                        <span>Max Losses Setting:</span>
-                        <span id="maxLossesDisplay">10</span>
+                        <span>Model Accuracy:</span>
+                        <span id="modelAccuracy" class="model-accuracy">0%</span>
+                    </div>
+                    <div class="stats-row">
+                        <span>Current Streak:</span>
+                        <span id="modelStreak">0</span>
+                    </div>
+                    <div class="stats-row">
+                        <span>Consecutive Losses:</span>
+                        <span id="modelConsecutiveLosses">0</span>
                     </div>
                 </div>
             </div>
@@ -369,11 +441,11 @@
                 <div class="predicted-number" id="predictedNumber">-</div>
                 <div class="neighbors">
                     <div class="neighbor-group">
-                        <div class="neighbor-group-label">Left 9 (CCW)</div>
+                        <div class="neighbor-group-label" id="leftNeighborLabel">Left 9 (CCW)</div>
                         <div class="neighbor-container" id="leftNeighbors"></div>
                     </div>
                     <div class="neighbor-group">
-                        <div class="neighbor-group-label">Right 9 (CW)</div>
+                        <div class="neighbor-group-label" id="rightNeighborLabel">Right 9 (CW)</div>
                         <div class="neighbor-container" id="rightNeighbors"></div>
                     </div>
                 </div>
@@ -436,6 +508,11 @@
                         </div>
                     </div>
                 </div>
+                
+                <div class="sector-analysis">
+                    <h4>Sector Performance</h4>
+                    <div class="sector-stats" id="sectorStats"></div>
+                </div>
             </div>
         </div>
         
@@ -476,7 +553,9 @@
                 total: 0,
                 travelDistances: []
             },
-            travelPatterns: []
+            travelPatterns: [],
+            sectorPerformance: Array(8).fill(0).map(() => ({ hits: 0, appearances: 0 })),
+            lastTenDirections: []
         };
 
         // Martingale system state
@@ -489,8 +568,25 @@
             longestStreak: 0,
             betsWon: 0,
             betsLost: 0,
-            maxLosses: 10,
+            maxLosses: 6,
             active: false
+        };
+
+        // Martingale transaction history
+        let martingaleTransactions = [];
+
+        // Prediction model state
+        let predictionModel = {
+            sensitivity: 2, // 1=low, 2=medium, 3=high
+            maxConsecutiveLosses: 6,
+            consecutiveLosses: 0,
+            currentStreak: 0,
+            totalPredictions: 0,
+            correctPredictions: 0,
+            cwAvgTravel: 0,
+            ccwAvgTravel: 0,
+            cwTravelCount: 0,
+            ccwTravelCount: 0
         };
 
         // DOM elements
@@ -500,6 +596,7 @@
         const batchAddBtn = document.getElementById('batchAddBtn');
         const clearHistoryBtn = document.getElementById('clearHistoryBtn');
         const exportHistoryBtn = document.getElementById('exportHistoryBtn');
+        const exportMartingaleBtn = document.getElementById('exportMartingaleBtn');
         const historyCountSpan = document.getElementById('historyCount');
         const historyListDiv = document.getElementById('historyList');
         const predictedNumberDiv = document.getElementById('predictedNumber');
@@ -516,6 +613,7 @@
         const travelPatternsDiv = document.getElementById('travelPatterns');
         const rouletteWheel = document.getElementById('rouletteWheel');
         const neighborCountSelect = document.getElementById('neighborCount');
+        const sectorStatsDiv = document.getElementById('sectorStats');
         
         // Martingale elements
         const baseBetInput = document.getElementById('baseBet');
@@ -529,7 +627,14 @@
         const longestStreakSpan = document.getElementById('longestStreak');
         const betsWonSpan = document.getElementById('betsWon');
         const betsLostSpan = document.getElementById('betsLost');
-        const maxLossesDisplaySpan = document.getElementById('maxLossesDisplay');
+
+        // Prediction model elements
+        const modelSensitivitySelect = document.getElementById('modelSensitivity');
+        const maxConsecutiveLossesInput = document.getElementById('maxConsecutiveLosses');
+        const resetModelBtn = document.getElementById('resetModelBtn');
+        const modelAccuracySpan = document.getElementById('modelAccuracy');
+        const modelStreakSpan = document.getElementById('modelStreak');
+        const modelConsecutiveLossesSpan = document.getElementById('modelConsecutiveLosses');
 
         // Initialize
         document.addEventListener('DOMContentLoaded', () => {
@@ -537,19 +642,23 @@
             updateHistoryDisplay();
             updateStatsDisplay();
             updateMartingaleDisplay();
+            updateModelDisplay();
+            updateSectorStats();
             
             // Load from localStorage if available
             loadFromLocalStorage();
             
-            // Add event listener for neighbor count change
+            // Add event listeners
             neighborCountSelect.addEventListener('change', () => {
                 if (spinHistory.length > 0) {
                     generatePrediction();
                 }
             });
             
-            // Add event listener for max losses change
             maxLossesInput.addEventListener('change', updateMartingaleSettings);
+            modelSensitivitySelect.addEventListener('change', updateModelSettings);
+            maxConsecutiveLossesInput.addEventListener('change', updateModelSettings);
+            resetModelBtn.addEventListener('click', resetModel);
         });
 
         // Create the visual roulette wheel
@@ -580,6 +689,7 @@
         batchAddBtn.addEventListener('click', addBatchSpins);
         clearHistoryBtn.addEventListener('click', clearHistory);
         exportHistoryBtn.addEventListener('click', exportHistory);
+        exportMartingaleBtn.addEventListener('click', exportMartingaleData);
         spinInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') addSingleSpin();
         });
@@ -660,6 +770,20 @@
                 timestamp: new Date().toISOString()
             });
             
+            // Update sector stats
+            const index = wheelLayout.indexOf(number);
+            const sector = Math.floor(index / 5); // 8 sectors of ~5 numbers each
+            stats.sectorPerformance[sector].appearances++;
+            if (currentSelection.includes(number)) {
+                stats.sectorPerformance[sector].hits++;
+            }
+            
+            // Track direction patterns
+            stats.lastTenDirections.push(direction);
+            if (stats.lastTenDirections.length > 10) {
+                stats.lastTenDirections.shift();
+            }
+            
             // Update direction-specific stats
             if (direction === 'cw') {
                 stats.cw.total++;
@@ -673,6 +797,7 @@
             if (currentSelection.length > 0) {
                 updateStats(number);
                 updateMartingaleStats(number);
+                updateModelResults(number);
             }
             
             // Alternate direction for next spin
@@ -686,145 +811,196 @@
             updateWheelDisplay();
             updateTravelPatternsDisplay();
             updateMartingaleDisplay();
+            updateModelDisplay();
+            updateSectorStats();
             
             // Save to localStorage
             saveToLocalStorage();
         }
 
-        function generatePrediction() {
-            if (spinHistory.length < 2) {
-                resetPrediction();
-                return;
+        function updateModelStatistics(lastSpin, currentNumber, travelDistance) {
+            if (lastSpin.direction === 'cw') {
+                predictionModel.cwAvgTravel = 
+                    (predictionModel.cwAvgTravel * predictionModel.cwTravelCount + travelDistance) / 
+                    (predictionModel.cwTravelCount + 1);
+                predictionModel.cwTravelCount++;
+            } else {
+                predictionModel.ccwAvgTravel = 
+                    (predictionModel.ccwAvgTravel * predictionModel.ccwTravelCount + travelDistance) / 
+                    (predictionModel.ccwTravelCount + 1);
+                predictionModel.ccwTravelCount++;
             }
+        }
+
+        function updateModelResults(number) {
+            predictionModel.totalPredictions++;
             
-            const neighborCount = parseInt(neighborCountSelect.value) || 9;
-            const lastSpin = spinHistory[spinHistory.length - 1];
-            const lastIndex = wheelLayout.indexOf(lastSpin.number);
-            
-            // Get the last 3 spins in the current direction
-            const recentDirectionSpins = spinHistory
-                .slice().reverse() // Start from most recent
-                .filter(spin => spin.direction === currentDirection)
-                .slice(0, 3); // Take up to 3 most recent
-            
-            // Calculate weights - more recent spins have higher weight
-            const weights = [0.5, 0.3, 0.2]; // Weights for [most recent, middle, oldest]
-            
-            // Calculate weighted average travel distance for these spins
-            let weightedAvgTravel = 0;
-            let totalWeight = 0;
-            
-            for (let i = 0; i < recentDirectionSpins.length; i++) {
-                const spin = recentDirectionSpins[i];
-                const spinIndex = spinHistory.findIndex(s => s.number === spin.number);
+            const wasCorrect = currentSelection.includes(number);
+            if (wasCorrect) {
+                predictionModel.correctPredictions++;
+                predictionModel.currentStreak++;
+                predictionModel.consecutiveLosses = 0;
+            } else {
+                predictionModel.currentStreak = 0;
+                predictionModel.consecutiveLosses++;
                 
-                if (spinIndex > 0) { // We need the previous spin to calculate travel
-                    const prevSpin = spinHistory[spinIndex - 1];
-                    const prevIndex = wheelLayout.indexOf(prevSpin.number);
-                    const currentIndex = wheelLayout.indexOf(spin.number);
-                    
-                    let travel;
-                    if (spin.direction === 'cw') {
-                        travel = (prevIndex - currentIndex + wheelLayout.length) % wheelLayout.length;
-                    } else {
-                        travel = (currentIndex - prevIndex + wheelLayout.length) % wheelLayout.length;
+                if (predictionModel.consecutiveLosses >= predictionModel.maxConsecutiveLosses) {
+                    alert(`Prediction model reached ${predictionModel.maxConsecutiveLosses} consecutive losses! Adjusting sensitivity.`);
+                    predictionModel.consecutiveLosses = 0;
+                    // Reduce sensitivity after too many losses
+                    if (predictionModel.sensitivity > 1) {
+                        predictionModel.sensitivity--;
+                        modelSensitivitySelect.value = predictionModel.sensitivity;
+                        alert(`Model sensitivity reduced to ${getSensitivityName(predictionModel.sensitivity)}`);
                     }
-                    
-                    weightedAvgTravel += travel * weights[i];
-                    totalWeight += weights[i];
+                }
+            }
+        }
+
+        function getSensitivityName(level) {
+            switch(level) {
+                case 1: return 'Low';
+                case 2: return 'Medium';
+                case 3: return 'High';
+                default: return 'Medium';
+            }
+        }
+
+        function enhancedMovingAverage(values, weight) {
+            // Weighted average giving more importance to recent values
+            if (values.length === 0) return 0;
+            let sum = 0;
+            let weightSum = 0;
+            for (let i = 0; i < values.length; i++) {
+                const w = Math.pow(weight, values.length - i);
+                sum += values[i] * w;
+                weightSum += w;
+            }
+            return sum / weightSum;
+        }
+
+        function calculateStandardDeviation(values) {
+            if (values.length < 2) return 0;
+            const avg = values.reduce((a,b) => a + b, 0) / values.length;
+            return Math.sqrt(values.map(x => Math.pow(x - avg, 2)).reduce((a,b) => a + b) / values.length);
+        }
+
+        function detectRecentPatterns() {
+            // Analyze last 5 spins for directional patterns
+            if (spinHistory.length < 5) return 0;
+            
+            const lastFive = spinHistory.slice(-5);
+            let cwCount = 0;
+            let travelSum = 0;
+            
+            for (let i = 1; i < lastFive.length; i++) {
+                if (lastFive[i-1].direction === 'cw') {
+                    cwCount++;
+                    const lastIndex = wheelLayout.indexOf(lastFive[i-1].number);
+                    const currentIndex = wheelLayout.indexOf(lastFive[i].number);
+                    travelSum += (lastIndex - currentIndex + wheelLayout.length) % wheelLayout.length;
                 }
             }
             
-            // If we have recent direction spins, use their weighted average
-            // Otherwise fall back to the general direction average
-            let avgTravel;
-            if (totalWeight > 0) {
-                avgTravel = weightedAvgTravel / totalWeight;
-                
-                // Blend with the general average (30% general, 70% recent)
-                const generalStats = currentDirection === 'cw' ? stats.cw : stats.ccw;
-                const generalAvg = generalStats.travelDistances.length > 0 ?
-                    generalStats.travelDistances.reduce((a, b) => a + b, 0) / 
-                    generalStats.travelDistances.length : 10;
-                
-                avgTravel = (avgTravel * 0.7) + (generalAvg * 0.3);
+            const cwRatio = cwCount / (lastFive.length - 1);
+            const avgTravel = travelSum / Math.max(1, cwCount);
+            
+            // If strong directional tendency, suggest adjustment
+            if (cwRatio > 0.75) return avgTravel > 18 ? 1 : -1;
+            if (cwRatio < 0.25) return avgTravel > 18 ? -1 : 1;
+            return 0;
+        }
+
+        function checkSectorTendency(index) {
+            // Check if numbers near this index are hitting more often
+            const sectorSize = 5;
+            const sectorStart = Math.floor(index / sectorSize) * sectorSize;
+            let sectorHits = 0;
+            
+            const recentSpins = spinHistory.slice(-20); // Last 20 spins
+            for (const spin of recentSpins) {
+                const spinIndex = wheelLayout.indexOf(spin.number);
+                if (Math.abs(spinIndex - index) <= sectorSize/2) {
+                    sectorHits++;
+                }
+            }
+            
+            // If this sector is hot, don't adjust
+            if (sectorHits > recentSpins.length * 0.3) return 0;
+            
+            // If cold sector, move prediction toward hotter sector
+            return sectorHits < recentSpins.length * 0.1 ? 2 : 0;
+        }
+
+        function generatePrediction() {
+            if (spinHistory.length < 5) { // Require more data points
+                resetPrediction();
+                return;
+            }
+
+            const sensitivity = predictionModel.sensitivity;
+            const lastSpin = spinHistory[spinHistory.length - 1];
+            const lastIndex = wheelLayout.indexOf(lastSpin.number);
+            
+            // 1. Dynamic Neighbor Count based on recent accuracy
+            const baseNeighborCount = Math.max(3, 9 - Math.floor(predictionModel.consecutiveLosses/2));
+            const neighborCount = Math.min(parseInt(neighborCountSelect.value) || baseNeighborCount;
+            
+            // 2. Enhanced Travel Analysis with standard deviation
+            let predictedTravel, travelStdev;
+            if (currentDirection === 'cw') {
+                predictedTravel = enhancedMovingAverage(stats.cw.travelDistances, 0.5 + sensitivity*0.15);
+                travelStdev = calculateStandardDeviation(stats.cw.travelDistances);
             } else {
-                // No recent spins in this direction - use general average
-                const generalStats = currentDirection === 'cw' ? stats.cw : stats.ccw;
-                avgTravel = generalStats.travelDistances.length > 0 ?
-                    generalStats.travelDistances.reduce((a, b) => a + b, 0) / 
-                    generalStats.travelDistances.length : 10;
+                predictedTravel = enhancedMovingAverage(stats.ccw.travelDistances, 0.5 + sensitivity*0.15);
+                travelStdev = calculateStandardDeviation(stats.ccw.travelDistances);
             }
             
-            // Apply some randomness to simulate real variance (smaller range now)
-            avgTravel = avgTravel * (0.95 + Math.random() * 0.1);
+            // 3. Volatility-Adaptive Prediction Range
+            const volatilityFactor = Math.min(2, Math.max(0.5, travelStdev/8));
+            const adjustedTravel = predictedTravel * (0.8 + sensitivity*0.1) * volatilityFactor;
             
-            // Find similar historical patterns from last 3 spins
-            const similarPatterns = [];
-            for (let i = Math.min(3, spinHistory.length - 1); i > 0; i--) {
-                const spin = spinHistory[spinHistory.length - i];
-                const prevSpin = spinHistory[spinHistory.length - i - 1];
-                
-                similarPatterns.push({
-                    from: prevSpin.number,
-                    to: spin.number,
-                    direction: spin.direction,
-                    distance: (() => {
-                        const prevIndex = wheelLayout.indexOf(prevSpin.number);
-                        const currentIndex = wheelLayout.indexOf(spin.number);
-                        
-                        if (spin.direction === 'cw') {
-                            return (prevIndex - currentIndex + wheelLayout.length) % wheelLayout.length;
-                        } else {
-                            return (currentIndex - prevIndex + wheelLayout.length) % wheelLayout.length;
-                        }
-                    })()
-                });
-            }
+            // 4. Recent Pattern Recognition
+            const recentPatternAdjustment = detectRecentPatterns();
+            const finalPredictedTravel = adjustedTravel * (1 + recentPatternAdjustment/20);
             
-            // Adjust prediction based on similar patterns
-            if (similarPatterns.length > 0) {
-                const patternAvg = similarPatterns.reduce(
-                    (sum, p) => sum + p.distance, 0
-                ) / similarPatterns.length;
-                
-                // Blend the average with pattern-specific average (60% current calc, 40% patterns)
-                avgTravel = (avgTravel * 0.6) + (patternAvg * 0.4);
-            }
-            
-            // Predict landing position
+            // 5. Dynamic Position Prediction
             let predictedIndex;
             if (currentDirection === 'cw') {
-                predictedIndex = (lastIndex - Math.round(avgTravel) + wheelLayout.length) % wheelLayout.length;
+                predictedIndex = (lastIndex - Math.round(finalPredictedTravel) + wheelLayout.length) % wheelLayout.length;
             } else {
-                predictedIndex = (lastIndex + Math.round(avgTravel)) % wheelLayout.length;
+                predictedIndex = (lastIndex + Math.round(finalPredictedTravel)) % wheelLayout.length;
+            }
+            
+            // 6. Sector Analysis - Check if we're in a repeating sector
+            const sectorBoost = checkSectorTendency(predictedIndex);
+            if (sectorBoost > 0) {
+                predictedIndex = (predictedIndex + sectorBoost) % wheelLayout.length;
             }
             
             const mainPrediction = wheelLayout[predictedIndex];
             
-            // Get neighbors on each side based on selected count
+            // Get dynamic neighbors - wider spread when volatility is high
+            const neighborSpread = Math.max(1, Math.min(9, Math.floor(3 + travelStdev/5)));
             const leftNeighbors = [];
             const rightNeighbors = [];
             
             for (let i = 1; i <= neighborCount; i++) {
                 leftNeighbors.push(
-                    wheelLayout[(predictedIndex - i + wheelLayout.length) % wheelLayout.length]
+                    wheelLayout[(predictedIndex - i*neighborSpread + wheelLayout.length) % wheelLayout.length]
                 );
                 rightNeighbors.push(
-                    wheelLayout[(predictedIndex + i) % wheelLayout.length]
+                    wheelLayout[(predictedIndex + i*neighborSpread) % wheelLayout.length]
                 );
             }
             
-            // Update current selection (main + left + right neighbors)
             currentPrediction = mainPrediction;
             currentSelection = [mainPrediction, ...leftNeighbors, ...rightNeighbors];
-            
-            // Update display
             updatePredictionDisplay(mainPrediction, leftNeighbors, rightNeighbors);
         }
 
         function updatePredictionDisplay(mainNumber, leftNeighbors, rightNeighbors) {
-            const neighborCount = parseInt(neighborCountSelect.value) || 9;
+            const neighborCount = leftNeighbors.length;
             const mainColor = getColorForNumber(mainNumber);
             
             predictedNumberDiv.textContent = mainNumber;
@@ -833,8 +1009,7 @@
             
             // Update left neighbors (counter-clockwise)
             leftNeighborsDiv.innerHTML = '';
-            const leftGroupLabel = leftNeighborsDiv.parentElement.querySelector('.neighbor-group-label');
-            leftGroupLabel.textContent = `Left ${neighborCount} (CCW)`;
+            document.getElementById('leftNeighborLabel').textContent = `Left ${neighborCount} (CCW)`;
             
             leftNeighbors.forEach(neighbor => {
                 const neighborColor = getColorForNumber(neighbor);
@@ -848,8 +1023,7 @@
             
             // Update right neighbors (clockwise)
             rightNeighborsDiv.innerHTML = '';
-            const rightGroupLabel = rightNeighborsDiv.parentElement.querySelector('.neighbor-group-label');
-            rightGroupLabel.textContent = `Right ${neighborCount} (CW)`;
+            document.getElementById('rightNeighborLabel').textContent = `Right ${neighborCount} (CW)`;
             
             rightNeighbors.forEach(neighbor => {
                 const neighborColor = getColorForNumber(neighbor);
@@ -867,7 +1041,9 @@
         function updateSelectedNumbersDisplay() {
             selectedNumbersDiv.innerHTML = '';
             
-            const neighborCount = parseInt(neighborCountSelect.value) || 9;
+            const neighborCount = currentSelection.length > 1 ? 
+                (currentSelection.length - 1) / 2 : 0;
+                
             // Group numbers by their position relative to prediction
             const leftNumbers = currentSelection.slice(1, 1 + neighborCount).reverse(); // Left neighbors (counter-clockwise)
             const mainNumber = currentSelection[0];
@@ -953,6 +1129,43 @@
             ccwAvgTravelSpan.textContent = `${ccwAvgTravel}`;
         }
 
+        function updateSectorStats() {
+            sectorStatsDiv.innerHTML = '';
+            
+            stats.sectorPerformance.forEach((sector, index) => {
+                const sectorElement = document.createElement('div');
+                sectorElement.className = 'sector';
+                
+                const hitRate = sector.appearances > 0 ? 
+                    Math.round((sector.hits / sector.appearances) * 100) : 0;
+                
+                if (sector.appearances > 0) {
+                    if (hitRate > 30) {
+                        sectorElement.classList.add('hot-sector');
+                    } else if (hitRate < 15) {
+                        sectorElement.classList.add('cold-sector');
+                    }
+                }
+                
+                const numbersInSector = wheelLayout.slice(index*5, (index+1)*5);
+                sectorElement.innerHTML = `
+                    <div>Sector ${index+1}</div>
+                    <div>${numbersInSector.join(', ')}</div>
+                    <div>${hitRate}% hit rate</div>
+                `;
+                
+                sectorStatsDiv.appendChild(sectorElement);
+            });
+        }
+
+        function updateModelDisplay() {
+            const accuracy = predictionModel.totalPredictions > 0 ?
+                Math.round((predictionModel.correctPredictions / predictionModel.totalPredictions) * 100) : 0;
+            modelAccuracySpan.textContent = `${accuracy}%`;
+            modelStreakSpan.textContent = predictionModel.currentStreak;
+            modelConsecutiveLossesSpan.textContent = predictionModel.consecutiveLosses;
+        }
+
         function updateTravelPatternsDisplay() {
             travelPatternsDiv.innerHTML = `
                 <div class="pattern-row">
@@ -1002,7 +1215,6 @@
             
             // Show prediction if available
             if (currentPrediction) {
-                const neighborCount = parseInt(neighborCountSelect.value) || 9;
                 const predIndex = wheelLayout.indexOf(currentPrediction);
                 const predAngle = predIndex * angleIncrement - Math.PI / 2;
                 const predX = 150 + 140 * Math.cos(predAngle);
@@ -1015,49 +1227,28 @@
                 predMarker.style.top = `${predY}px`;
                 predMarker.title = `Predicted: ${currentPrediction} (${currentDirection.toUpperCase()})`;
                 rouletteWheel.appendChild(predMarker);
-                
-                // Show prediction range (main + neighbors)
-                const leftIndex = (predIndex - neighborCount + wheelLayout.length) % wheelLayout.length;
-                const rightIndex = (predIndex + neighborCount) % wheelLayout.length;
-                
-                const leftAngle = leftIndex * angleIncrement - Math.PI / 2;
-                const rightAngle = rightIndex * angleIncrement - Math.PI / 2;
-                
-                // Create range indicator
-                const rangeIndicator = document.createElement('div');
-                rangeIndicator.className = 'wheel-prediction-range';
-                
-                // Create SVG arc for the range
-                const svgNS = "http://www.w3.org/2000/svg";
-                const svg = document.createElementNS(svgNS, "svg");
-                svg.setAttribute("width", "100%");
-                svg.setAttribute("height", "100%");
-                svg.setAttribute("viewBox", "0 0 300 300");
-                
-                const path = document.createElementNS(svgNS, "path");
-                const startAngle = rightAngle; // We go CW from right to left
-                const endAngle = leftAngle;
-                
-                // Calculate large arc flag
-                const arcLength = (endAngle - startAngle + 2 * Math.PI) % (2 * Math.PI);
-                const largeArcFlag = arcLength > Math.PI ? 1 : 0;
-                
-                // Create the arc path
-                const startX = 150 + 110 * Math.cos(startAngle);
-                const startY = 150 + 110 * Math.sin(startAngle);
-                const endX = 150 + 110 * Math.cos(endAngle);
-                const endY = 150 + 110 * Math.sin(endAngle);
-                
-                path.setAttribute("d", `M ${startX} ${startY} A 110 110 0 ${largeArcFlag} 0 ${endX} ${endY}`);
-                path.setAttribute("stroke", "rgba(255, 215, 0, 0.5)");
-                path.setAttribute("stroke-width", "20");
-                path.setAttribute("fill", "none");
-                path.setAttribute("stroke-linecap", "round");
-                
-                svg.appendChild(path);
-                rangeIndicator.appendChild(svg);
-                rouletteWheel.appendChild(rangeIndicator);
             }
+            
+            // Add hot/cold number visualization
+            const recentSpins = spinHistory.slice(-30); // Last 30 spins
+            const numberCounts = {};
+            
+            recentSpins.forEach(spin => {
+                numberCounts[spin.number] = (numberCounts[spin.number] || 0) + 1;
+            });
+            
+            document.querySelectorAll('.wheel-number').forEach(el => {
+                const num = parseInt(el.textContent);
+                const count = numberCounts[num] || 0;
+                if (count > 0) {
+                    const intensity = Math.min(1, count/5); // Max 5 appearances
+                    el.style.boxShadow = `0 0 ${5 + intensity*10}px ${intensity > 0.5 ? 'gold' : 'orange'}`;
+                    el.title = `Number ${num}: Hit ${count} times in last 30 spins`;
+                } else {
+                    el.style.boxShadow = 'none';
+                    el.title = `Number ${num}`;
+                }
+            });
         }
 
         function updateHistoryDisplay() {
@@ -1102,13 +1293,18 @@
                         total: 0,
                         travelDistances: []
                     },
-                    travelPatterns: []
+                    travelPatterns: [],
+                    sectorPerformance: Array(8).fill(0).map(() => ({ hits: 0, appearances: 0 })),
+                    lastTenDirections: []
                 };
+                resetMartingale();
+                resetModel();
                 resetPrediction();
                 updateHistoryDisplay();
                 updateStatsDisplay();
                 updateTravelPatternsDisplay();
                 updateWheelDisplay();
+                updateSectorStats();
                 saveToLocalStorage();
             }
         }
@@ -1134,6 +1330,48 @@
             document.body.removeChild(link);
         }
 
+        function exportMartingaleData() {
+            if (martingaleTransactions.length === 0) {
+                alert('No Martingale data to export');
+                return;
+            }
+            
+            const headers = [
+                'Timestamp', 'Spin Number', 'Result', 'Landed Number', 
+                'Numbers Bet', 'Bet Per Number', 'Total Bet', 'Payout',
+                'Profit/Loss', 'Streak', 'Bankroll After', 'Direction'
+            ];
+            
+            const csvRows = [
+                headers.join(','), // header row first
+                ...martingaleTransactions.map(t => [
+                    t.timestamp,
+                    t.spinNumber,
+                    t.result,
+                    t.numberLanded,
+                    `"${t.numbersBet}"`, // wrap in quotes in case numbers contain commas
+                    t.betPerNumber.toFixed(2),
+                    t.totalBet.toFixed(2),
+                    t.payout.toFixed(2),
+                    t.profitLoss.toFixed(2),
+                    t.currentStreak,
+                    t.bankrollAfter.toFixed(2),
+                    t.direction.toUpperCase()
+                ].join(','))
+            ];
+            
+            const csvContent = csvRows.join('\n');
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.setAttribute('href', url);
+            link.setAttribute('download', `martingale_data_${new Date().toISOString().slice(0,10)}.csv`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
         function getColorForNumber(number) {
             // 0 is green
             if (number === 0) return 'green';
@@ -1147,10 +1385,14 @@
                 spinHistory,
                 stats,
                 martingale,
+                martingaleTransactions,
+                predictionModel,
                 currentDirection,
                 currentPrediction,
                 currentSelection,
-                neighborCount: parseInt(neighborCountSelect.value) || 9
+                neighborCount: parseInt(neighborCountSelect.value) || 9,
+                modelSensitivity: parseInt(modelSensitivitySelect.value) || 2,
+                maxConsecutiveLosses: parseInt(maxConsecutiveLossesInput.value) || 6
             };
             localStorage.setItem('rouletteAnalystData', JSON.stringify(data));
         }
@@ -1164,7 +1406,9 @@
                     total: 0,
                     cw: { wins: 0, total: 0, travelDistances: [] },
                     ccw: { wins: 0, total: 0, travelDistances: [] },
-                    travelPatterns: []
+                    travelPatterns: [],
+                    sectorPerformance: Array(8).fill(0).map(() => ({ hits: 0, appearances: 0 })),
+                    lastTenDirections: []
                 };
                 martingale = data.martingale || {
                     baseBet: 1,
@@ -1175,8 +1419,21 @@
                     longestStreak: 0,
                     betsWon: 0,
                     betsLost: 0,
-                    maxLosses: 10,
+                    maxLosses: 6,
                     active: false
+                };
+                martingaleTransactions = data.martingaleTransactions || [];
+                predictionModel = data.predictionModel || {
+                    sensitivity: 2,
+                    maxConsecutiveLosses: 6,
+                    consecutiveLosses: 0,
+                    currentStreak: 0,
+                    totalPredictions: 0,
+                    correctPredictions: 0,
+                    cwAvgTravel: 0,
+                    ccwAvgTravel: 0,
+                    cwTravelCount: 0,
+                    ccwTravelCount: 0
                 };
                 currentDirection = data.currentDirection || 'cw';
                 currentPrediction = data.currentPrediction || null;
@@ -1186,12 +1443,24 @@
                 updateHistoryDisplay();
                 updateStatsDisplay();
                 updateMartingaleDisplay();
+                updateModelDisplay();
                 updateWheelDisplay();
                 updateTravelPatternsDisplay();
+                updateSectorStats();
                 
                 // Set neighbor count
                 if (data.neighborCount) {
                     neighborCountSelect.value = data.neighborCount;
+                }
+                
+                // Set model settings
+                if (data.modelSensitivity) {
+                    modelSensitivitySelect.value = data.modelSensitivity;
+                    predictionModel.sensitivity = data.modelSensitivity;
+                }
+                if (data.maxConsecutiveLosses) {
+                    maxConsecutiveLossesInput.value = data.maxConsecutiveLosses;
+                    predictionModel.maxConsecutiveLosses = data.maxConsecutiveLosses;
                 }
                 
                 if (currentPrediction) {
@@ -1221,81 +1490,136 @@
         }
 
         function updateMartingaleStats(number) {
-    const wasWin = currentSelection.includes(number);
-    const neighborCount = parseInt(neighborCountSelect.value) || 9;
-    const numberCount = 1 + (neighborCount * 2); // Main + left + right neighbors
-    
-    // Calculate total bet amount (bet per number * number of numbers)
-    const totalBetAmount = martingale.currentBet * numberCount;
-    
-    if (wasWin) {
-        // Win - we get 36 units for each winning number (minus the bet)
-        const winAmount = 36 * martingale.currentBet - totalBetAmount;
-        martingale.bankroll += winAmount;
-        martingale.totalProfitLoss += winAmount;
-        martingale.currentStreak = 0;
-        martingale.currentBet = martingale.baseBet; // Reset to base bet
-        martingale.betsWon++;
-    } else {
-        // Loss - we lose the total bet amount
-        martingale.bankroll -= totalBetAmount;
-        martingale.totalProfitLoss -= totalBetAmount;
-        martingale.currentStreak++;
-        martingale.betsLost++;
-        
-        // Always update longest streak if current streak exceeds it
-        if (martingale.currentStreak > martingale.longestStreak) {
-            martingale.longestStreak = martingale.currentStreak;
+            const wasWin = currentSelection.includes(number);
+            const numberCount = currentSelection.length;
+            
+            // Calculate total bet amount (bet per number * number of numbers)
+            const totalBetAmount = martingale.currentBet * numberCount;
+            
+            // Record transaction before updating values
+            const transaction = {
+                timestamp: new Date().toISOString(),
+                spinNumber: spinHistory.length,
+                result: wasWin ? 'WIN' : 'LOSS',
+                numberLanded: number,
+                numbersBet: currentSelection.join(', '),
+                betPerNumber: martingale.currentBet,
+                totalBet: totalBetAmount,
+                payout: wasWin ? (36 * martingale.currentBet) : 0,
+                profitLoss: wasWin ? (36 * martingale.currentBet - totalBetAmount) : -totalBetAmount,
+                currentStreak: martingale.currentStreak + (wasWin ? 0 : 1),
+                bankrollAfter: wasWin ? 
+                    martingale.bankroll + (36 * martingale.currentBet - totalBetAmount) : 
+                    martingale.bankroll - totalBetAmount,
+                direction: currentDirection
+            };
+            
+            if (wasWin) {
+                // Win - we get 36 units for each winning number (minus the bet)
+                const winAmount = 36 * martingale.currentBet - totalBetAmount;
+                martingale.bankroll += winAmount;
+                martingale.totalProfitLoss += winAmount;
+                
+                // Update longest streak before resetting current streak
+                if (martingale.currentStreak > martingale.longestStreak) {
+                    martingale.longestStreak = martingale.currentStreak;
+                }
+                
+                martingale.currentStreak = 0;
+                martingale.currentBet = martingale.baseBet; // Reset to base bet
+                martingale.betsWon++;
+            } else {
+                // Loss - we lose the total bet amount
+                martingale.bankroll -= totalBetAmount;
+                martingale.totalProfitLoss -= totalBetAmount;
+                martingale.currentStreak++;
+                martingale.betsLost++;
+                
+                // Update longest streak if current streak exceeds it
+                if (martingale.currentStreak > martingale.longestStreak) {
+                    martingale.longestStreak = martingale.currentStreak;
+                }
+                
+                // Check if we've hit max losses
+                if (martingale.currentStreak >= martingale.maxLosses) {
+                    alert(`Max losses (${martingale.maxLosses}) reached! Resetting to base bet.`);
+                    martingale.currentBet = martingale.baseBet;
+                    martingale.currentStreak = 0; // Reset current streak but keep longestStreak
+                } else {
+                    martingale.currentBet *= 2; // Double the bet for next time
+                }
+            }
+            
+            // Check if bankroll is insufficient for next bet
+            if (martingale.bankroll < (martingale.currentBet * numberCount)) {
+                alert(`Bankroll insufficient for next bet! Need ${martingale.currentBet * numberCount} but only have ${martingale.bankroll}. Resetting to base bet.`);
+                martingale.currentBet = martingale.baseBet;
+                martingale.currentStreak = 0;
+            }
+            
+            // Add transaction to history after updating all values
+            martingaleTransactions.push(transaction);
         }
-        
-        // Check if we've hit max losses
-        if (martingale.currentStreak >= martingale.maxLosses) {
-            alert(`Max losses (${martingale.maxLosses}) reached! Resetting to base bet.`);
-            martingale.currentBet = martingale.baseBet;
-            martingale.currentStreak = 0; // Reset current streak but keep longestStreak
-        } else {
-            martingale.currentBet *= 2; // Double the bet for next time
-        }
-    }
-    
-    // Check if bankroll is insufficient for next bet
-    if (martingale.bankroll < (martingale.currentBet * numberCount)) {
-        alert(`Bankroll insufficient for next bet! Need ${martingale.currentBet * numberCount} but only have ${martingale.bankroll}. Resetting to base bet.`);
-        martingale.currentBet = martingale.baseBet;
-        martingale.currentStreak = 0;
-    }
-}
 
         function updateMartingaleSettings() {
-            martingale.baseBet = parseFloat(baseBetInput.value) || 1;
+            martingale.baseBet = Math.max(0.5, parseFloat(baseBetInput.value) || 1);
             martingale.bankroll = parseFloat(bankrollInput.value) || 100;
-            martingale.maxLosses = parseInt(maxLossesInput.value) || 10;
+            martingale.maxLosses = Math.min(8, parseInt(maxLossesInput.value) || 6);
             martingale.currentBet = martingale.baseBet;
+            
+            // Dynamic bet sizing based on bankroll percentage
+            martingale.baseBet = Math.max(0.5, martingale.bankroll * 0.01); // 1% of bankroll
+            baseBetInput.value = martingale.baseBet.toFixed(2);
+            
             updateMartingaleDisplay();
+            saveToLocalStorage();
+        }
+
+        function updateModelSettings() {
+            predictionModel.sensitivity = parseInt(modelSensitivitySelect.value) || 2;
+            predictionModel.maxConsecutiveLosses = parseInt(maxConsecutiveLossesInput.value) || 6;
+            updateModelDisplay();
             saveToLocalStorage();
         }
 
         function resetMartingale() {
             martingale = {
-                baseBet: parseFloat(baseBetInput.value) || 1,
-                currentBet: parseFloat(baseBetInput.value) || 1,
+                baseBet: Math.max(0.5, parseFloat(baseBetInput.value) || 1),
+                currentBet: Math.max(0.5, parseFloat(baseBetInput.value) || 1),
                 bankroll: parseFloat(bankrollInput.value) || 100,
                 totalProfitLoss: 0,
                 currentStreak: 0,
                 longestStreak: 0,
                 betsWon: 0,
                 betsLost: 0,
-                maxLosses: parseInt(maxLossesInput.value) || 10,
+                maxLosses: Math.min(8, parseInt(maxLossesInput.value) || 6),
                 active: false
             };
+            martingaleTransactions = [];
             updateMartingaleDisplay();
+            saveToLocalStorage();
+        }
+
+        function resetModel() {
+            predictionModel = {
+                sensitivity: parseInt(modelSensitivitySelect.value) || 2,
+                maxConsecutiveLosses: parseInt(maxConsecutiveLossesInput.value) || 6,
+                consecutiveLosses: 0,
+                currentStreak: 0,
+                totalPredictions: 0,
+                correctPredictions: 0,
+                cwAvgTravel: 0,
+                ccwAvgTravel: 0,
+                cwTravelCount: 0,
+                ccwTravelCount: 0
+            };
+            updateModelDisplay();
             saveToLocalStorage();
         }
 
         function updateMartingaleDisplay() {
             currentBetSpan.textContent = martingale.currentBet.toFixed(2);
             currentBankrollSpan.textContent = martingale.bankroll.toFixed(2);
-            maxLossesDisplaySpan.textContent = martingale.maxLosses;
             
             // Style profit/loss
             totalProfitLossSpan.textContent = Math.abs(martingale.totalProfitLoss).toFixed(2);
