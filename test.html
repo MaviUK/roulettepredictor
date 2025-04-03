@@ -146,6 +146,11 @@
             font-weight: bold;
             color: #e74c3c;
         }
+        .true-streak {
+            background: #fff8e1;
+            border-left: 4px solid #ffa000;
+            margin-top: 20px;
+        }
     </style>
 </head>
 <body>
@@ -173,22 +178,42 @@
         <div id="strategyInfo"></div>
         
         <div class="streak-details">
-            <h3>Directional Streak Analysis</h3>
+            <h3>Strategy Streak Analysis</h3>
             <div class="streak-item">
-                <strong>Longest CW Losing Streak:</strong> 
+                <strong>Longest CW Strategy Streak:</strong> 
                 <span id="cwMaxStreak" class="streak-value">0</span> consecutive losses
             </div>
             <div class="streak-item">
-                <strong>Longest CCW Losing Streak:</strong> 
+                <strong>Longest CCW Strategy Streak:</strong> 
                 <span id="ccwMaxStreak" class="streak-value">0</span> consecutive losses
             </div>
             <div class="streak-item">
-                <strong>Current CW Losing Streak:</strong> 
+                <strong>Current CW Strategy Streak:</strong> 
                 <span id="cwCurrentStreak" class="streak-value">0</span> consecutive losses
             </div>
             <div class="streak-item">
-                <strong>Current CCW Losing Streak:</strong> 
+                <strong>Current CCW Strategy Streak:</strong> 
                 <span id="ccwCurrentStreak" class="streak-value">0</span> consecutive losses
+            </div>
+        </div>
+        
+        <div class="streak-details true-streak">
+            <h3>TRUE Directional Streaks (Actual Wheel Behavior)</h3>
+            <div class="streak-item">
+                <strong>Longest CW Direction Streak:</strong> 
+                <span id="trueCwMaxStreak" class="streak-value">0</span> consecutive losses
+            </div>
+            <div class="streak-item">
+                <strong>Longest CCW Direction Streak:</strong> 
+                <span id="trueCcwMaxStreak" class="streak-value">0</span> consecutive losses
+            </div>
+            <div class="streak-item">
+                <strong>Current CW Direction Streak:</strong> 
+                <span id="trueCwCurrentStreak" class="streak-value">0</span> consecutive losses
+            </div>
+            <div class="streak-item">
+                <strong>Current CCW Direction Streak:</strong> 
+                <span id="trueCcwCurrentStreak" class="streak-value">0</span> consecutive losses
             </div>
         </div>
     </div>
@@ -260,11 +285,17 @@
             }, {})
         };
         
-        // Directional streak tracking
+        // Strategy-specific streaks
         let cwLossStreak = 0;
         let ccwLossStreak = 0;
         let maxCwLossStreak = 0;
         let maxCcwLossStreak = 0;
+        
+        // TRUE directional streaks (actual wheel behavior)
+        let trueCwLossStreak = 0;
+        let trueCcwLossStreak = 0;
+        let maxTrueCwLossStreak = 0;
+        let maxTrueCcwLossStreak = 0;
 
         // Initialize on load
         window.onload = function() {
@@ -291,6 +322,10 @@
                 ccwLossStreak = data.ccwLossStreak || 0;
                 maxCwLossStreak = data.maxCwLossStreak || 0;
                 maxCcwLossStreak = data.maxCcwLossStreak || 0;
+                trueCwLossStreak = data.trueCwLossStreak || 0;
+                trueCcwLossStreak = data.trueCcwLossStreak || 0;
+                maxTrueCwLossStreak = data.maxTrueCwLossStreak || 0;
+                maxTrueCcwLossStreak = data.maxTrueCcwLossStreak || 0;
                 updateDisplay();
                 makeNextPrediction();
             }
@@ -307,7 +342,11 @@
                 cwLossStreak,
                 ccwLossStreak,
                 maxCwLossStreak,
-                maxCcwLossStreak
+                maxCcwLossStreak,
+                trueCwLossStreak,
+                trueCcwLossStreak,
+                maxTrueCwLossStreak,
+                maxTrueCcwLossStreak
             };
             localStorage.setItem('roulettePredictorData', JSON.stringify(data));
         }
@@ -330,6 +369,10 @@
                 ccwLossStreak = 0;
                 maxCwLossStreak = 0;
                 maxCcwLossStreak = 0;
+                trueCwLossStreak = 0;
+                trueCcwLossStreak = 0;
+                maxTrueCwLossStreak = 0;
+                maxTrueCcwLossStreak = 0;
                 localStorage.removeItem('roulettePredictorData');
                 updateDisplay();
             }
@@ -402,7 +445,7 @@
             const isCorrect = lastPrediction.neighbors.includes(actualNumber);
             const strategyKey = lastPrediction.selectedStrategy;
             
-            // Update directional streaks
+            // Update strategy-specific streaks
             if (strategyKey === 'MEAN_CW') {
                 if (!isCorrect) {
                     cwLossStreak++;
@@ -412,7 +455,8 @@
                 } else {
                     cwLossStreak = 0;
                 }
-            } else if (strategyKey === 'MEAN_CCW') {
+            } 
+            else if (strategyKey === 'MEAN_CCW') {
                 if (!isCorrect) {
                     ccwLossStreak++;
                     if (ccwLossStreak > maxCcwLossStreak) {
@@ -420,6 +464,25 @@
                     }
                 } else {
                     ccwLossStreak = 0;
+                }
+            }
+            
+            // Update TRUE directional streaks (actual wheel behavior)
+            if (numbers.length >= 2) {
+                const actualDirection = getDirection(numbers[numbers.length-2], actualNumber);
+                
+                if (actualDirection === 'cw') {
+                    trueCwLossStreak++;
+                    if (trueCwLossStreak > maxTrueCwLossStreak) {
+                        maxTrueCwLossStreak = trueCwLossStreak;
+                    }
+                    trueCcwLossStreak = 0; // Reset opposite direction
+                } else {
+                    trueCcwLossStreak++;
+                    if (trueCcwLossStreak > maxTrueCcwLossStreak) {
+                        maxTrueCcwLossStreak = trueCcwLossStreak;
+                    }
+                    trueCwLossStreak = 0; // Reset opposite direction
                 }
             }
             
@@ -651,10 +714,17 @@
         }
 
         function updateStreakDisplays() {
+            // Strategy-specific streaks
             document.getElementById('cwMaxStreak').textContent = maxCwLossStreak;
             document.getElementById('ccwMaxStreak').textContent = maxCcwLossStreak;
             document.getElementById('cwCurrentStreak').textContent = cwLossStreak;
             document.getElementById('ccwCurrentStreak').textContent = ccwLossStreak;
+            
+            // TRUE directional streaks
+            document.getElementById('trueCwMaxStreak').textContent = maxTrueCwLossStreak;
+            document.getElementById('trueCcwMaxStreak').textContent = maxTrueCcwLossStreak;
+            document.getElementById('trueCwCurrentStreak').textContent = trueCwLossStreak;
+            document.getElementById('trueCcwCurrentStreak').textContent = trueCcwLossStreak;
         }
 
         function updateCurrentPrediction() {
