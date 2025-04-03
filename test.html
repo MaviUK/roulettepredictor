@@ -1,465 +1,185 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Advanced Roulette Predictor</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 900px;
-            margin: 0 auto;
-            padding: 20px;
-            line-height: 1.6;
-            color: #333;
-        }
-        h1, h2, h3 {
-            color: #2c3e50;
-        }
-        textarea {
-            width: 100%;
-            height: 100px;
-            margin-bottom: 10px;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-        }
-        button {
-            padding: 10px 15px;
-            background: #3498db;
-            color: white;
-            border: none;
-            cursor: pointer;
-            border-radius: 4px;
-            margin-right: 10px;
-            margin-bottom: 10px;
-            font-weight: bold;
-        }
-        button:hover {
-            background: #2980b9;
-        }
-        button.clear {
-            background: #e74c3c;
-        }
-        button.clear:hover {
-            background: #c0392b;
-        }
-        .stats-container {
-            background: #f8f9fa;
-            padding: 15px;
-            border-radius: 5px;
-            margin: 20px 0;
-            border: 1px solid #eee;
-        }
-        .prediction-container {
-            background: #e8f4fd;
-            padding: 15px;
-            border-radius: 5px;
-            margin: 20px 0;
-            border-left: 4px solid #3498db;
-        }
-        .neighbors {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            margin: 15px 0;
-        }
-        .neighbor {
-            padding: 8px 12px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            background: white;
-        }
-        .predicted-number {
-            background: #3498db;
-            color: white;
-            font-weight: bold;
-        }
-        .history-container {
-            margin-top: 30px;
-            overflow-x: auto;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 10px;
-        }
-        th, td {
-            border: 1px solid #ddd;
-            padding: 10px;
-            text-align: center;
-        }
-        th {
-            background: #2c3e50;
-            color: white;
-            position: sticky;
-            top: 0;
-        }
-        tr.correct {
-            background: #e6ffed;
-        }
-        tr.incorrect {
-            background: #ffebee;
-        }
-        .history-body {
-            max-height: 500px;
-            overflow-y: auto;
-            display: block;
-        }
-        .strategy-tag {
-            display: inline-block;
-            padding: 3px 8px;
-            background: #9b59b6;
-            color: white;
-            border-radius: 3px;
-            font-size: 0.8em;
-            margin-left: 5px;
-        }
-        .strategy-perf {
-            margin-top: 15px;
-            padding: 10px;
-            background: #f5f5f5;
-            border-radius: 4px;
-        }
-        .strategy-item {
-            margin: 5px 0;
-            padding: 5px;
-            border-bottom: 1px solid #eee;
-        }
-        .best-strategy {
-            background: #e3f2fd;
-            font-weight: bold;
-        }
-        .streak-details {
-            margin-top: 15px;
-            padding: 15px;
-            background: #f0f7ff;
-            border-radius: 5px;
-            border-left: 4px solid #3498db;
-        }
-        .streak-item {
-            margin: 8px 0;
-            padding: 5px;
-            border-bottom: 1px dashed #ddd;
-        }
-        .streak-value {
-            font-weight: bold;
-            color: #e74c3c;
-        }
-        .true-streak {
-            background: #fff8e1;
-            border-left: 4px solid #ffa000;
-            margin-top: 20px;
-        }
-        .alert {
-            background: #fff3cd;
-            padding: 10px;
-            border-left: 4px solid #ffc107;
-            margin: 10px 0;
-        }
-        .strategy-change {
-            background: #d4edda;
-            padding: 8px;
-            border-left: 4px solid #28a745;
-            margin: 5px 0;
-            font-weight: bold;
-        }
-        .table-wrapper {
-            overflow-x: auto;
-        }
-        #historyTable {
-            table-layout: fixed;
-            width: 100%;
-        }
-        #historyTable th {
-            position: sticky;
-            top: 0;
-            background: #2c3e50;
-            z-index: 10;
-        }
-        #historyTable td, #historyTable th {
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-    </style>
-</head>
-<body>
-    <h1>Advanced Roulette Predictor</h1>
+<script>
+    // European roulette wheel layout
+    const WHEEL = [0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10, 5, 24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26];
     
-    <div class="input-section">
-        <h2>Enter Numbers</h2>
-        <textarea id="numbersInput" placeholder="Enter numbers separated by commas or spaces (e.g., 17, 32, 0, 26)"></textarea>
-        <div>
-            <button onclick="addNumbers()">Add Historical Numbers</button>
-            <button onclick="addSingleNumber()">Add Single Number</button>
-            <button onclick="clearData()" class="clear">Clear All Data</button>
-        </div>
-    </div>
-    
-    <div class="stats-container">
-        <h2>Statistics</h2>
-        <div id="currentStats"></div>
-    </div>
-    
-    <div class="prediction-container">
-        <h2>Next Prediction</h2>
-        <div id="currentPrediction"></div>
-        <div id="neighborsDisplay"></div>
-        <div id="strategyInfo"></div>
-        
-        <div class="streak-details">
-            <h3>Strategy Streak Analysis</h3>
-            <div class="streak-item">
-                <strong>Longest CW Strategy Streak:</strong> 
-                <span id="cwMaxStreak" class="streak-value">0</span> consecutive losses
-            </div>
-            <div class="streak-item">
-                <strong>Longest CCW Strategy Streak:</strong> 
-                <span id="ccwMaxStreak" class="streak-value">0</span> consecutive losses
-            </div>
-            <div class="streak-item">
-                <strong>Current CW Strategy Streak:</strong> 
-                <span id="cwCurrentStreak" class="streak-value">0</span> consecutive losses
-            </div>
-            <div class="streak-item">
-                <strong>Current CCW Strategy Streak:</strong> 
-                <span id="ccwCurrentStreak" class="streak-value">0</span> consecutive losses
-            </div>
-        </div>
-        
-        <div class="streak-details true-streak">
-            <h3>TRUE Directional Streaks (Actual Wheel Behavior)</h3>
-            <div class="streak-item">
-                <strong>Longest CW Direction Streak:</strong> 
-                <span id="trueCwMaxStreak" class="streak-value">0</span> consecutive losses
-            </div>
-            <div class="streak-item">
-                <strong>Longest CCW Direction Streak:</strong> 
-                <span id="trueCcwMaxStreak" class="streak-value">0</span> consecutive losses
-            </div>
-            <div class="streak-item">
-                <strong>Current CW Direction Streak:</strong> 
-                <span id="trueCwCurrentStreak" class="streak-value">0</span> consecutive losses
-            </div>
-            <div class="streak-item">
-                <strong>Current CCW Direction Streak:</strong> 
-                <span id="trueCcwCurrentStreak" class="streak-value">0</span> consecutive losses
-            </div>
-        </div>
-    </div>
-    
-    <div class="history-container">
-        <h2>Prediction History (Newest First)</h2>
-        <div class="table-wrapper">
-            <table id="historyTable">
-                <thead>
-                    <tr>
-                        <th>#</th>
-                        <th>Predicted For</th>
-                        <th>Predicted</th>
-                        <th>Actual</th>
-                        <th>Neighbors (18)</th>
-                        <th>Result</th>
-                        <th>Streak</th>
-                        <th>Strategy</th>
-                    </tr>
-                </thead>
-                <tbody id="historyBody" class="history-body"></tbody>
-            </table>
-        </div>
-    </div>
-
-    <script>
-        // European roulette wheel layout
-        const WHEEL = [0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10, 5, 24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26];
-        
-        // Prediction strategies
-        const STRATEGIES = {
-            MEAN_CW: { 
-                name: "Mean CW", 
-                description: "Uses average clockwise step from history",
-                color: "#3498db"
-            },
-            MEAN_CCW: { 
-                name: "Mean CCW", 
-                description: "Uses average counter-clockwise step from history",
-                color: "#e74c3c"
-            },
-            ALTERNATING: { 
-                name: "Alternating", 
-                description: "Alternates between CW and CCW directions",
-                color: "#2ecc71"
-            },
-            RECENT_BIAS: { 
-                name: "Recent Bias", 
-                description: "Follows direction of last 3 spins",
-                color: "#9b59b6"
-            }
-        };
-
-        // Configuration
-        const MAX_LOSS_STREAK = 4; // Switch strategies after this many consecutive losses
-        
-        // Game state
-        let numbers = [];
-        let predictions = [];
-        let lossStreak = 0;
-        let longestLossStreak = 0;
-        let currentPrediction = null;
-        let strategies = {
-            lastDirection: 'cw',
-            performance: Object.keys(STRATEGIES).reduce((acc, key) => {
-                acc[key] = { 
-                    wins: 0, 
-                    losses: 0, 
-                    currentStreak: 0, 
-                    longestStreak: 0,
-                    lastUsed: null
-                };
-                return acc;
-            }, {})
-        };
-        
-        // Strategy-specific streaks
-        let cwLossStreak = 0;
-        let ccwLossStreak = 0;
-        let maxCwLossStreak = 0;
-        let maxCcwLossStreak = 0;
-        
-        // TRUE directional streaks (actual wheel behavior)
-        let trueCwLossStreak = 0;
-        let trueCcwLossStreak = 0;
-        let maxTrueCwLossStreak = 0;
-        let maxTrueCcwLossStreak = 0;
-
-        // Initialize on load
-        window.onload = function() {
-            loadData();
-        };
-
-        // Load saved data
-        function loadData() {
-            const savedData = localStorage.getItem('roulettePredictorData');
-            if (savedData) {
-                const data = JSON.parse(savedData);
-                numbers = data.numbers || [];
-                predictions = data.predictions || [];
-                lossStreak = data.lossStreak || 0;
-                longestLossStreak = data.longestLossStreak || 0;
-                strategies = data.strategies || {
-                    lastDirection: 'cw',
-                    performance: Object.keys(STRATEGIES).reduce((acc, key) => {
-                        acc[key] = { wins: 0, losses: 0, currentStreak: 0, longestStreak: 0 };
-                        return acc;
-                    }, {})
-                };
-                cwLossStreak = data.cwLossStreak || 0;
-                ccwLossStreak = data.ccwLossStreak || 0;
-                maxCwLossStreak = data.maxCwLossStreak || 0;
-                maxCcwLossStreak = data.maxCcwLossStreak || 0;
-                trueCwLossStreak = data.trueCwLossStreak || 0;
-                trueCcwLossStreak = data.trueCcwLossStreak || 0;
-                maxTrueCwLossStreak = data.maxTrueCwLossStreak || 0;
-                maxTrueCcwLossStreak = data.maxTrueCcwLossStreak || 0;
-                updateDisplay();
-                makeNextPrediction();
-            }
+    // Prediction strategies
+    const STRATEGIES = {
+        MEAN_CW: { 
+            name: "Mean CW", 
+            description: "Uses average clockwise step from history",
+            color: "#3498db"
+        },
+        MEAN_CCW: { 
+            name: "Mean CCW", 
+            description: "Uses average counter-clockwise step from history",
+            color: "#e74c3c"
+        },
+        ALTERNATING: { 
+            name: "Alternating", 
+            description: "Alternates between CW and CCW directions",
+            color: "#2ecc71"
+        },
+        RECENT_BIAS: { 
+            name: "Recent Bias", 
+            description: "Follows direction of last 3 spins",
+            color: "#9b59b6"
+        },
+        REVERSE_TREND: {
+            name: "Reverse Trend",
+            description: "Bets against the current trend after threshold",
+            color: "#f39c12"
+        },
+        SECTOR_TRACKING: {
+            name: "Sector Tracking",
+            description: "Tracks hot sectors of the wheel",
+            color: "#1abc9c"
         }
+    };
 
-        // Save data
-        function saveData() {
-            const data = {
-                numbers,
-                predictions,
-                lossStreak,
-                longestLossStreak,
-                strategies,
-                cwLossStreak,
-                ccwLossStreak,
-                maxCwLossStreak,
-                maxCcwLossStreak,
-                trueCwLossStreak,
-                trueCcwLossStreak,
-                maxTrueCwLossStreak,
-                maxTrueCcwLossStreak
+    // Configuration
+    const MAX_LOSS_STREAK = 4; // Switch strategies after this many consecutive losses
+    const REVERSE_AFTER = 3; // Reverse strategy after this many same-direction losses
+    const SECTOR_SIZE = 6; // Number of adjacent numbers to consider a sector
+    
+    // Game state
+    let numbers = [];
+    let predictions = [];
+    let lossStreak = 0;
+    let longestLossStreak = 0;
+    let currentPrediction = null;
+    let strategies = {
+        lastDirection: 'cw',
+        performance: Object.keys(STRATEGIES).reduce((acc, key) => {
+            acc[key] = { 
+                wins: 0, 
+                losses: 0, 
+                currentStreak: 0, 
+                longestStreak: 0,
+                lastUsed: null
             };
-            localStorage.setItem('roulettePredictorData', JSON.stringify(data));
-        }
+            return acc;
+        }, {})
+    };
+    
+    // Strategy-specific streaks
+    let cwLossStreak = 0;
+    let ccwLossStreak = 0;
+    let maxCwLossStreak = 0;
+    let maxCcwLossStreak = 0;
+    
+    // TRUE directional streaks (actual wheel behavior)
+    let trueCwLossStreak = 0;
+    let trueCcwLossStreak = 0;
+    let maxTrueCwLossStreak = 0;
+    let maxTrueCcwLossStreak = 0;
 
-        // Clear all data
-        function clearData() {
-            if (confirm("Are you sure you want to clear all data?")) {
-                numbers = [];
-                predictions = [];
-                lossStreak = 0;
-                longestLossStreak = 0;
-                strategies = {
-                    lastDirection: 'cw',
-                    performance: Object.keys(STRATEGIES).reduce((acc, key) => {
-                        acc[key] = { wins: 0, losses: 0, currentStreak: 0, longestStreak: 0 };
-                        return acc;
-                    }, {})
-                };
-                cwLossStreak = 0;
-                ccwLossStreak = 0;
-                maxCwLossStreak = 0;
-                maxCcwLossStreak = 0;
-                trueCwLossStreak = 0;
-                trueCcwLossStreak = 0;
-                maxTrueCwLossStreak = 0;
-                maxTrueCcwLossStreak = 0;
-                localStorage.removeItem('roulettePredictorData');
-                updateDisplay();
-            }
-        }
+    // Sector tracking
+    let sectorHits = Array(Math.ceil(WHEEL.length / SECTOR_SIZE)).fill(0);
+    let lastSectorHit = null;
 
-        // Add multiple historical numbers
-        function addNumbers() {
-            const input = document.getElementById("numbersInput").value.trim();
-            if (!input) {
-                alert("Please enter some numbers first");
-                return;
-            }
-            
-            const newNumbers = input.split(/[\s,]+/).map(num => parseInt(num)).filter(num => !isNaN(num));
-            
-            if (newNumbers.length === 0) {
-                alert("No valid numbers found");
-                return;
-            }
-            
-            newNumbers.forEach(num => {
-                if (numbers.length > 0 && predictions.length > 0) {
-                    const lastPred = predictions[predictions.length-1];
-                    if (lastPred.actual === null) {
-                        checkPrediction(num);
-                    }
-                }
-                
-                numbers.push(num);
-                makeNextPrediction();
-            });
-            
-            document.getElementById("numbersInput").value = "";
-            saveData();
+    // Initialize on load
+    window.onload = function() {
+        loadData();
+    };
+
+    // Load saved data
+    function loadData() {
+        const savedData = localStorage.getItem('roulettePredictorData');
+        if (savedData) {
+            const data = JSON.parse(savedData);
+            numbers = data.numbers || [];
+            predictions = data.predictions || [];
+            lossStreak = data.lossStreak || 0;
+            longestLossStreak = data.longestLossStreak || 0;
+            strategies = data.strategies || {
+                lastDirection: 'cw',
+                performance: Object.keys(STRATEGIES).reduce((acc, key) => {
+                    acc[key] = { wins: 0, losses: 0, currentStreak: 0, longestStreak: 0 };
+                    return acc;
+                }, {})
+            };
+            cwLossStreak = data.cwLossStreak || 0;
+            ccwLossStreak = data.ccwLossStreak || 0;
+            maxCwLossStreak = data.maxCwLossStreak || 0;
+            maxCcwLossStreak = data.maxCcwLossStreak || 0;
+            trueCwLossStreak = data.trueCwLossStreak || 0;
+            trueCcwLossStreak = data.trueCcwLossStreak || 0;
+            maxTrueCwLossStreak = data.maxTrueCwLossStreak || 0;
+            maxTrueCcwLossStreak = data.maxTrueCcwLossStreak || 0;
+            sectorHits = data.sectorHits || Array(Math.ceil(WHEEL.length / SECTOR_SIZE)).fill(0);
+            lastSectorHit = data.lastSectorHit || null;
+            updateDisplay();
+            makeNextPrediction();
+        }
+    }
+
+    // Save data
+    function saveData() {
+        const data = {
+            numbers,
+            predictions,
+            lossStreak,
+            longestLossStreak,
+            strategies,
+            cwLossStreak,
+            ccwLossStreak,
+            maxCwLossStreak,
+            maxCcwLossStreak,
+            trueCwLossStreak,
+            trueCcwLossStreak,
+            maxTrueCwLossStreak,
+            maxTrueCcwLossStreak,
+            sectorHits,
+            lastSectorHit
+        };
+        localStorage.setItem('roulettePredictorData', JSON.stringify(data));
+    }
+
+    // Clear all data
+    function clearData() {
+        if (confirm("Are you sure you want to clear all data?")) {
+            numbers = [];
+            predictions = [];
+            lossStreak = 0;
+            longestLossStreak = 0;
+            strategies = {
+                lastDirection: 'cw',
+                performance: Object.keys(STRATEGIES).reduce((acc, key) => {
+                    acc[key] = { wins: 0, losses: 0, currentStreak: 0, longestStreak: 0 };
+                    return acc;
+                }, {})
+            };
+            cwLossStreak = 0;
+            ccwLossStreak = 0;
+            maxCwLossStreak = 0;
+            maxCcwLossStreak = 0;
+            trueCwLossStreak = 0;
+            trueCcwLossStreak = 0;
+            maxTrueCwLossStreak = 0;
+            maxTrueCcwLossStreak = 0;
+            sectorHits = Array(Math.ceil(WHEEL.length / SECTOR_SIZE)).fill(0);
+            lastSectorHit = null;
+            localStorage.removeItem('roulettePredictorData');
             updateDisplay();
         }
+    }
 
-        // Add single new number
-        function addSingleNumber() {
-            const input = document.getElementById("numbersInput").value.trim();
-            if (!input) {
-                alert("Please enter a number first");
-                return;
-            }
-            
-            const num = parseInt(input);
-            if (isNaN(num)) {
-                alert("Please enter a valid number");
-                return;
-            }
-            
+    // Add multiple historical numbers
+    function addNumbers() {
+        const input = document.getElementById("numbersInput").value.trim();
+        if (!input) {
+            alert("Please enter some numbers first");
+            return;
+        }
+        
+        const newNumbers = input.split(/[\s,]+/).map(num => parseInt(num)).filter(num => !isNaN(num));
+        
+        if (newNumbers.length === 0) {
+            alert("No valid numbers found");
+            return;
+        }
+        
+        newNumbers.forEach(num => {
             if (numbers.length > 0 && predictions.length > 0) {
                 const lastPred = predictions[predictions.length-1];
                 if (lastPred.actual === null) {
@@ -468,452 +188,602 @@
             }
             
             numbers.push(num);
+            updateSectorTracking(num);
             makeNextPrediction();
-            
-            document.getElementById("numbersInput").value = "";
-            saveData();
-            updateDisplay();
-        }
+        });
+        
+        document.getElementById("numbersInput").value = "";
+        saveData();
+        updateDisplay();
+    }
 
-        // Check if prediction was correct
-        function checkPrediction(actualNumber) {
-            const lastPrediction = predictions[predictions.length-1];
-            const isCorrect = lastPrediction.neighbors.includes(actualNumber);
-            const strategyKey = lastPrediction.selectedStrategy;
-            
-            // Update strategy-specific streaks
-            if (strategyKey === 'MEAN_CW') {
-                if (!isCorrect) {
-                    cwLossStreak++;
-                    if (cwLossStreak > maxCwLossStreak) {
-                        maxCwLossStreak = cwLossStreak;
-                    }
-                } else {
-                    cwLossStreak = 0;
-                }
-            } 
-            else if (strategyKey === 'MEAN_CCW') {
-                if (!isCorrect) {
-                    ccwLossStreak++;
-                    if (ccwLossStreak > maxCcwLossStreak) {
-                        maxCcwLossStreak = ccwLossStreak;
-                    }
-                } else {
-                    ccwLossStreak = 0;
-                }
+    // Add single new number
+    function addSingleNumber() {
+        const input = document.getElementById("numbersInput").value.trim();
+        if (!input) {
+            alert("Please enter a number first");
+            return;
+        }
+        
+        const num = parseInt(input);
+        if (isNaN(num)) {
+            alert("Please enter a valid number");
+            return;
+        }
+        
+        if (numbers.length > 0 && predictions.length > 0) {
+            const lastPred = predictions[predictions.length-1];
+            if (lastPred.actual === null) {
+                checkPrediction(num);
             }
-            
-            // Update TRUE directional streaks (actual wheel behavior)
-            if (numbers.length >= 2) {
-                const actualDirection = getDirection(numbers[numbers.length-2], actualNumber);
-                
-                if (actualDirection === 'cw') {
-                    trueCwLossStreak++;
-                    if (trueCwLossStreak > maxTrueCwLossStreak) {
-                        maxTrueCwLossStreak = trueCwLossStreak;
-                    }
-                    trueCcwLossStreak = 0; // Reset opposite direction
-                } else {
-                    trueCcwLossStreak++;
-                    if (trueCcwLossStreak > maxTrueCcwLossStreak) {
-                        maxTrueCcwLossStreak = trueCcwLossStreak;
-                    }
-                    trueCwLossStreak = 0; // Reset opposite direction
-                }
-            }
-            
-            // Update strategy performance
-            const strategyPerf = strategies.performance[strategyKey];
-            if (isCorrect) {
-                strategyPerf.wins++;
-                strategyPerf.currentStreak = 0;
-            } else {
-                strategyPerf.losses++;
-                strategyPerf.currentStreak++;
-                if (strategyPerf.currentStreak > strategyPerf.longestStreak) {
-                    strategyPerf.longestStreak = strategyPerf.currentStreak;
-                }
-            }
-            strategyPerf.lastUsed = new Date();
-            
-            // Update global streak
+        }
+        
+        numbers.push(num);
+        updateSectorTracking(num);
+        makeNextPrediction();
+        
+        document.getElementById("numbersInput").value = "";
+        saveData();
+        updateDisplay();
+    }
+
+    // Update sector tracking
+    function updateSectorTracking(number) {
+        const index = WHEEL.indexOf(number);
+        const sector = Math.floor(index / SECTOR_SIZE);
+        sectorHits[sector]++;
+        lastSectorHit = sector;
+    }
+
+    // Check if prediction was correct
+    function checkPrediction(actualNumber) {
+        const lastPrediction = predictions[predictions.length-1];
+        const isCorrect = lastPrediction.neighbors.includes(actualNumber);
+        const strategyKey = lastPrediction.selectedStrategy;
+        
+        // Update strategy-specific streaks
+        if (strategyKey === 'MEAN_CW') {
             if (!isCorrect) {
-                lossStreak++;
-                if (lossStreak > longestLossStreak) {
-                    longestLossStreak = lossStreak;
+                cwLossStreak++;
+                if (cwLossStreak > maxCwLossStreak) {
+                    maxCwLossStreak = cwLossStreak;
                 }
             } else {
-                lossStreak = 0;
+                cwLossStreak = 0;
             }
-            
-            lastPrediction.actual = actualNumber;
-            lastPrediction.isCorrect = isCorrect;
-            lastPrediction.streak = lossStreak;
+        } 
+        else if (strategyKey === 'MEAN_CCW') {
+            if (!isCorrect) {
+                ccwLossStreak++;
+                if (ccwLossStreak > maxCcwLossStreak) {
+                    maxCcwLossStreak = ccwLossStreak;
+                }
+            } else {
+                ccwLossStreak = 0;
+            }
         }
+        
+        // Update TRUE directional streaks (actual wheel behavior)
+        if (numbers.length >= 2) {
+            const actualDirection = getDirection(numbers[numbers.length-2], actualNumber);
+            
+            if (actualDirection === 'cw') {
+                trueCwLossStreak++;
+                if (trueCwLossStreak > maxTrueCwLossStreak) {
+                    maxTrueCwLossStreak = trueCwLossStreak;
+                }
+                trueCcwLossStreak = 0; // Reset opposite direction
+            } else {
+                trueCcwLossStreak++;
+                if (trueCcwLossStreak > maxTrueCcwLossStreak) {
+                    maxTrueCcwLossStreak = trueCcwLossStreak;
+                }
+                trueCwLossStreak = 0; // Reset opposite direction
+            }
+        }
+        
+        // Update strategy performance
+        const strategyPerf = strategies.performance[strategyKey];
+        if (isCorrect) {
+            strategyPerf.wins++;
+            strategyPerf.currentStreak = 0;
+        } else {
+            strategyPerf.losses++;
+            strategyPerf.currentStreak++;
+            if (strategyPerf.currentStreak > strategyPerf.longestStreak) {
+                strategyPerf.longestStreak = strategyPerf.currentStreak;
+            }
+        }
+        strategyPerf.lastUsed = new Date();
+        
+        // Update global streak
+        if (!isCorrect) {
+            lossStreak++;
+            if (lossStreak > longestLossStreak) {
+                longestLossStreak = lossStreak;
+            }
+        } else {
+            lossStreak = 0;
+        }
+        
+        lastPrediction.actual = actualNumber;
+        lastPrediction.isCorrect = isCorrect;
+        lastPrediction.streak = lossStreak;
+    }
 
-        // Make prediction for NEXT spin
-        function makeNextPrediction() {
-            if (numbers.length < 2) {
-                currentPrediction = null;
-                return;
-            }
-
-            // Check if we need to force a strategy change
-            const forceChange = checkForForceChange();
-            
-            const { meanCW, meanCCW } = calculateMeanSteps();
-            const lastNum = numbers[numbers.length-1];
-            
-            // Generate predictions for all strategies
-            const allPredictions = {};
-            
-            // 1. Mean CW prediction (only if not in bad streak)
-            if (!forceChange.cwBadStreak) {
-                allPredictions.MEAN_CW = {
-                    ...generatePrediction(lastNum, 'cw', meanCW, meanCCW),
-                    strategy: STRATEGIES.MEAN_CW,
-                    strategyKey: 'MEAN_CW'
-                };
-            }
-            
-            // 2. Mean CCW prediction (only if not in bad streak)
-            if (!forceChange.ccwBadStreak) {
-                allPredictions.MEAN_CCW = {
-                    ...generatePrediction(lastNum, 'ccw', meanCW, meanCCW),
-                    strategy: STRATEGIES.MEAN_CCW,
-                    strategyKey: 'MEAN_CCW'
-                };
-            }
-            
-            // 3. Alternating direction prediction (always available)
-            const altDirection = strategies.lastDirection === 'cw' ? 'ccw' : 'cw';
-            allPredictions.ALTERNATING = {
-                ...generatePrediction(lastNum, altDirection, meanCW, meanCCW),
-                strategy: STRATEGIES.ALTERNATING,
-                strategyKey: 'ALTERNATING'
-            };
-            strategies.lastDirection = altDirection;
-            
-            // 4. Recent bias prediction (always available)
-            const recentDirection = getRecentBiasDirection();
-            allPredictions.RECENT_BIAS = {
-                ...generatePrediction(lastNum, recentDirection, meanCW, meanCCW),
-                strategy: STRATEGIES.RECENT_BIAS,
-                strategyKey: 'RECENT_BIAS'
-            };
-            
-            currentPrediction = selectBestPrediction(allPredictions, forceChange);
-            predictions.push(currentPrediction);
-            
-            // Show alert if strategy was forced to change
-            if (forceChange.forcedChange) {
-                const strategyDiv = document.getElementById("strategyInfo");
-                const alertDiv = document.createElement('div');
-                alertDiv.className = 'strategy-change';
-                alertDiv.textContent = `⚠️ Strategy forced to change after ${MAX_LOSS_STREAK} consecutive ${forceChange.direction} losses`;
-                strategyDiv.prepend(alertDiv);
-            }
+    // Make prediction for NEXT spin
+    function makeNextPrediction() {
+        if (numbers.length < 2) {
+            currentPrediction = null;
+            return;
         }
 
         // Check if we need to force a strategy change
-        function checkForForceChange() {
-            const result = {
-                cwBadStreak: false,
-                ccwBadStreak: false,
-                forcedChange: false,
-                direction: null
+        const forceChange = checkForForceChange();
+        
+        const { meanCW, meanCCW } = calculateMeanSteps();
+        const lastNum = numbers[numbers.length-1];
+        
+        // Generate predictions for all strategies
+        const allPredictions = {};
+        
+        // 1. Mean CW prediction (only if not in bad streak)
+        if (!forceChange.cwBadStreak) {
+            allPredictions.MEAN_CW = {
+                ...generatePrediction(lastNum, 'cw', meanCW, meanCCW),
+                strategy: STRATEGIES.MEAN_CW,
+                strategyKey: 'MEAN_CW'
             };
-            
-            // Check CW direction streak
-            if (trueCwLossStreak >= MAX_LOSS_STREAK) {
-                result.cwBadStreak = true;
-                result.forcedChange = true;
-                result.direction = 'CW';
-            }
-            
-            // Check CCW direction streak
-            if (trueCcwLossStreak >= MAX_LOSS_STREAK) {
-                result.ccwBadStreak = true;
-                result.forcedChange = true;
-                result.direction = 'CCW';
-            }
-            
-            return result;
         }
+        
+        // 2. Mean CCW prediction (only if not in bad streak)
+        if (!forceChange.ccwBadStreak) {
+            allPredictions.MEAN_CCW = {
+                ...generatePrediction(lastNum, 'ccw', meanCW, meanCCW),
+                strategy: STRATEGIES.MEAN_CCW,
+                strategyKey: 'MEAN_CCW'
+            };
+        }
+        
+        // 3. Alternating direction prediction (always available)
+        const altDirection = strategies.lastDirection === 'cw' ? 'ccw' : 'cw';
+        allPredictions.ALTERNATING = {
+            ...generatePrediction(lastNum, altDirection, meanCW, meanCCW),
+            strategy: STRATEGIES.ALTERNATING,
+            strategyKey: 'ALTERNATING'
+        };
+        strategies.lastDirection = altDirection;
+        
+        // 4. Recent bias prediction (always available)
+        const recentDirection = getRecentBiasDirection();
+        allPredictions.RECENT_BIAS = {
+            ...generatePrediction(lastNum, recentDirection, meanCW, meanCCW),
+            strategy: STRATEGIES.RECENT_BIAS,
+            strategyKey: 'RECENT_BIAS'
+        };
+        
+        // 5. Reverse trend prediction (when streak threshold reached)
+        if (trueCwLossStreak >= REVERSE_AFTER || trueCcwLossStreak >= REVERSE_AFTER) {
+            const reverseDirection = trueCwLossStreak >= REVERSE_AFTER ? 'ccw' : 'cw';
+            allPredictions.REVERSE_TREND = {
+                ...generatePrediction(lastNum, reverseDirection, meanCW, meanCCW),
+                strategy: STRATEGIES.REVERSE_TREND,
+                strategyKey: 'REVERSE_TREND'
+            };
+        }
+        
+        // 6. Sector tracking prediction
+        if (lastSectorHit !== null && numbers.length > 10) {
+            const hotSectors = getHotSectors();
+            if (hotSectors.length > 0) {
+                allPredictions.SECTOR_TRACKING = {
+                    ...generateSectorPrediction(hotSectors),
+                    strategy: STRATEGIES.SECTOR_TRACKING,
+                    strategyKey: 'SECTOR_TRACKING'
+                };
+            }
+        }
+        
+        currentPrediction = selectBestPrediction(allPredictions, forceChange);
+        predictions.push(currentPrediction);
+        
+        // Show alert if strategy was forced to change
+        if (forceChange.forcedChange) {
+            const strategyDiv = document.getElementById("strategyInfo");
+            const alertDiv = document.createElement('div');
+            alertDiv.className = 'strategy-change';
+            alertDiv.textContent = `⚠️ Strategy forced to change after ${MAX_LOSS_STREAK} consecutive ${forceChange.direction} losses`;
+            strategyDiv.prepend(alertDiv);
+        }
+    }
 
-        // Select best prediction from available options
-        function selectBestPrediction(allPredictions, forceChange) {
-            // If we're forcing a change, prioritize non-directional strategies
-            if (forceChange.forcedChange) {
-                // Prefer alternating strategy when in forced change
-                if (allPredictions.ALTERNATING) {
-                    return { 
-                        ...allPredictions.ALTERNATING,
-                        selectedStrategy: 'ALTERNATING',
-                        isBestStrategy: true,
-                        forcedChange: true
-                    };
-                }
-                // Fallback to recent bias
+    // Get hot sectors (top 2 most hit sectors)
+    function getHotSectors() {
+        const sortedSectors = [...sectorHits.entries()]
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 2);
+        
+        return sortedSectors.map(([sector]) => sector);
+    }
+
+    // Generate sector-based prediction
+    function generateSectorPrediction(hotSectors) {
+        const sectorNumbers = [];
+        
+        hotSectors.forEach(sector => {
+            const startIdx = sector * SECTOR_SIZE;
+            const endIdx = Math.min(startIdx + SECTOR_SIZE, WHEEL.length);
+            for (let i = startIdx; i < endIdx; i++) {
+                sectorNumbers.push(WHEEL[i]);
+            }
+        });
+        
+        // Find the most recent number in these sectors
+        let lastSectorNum = null;
+        for (let i = numbers.length - 1; i >= 0; i--) {
+            if (sectorNumbers.includes(numbers[i])) {
+                lastSectorNum = numbers[i];
+                break;
+            }
+        }
+        
+        // If no number found in these sectors, use first number of first hot sector
+        if (!lastSectorNum) {
+            lastSectorNum = WHEEL[hotSectors[0] * SECTOR_SIZE];
+        }
+        
+        // Predict next number in same sector with mean step
+        const { meanCW, meanCCW } = calculateMeanSteps();
+        const direction = Math.random() > 0.5 ? 'cw' : 'ccw';
+        const predictedNumber = predictNext(lastSectorNum, direction, meanCW, meanCCW);
+        const neighbors = getNeighbors(predictedNumber);
+        
+        return {
+            predictedFor: numbers[numbers.length-1],
+            predicted: predictedNumber,
+            neighbors,
+            actual: null,
+            isCorrect: null,
+            streak: lossStreak,
+            timestamp: new Date()
+        };
+    }
+
+    // Check if we need to force a strategy change
+    function checkForForceChange() {
+        const result = {
+            cwBadStreak: false,
+            ccwBadStreak: false,
+            forcedChange: false,
+            direction: null
+        };
+        
+        // Check CW direction streak
+        if (trueCwLossStreak >= MAX_LOSS_STREAK) {
+            result.cwBadStreak = true;
+            result.forcedChange = true;
+            result.direction = 'CW';
+        }
+        
+        // Check CCW direction streak
+        if (trueCcwLossStreak >= MAX_LOSS_STREAK) {
+            result.ccwBadStreak = true;
+            result.forcedChange = true;
+            result.direction = 'CCW';
+        }
+        
+        return result;
+    }
+
+    // Select best prediction from available options
+    function selectBestPrediction(allPredictions, forceChange) {
+        // If we're forcing a change, prioritize non-directional strategies
+        if (forceChange.forcedChange) {
+            // First try sector tracking if available
+            if (allPredictions.SECTOR_TRACKING) {
                 return { 
-                    ...allPredictions.RECENT_BIAS,
-                    selectedStrategy: 'RECENT_BIAS',
+                    ...allPredictions.SECTOR_TRACKING,
+                    selectedStrategy: 'SECTOR_TRACKING',
                     isBestStrategy: true,
                     forcedChange: true
                 };
             }
             
-            // First check if any strategy is on a bad streak
-            for (const [key, pred] of Object.entries(allPredictions)) {
-                const perf = strategies.performance[key];
-                if (perf.currentStreak >= 3) {
-                    continue;
-                }
-                
-                const winRate = perf.wins / (perf.wins + perf.losses) || 0;
-                const otherKeys = Object.keys(allPredictions).filter(k => k !== key);
-                let isBetter = true;
-                
-                for (const otherKey of otherKeys) {
-                    const otherPerf = strategies.performance[otherKey];
-                    const otherWinRate = otherPerf.wins / (otherPerf.wins + otherPerf.losses) || 0;
-                    if (otherWinRate > winRate && otherPerf.currentStreak < 3) {
-                        isBetter = false;
-                        break;
-                    }
-                }
-                
-                if (isBetter) {
-                    return { 
-                        ...pred,
-                        selectedStrategy: key,
-                        isBestStrategy: true
-                    };
-                }
+            // Then try reverse trend if available
+            if (allPredictions.REVERSE_TREND) {
+                return { 
+                    ...allPredictions.REVERSE_TREND,
+                    selectedStrategy: 'REVERSE_TREND',
+                    isBestStrategy: true,
+                    forcedChange: true
+                };
             }
             
+            // Fallback to alternating
             return { 
                 ...allPredictions.ALTERNATING,
                 selectedStrategy: 'ALTERNATING',
+                isBestStrategy: true,
+                forcedChange: true
+            };
+        }
+        
+        // First check if any strategy is on a bad streak
+        const availableStrategies = Object.entries(allPredictions)
+            .filter(([key]) => strategies.performance[key].currentStreak < 2);
+        
+        // If we have reverse trend available and streak is high, use it
+        if (allPredictions.REVERSE_TREND && 
+            (trueCwLossStreak >= REVERSE_AFTER || trueCcwLossStreak >= REVERSE_AFTER)) {
+            return { 
+                ...allPredictions.REVERSE_TREND,
+                selectedStrategy: 'REVERSE_TREND',
                 isBestStrategy: true
             };
         }
-
-        // Generate prediction for a specific direction
-        function generatePrediction(lastNumber, direction, meanCW, meanCCW) {
-            const predictedNumber = predictNext(lastNumber, direction, meanCW, meanCCW);
-            const neighbors = getNeighbors(predictedNumber);
+        
+        // If we have sector tracking and it's performing well, use it
+        if (allPredictions.SECTOR_TRACKING) {
+            const sectorPerf = strategies.performance.SECTOR_TRACKING;
+            if (sectorPerf.wins >= sectorPerf.losses) {
+                return { 
+                    ...allPredictions.SECTOR_TRACKING,
+                    selectedStrategy: 'SECTOR_TRACKING',
+                    isBestStrategy: true
+                };
+            }
+        }
+        
+        // Otherwise select strategy with best win rate and no current streak
+        let bestStrategy = null;
+        let bestWinRate = -1;
+        
+        for (const [key, pred] of availableStrategies) {
+            const perf = strategies.performance[key];
+            const total = perf.wins + perf.losses;
+            const winRate = total > 0 ? (perf.wins / total) : 0;
             
-            return {
-                predictedFor: lastNumber,
-                predicted: predictedNumber,
-                neighbors,
-                actual: null,
-                isCorrect: null,
-                streak: lossStreak,
-                timestamp: new Date()
+            if (winRate > bestWinRate) {
+                bestWinRate = winRate;
+                bestStrategy = key;
+            }
+        }
+        
+        if (bestStrategy) {
+            return { 
+                ...allPredictions[bestStrategy],
+                selectedStrategy: bestStrategy,
+                isBestStrategy: true
             };
         }
+        
+        // Fallback to alternating if no good options
+        return { 
+            ...allPredictions.ALTERNATING,
+            selectedStrategy: 'ALTERNATING',
+            isBestStrategy: true
+        };
+    }
 
-        // Get recent bias direction (last 3 spins)
-        function getRecentBiasDirection() {
-            if (numbers.length < 4) return 'cw';
-            
-            let cwCount = 0;
-            for (let i = Math.max(numbers.length-4, 0); i < numbers.length-1; i++) {
-                const dir = getDirection(numbers[i], numbers[i+1]);
-                if (dir === 'cw') cwCount++;
-            }
-            
-            return cwCount >= 2 ? 'cw' : 'ccw';
+    // Generate prediction for a specific direction
+    function generatePrediction(lastNumber, direction, meanCW, meanCCW) {
+        const predictedNumber = predictNext(lastNumber, direction, meanCW, meanCCW);
+        const neighbors = getNeighbors(predictedNumber);
+        
+        return {
+            predictedFor: lastNumber,
+            predicted: predictedNumber,
+            neighbors,
+            actual: null,
+            isCorrect: null,
+            streak: lossStreak,
+            timestamp: new Date()
+        };
+    }
+
+    // Get recent bias direction (last 3 spins)
+    function getRecentBiasDirection() {
+        if (numbers.length < 4) return 'cw';
+        
+        let cwCount = 0;
+        for (let i = Math.max(numbers.length-4, 0); i < numbers.length-1; i++) {
+            const dir = getDirection(numbers[i], numbers[i+1]);
+            if (dir === 'cw') cwCount++;
         }
+        
+        return cwCount >= 2 ? 'cw' : 'ccw';
+    }
 
-        // Calculate mean steps
-        function calculateMeanSteps() {
-            if (numbers.length < 2) return { meanCW: 0, meanCCW: 0 };
-            
-            let cwSteps = [];
-            let ccwSteps = [];
-            
-            for (let i = 1; i < numbers.length; i++) {
-                const prevIdx = WHEEL.indexOf(numbers[i-1]);
-                const currIdx = WHEEL.indexOf(numbers[i]);
-                const step = (currIdx - prevIdx + 37) % 37;
-                
-                if (step <= 18) {
-                    cwSteps.push(step);
-                } else {
-                    ccwSteps.push(37 - step);
-                }
-            }
-            
-            const meanCW = cwSteps.length ? Math.round(cwSteps.reduce((a,b) => a+b, 0)/cwSteps.length) : 0;
-            const meanCCW = ccwSteps.length ? Math.round(ccwSteps.reduce((a,b) => a+b, 0)/ccwSteps.length) : 0;
-            
-            return { meanCW, meanCCW };
-        }
-
-        // Get direction between two numbers
-        function getDirection(prevNum, currNum) {
-            const prevIdx = WHEEL.indexOf(prevNum);
-            const currIdx = WHEEL.indexOf(currNum);
+    // Calculate mean steps with weighted recent steps
+    function calculateMeanSteps() {
+        if (numbers.length < 2) return { meanCW: 0, meanCCW: 0 };
+        
+        let cwSteps = [];
+        let ccwSteps = [];
+        
+        for (let i = 1; i < numbers.length; i++) {
+            const prevIdx = WHEEL.indexOf(numbers[i-1]);
+            const currIdx = WHEEL.indexOf(numbers[i]);
             const step = (currIdx - prevIdx + 37) % 37;
-            return step <= 18 ? 'cw' : 'ccw';
-        }
-
-        // Predict next number
-        function predictNext(lastNumber, direction, meanCW, meanCCW) {
-            const lastIdx = WHEEL.indexOf(lastNumber);
-            let nextIdx;
             
-            if (direction === 'cw') {
-                nextIdx = (lastIdx + meanCW) % 37;
+            if (step <= 18) {
+                // Weight recent steps more heavily (last 5 steps get 3x weight)
+                const weight = i >= numbers.length - 5 ? 3 : 1;
+                cwSteps.push(...Array(weight).fill(step));
             } else {
-                nextIdx = (lastIdx - meanCCW + 37) % 37;
+                const weight = i >= numbers.length - 5 ? 3 : 1;
+                ccwSteps.push(...Array(weight).fill(37 - step));
             }
-            
-            return WHEEL[nextIdx];
         }
+        
+        const meanCW = cwSteps.length ? Math.round(cwSteps.reduce((a,b) => a+b, 0)/cwSteps.length) : 0;
+        const meanCCW = ccwSteps.length ? Math.round(ccwSteps.reduce((a,b) => a+b, 0)/ccwSteps.length) : 0;
+        
+        return { meanCW, meanCCW };
+    }
 
-        // Get neighbors (9 each side)
-        function getNeighbors(number) {
-            const idx = WHEEL.indexOf(number);
-            const neighbors = [];
-            
-            for (let i = idx - 9; i <= idx + 9; i++) {
-                const wrappedIdx = (i + 37) % 37;
-                neighbors.push(WHEEL[wrappedIdx]);
-            }
-            
-            return neighbors;
+    // Get direction between two numbers
+    function getDirection(prevNum, currNum) {
+        const prevIdx = WHEEL.indexOf(prevNum);
+        const currIdx = WHEEL.indexOf(currNum);
+        const step = (currIdx - prevIdx + 37) % 37;
+        return step <= 18 ? 'cw' : 'ccw';
+    }
+
+    // Predict next number with some randomness to avoid patterns
+    function predictNext(lastNumber, direction, meanCW, meanCCW) {
+        const lastIdx = WHEEL.indexOf(lastNumber);
+        let nextIdx;
+        
+        // Add small random variation to the step (10% of mean step)
+        if (direction === 'cw') {
+            const variation = Math.floor(meanCW * 0.1 * (Math.random() > 0.5 ? 1 : -1));
+            nextIdx = (lastIdx + meanCW + variation + 37) % 37;
+        } else {
+            const variation = Math.floor(meanCCW * 0.1 * (Math.random() > 0.5 ? 1 : -1));
+            nextIdx = (lastIdx - meanCCW - variation + 37) % 37;
         }
+        
+        return WHEEL[nextIdx];
+    }
 
-        // Update the display
-        function updateDisplay() {
-            updateStats();
-            updateCurrentPrediction();
-            updateHistory();
-            updateStreakDisplays();
+    // Get neighbors (9 each side)
+    function getNeighbors(number) {
+        const idx = WHEEL.indexOf(number);
+        const neighbors = [];
+        
+        for (let i = idx - 9; i <= idx + 9; i++) {
+            const wrappedIdx = (i + 37) % 37;
+            neighbors.push(WHEEL[wrappedIdx]);
         }
+        
+        return neighbors;
+    }
 
-        function updateStats() {
-            const statsDiv = document.getElementById("currentStats");
-            const totalPredictions = predictions.filter(p => p.actual !== null).length;
-            const correctPredictions = predictions.filter(p => p.isCorrect).length;
-            const accuracy = totalPredictions > 0 ? Math.round((correctPredictions / totalPredictions) * 100) : 0;
-            
-            statsDiv.innerHTML = `
-                <p><strong>Total spins:</strong> ${numbers.length}</p>
-                <p><strong>Predictions made:</strong> ${totalPredictions}</p>
-                <p><strong>Prediction accuracy:</strong> ${accuracy}%</p>
-                <p><strong>Current streak:</strong> ${lossStreak} ${lossStreak > 0 ? 'losses' : ''}</p>
-                <p><strong>Longest losing streak:</strong> ${longestLossStreak}</p>
+    // Update the display
+    function updateDisplay() {
+        updateStats();
+        updateCurrentPrediction();
+        updateHistory();
+        updateStreakDisplays();
+    }
+
+    function updateStats() {
+        const statsDiv = document.getElementById("currentStats");
+        const totalPredictions = predictions.filter(p => p.actual !== null).length;
+        const correctPredictions = predictions.filter(p => p.isCorrect).length;
+        const accuracy = totalPredictions > 0 ? Math.round((correctPredictions / totalPredictions) * 100) : 0;
+        
+        statsDiv.innerHTML = `
+            <p><strong>Total spins:</strong> ${numbers.length}</p>
+            <p><strong>Predictions made:</strong> ${totalPredictions}</p>
+            <p><strong>Prediction accuracy:</strong> ${accuracy}%</p>
+            <p><strong>Current streak:</strong> ${lossStreak} ${lossStreak > 0 ? 'losses' : ''}</p>
+            <p><strong>Longest losing streak:</strong> ${longestLossStreak}</p>
+        `;
+    }
+
+    function updateStreakDisplays() {
+        // Strategy-specific streaks
+        document.getElementById('cwMaxStreak').textContent = maxCwLossStreak;
+        document.getElementById('ccwMaxStreak').textContent = maxCcwLossStreak;
+        document.getElementById('cwCurrentStreak').textContent = cwLossStreak;
+        document.getElementById('ccwCurrentStreak').textContent = ccwLossStreak;
+        
+        // TRUE directional streaks
+        document.getElementById('trueCwMaxStreak').textContent = maxTrueCwLossStreak;
+        document.getElementById('trueCcwMaxStreak').textContent = maxTrueCcwLossStreak;
+        document.getElementById('trueCwCurrentStreak').textContent = trueCwLossStreak;
+        document.getElementById('trueCcwCurrentStreak').textContent = trueCcwLossStreak;
+    }
+
+    function updateCurrentPrediction() {
+        const predictionDiv = document.getElementById("currentPrediction");
+        const neighborsDiv = document.getElementById("neighborsDisplay");
+        const strategyDiv = document.getElementById("strategyInfo");
+        
+        if (numbers.length > 0 && currentPrediction) {
+            predictionDiv.innerHTML = `
+                <p><strong>Last number:</strong> ${numbers[numbers.length-1]}</p>
+                <p><strong>Predicting next spin after:</strong> ${currentPrediction.predictedFor}</p>
+                <p><strong>Predicted number:</strong> ${currentPrediction.predicted}</p>
             `;
-        }
-
-        function updateStreakDisplays() {
-            // Strategy-specific streaks
-            document.getElementById('cwMaxStreak').textContent = maxCwLossStreak;
-            document.getElementById('ccwMaxStreak').textContent = maxCcwLossStreak;
-            document.getElementById('cwCurrentStreak').textContent = cwLossStreak;
-            document.getElementById('ccwCurrentStreak').textContent = ccwLossStreak;
             
-            // TRUE directional streaks
-            document.getElementById('trueCwMaxStreak').textContent = maxTrueCwLossStreak;
-            document.getElementById('trueCcwMaxStreak').textContent = maxTrueCcwLossStreak;
-            document.getElementById('trueCwCurrentStreak').textContent = trueCwLossStreak;
-            document.getElementById('trueCcwCurrentStreak').textContent = trueCcwLossStreak;
-        }
-
-        function updateCurrentPrediction() {
-            const predictionDiv = document.getElementById("currentPrediction");
-            const neighborsDiv = document.getElementById("neighborsDisplay");
-            const strategyDiv = document.getElementById("strategyInfo");
-            
-            if (numbers.length > 0 && currentPrediction) {
-                predictionDiv.innerHTML = `
-                    <p><strong>Last number:</strong> ${numbers[numbers.length-1]}</p>
-                    <p><strong>Predicting next spin after:</strong> ${currentPrediction.predictedFor}</p>
-                    <p><strong>Predicted number:</strong> ${currentPrediction.predicted}</p>
-                `;
-                
-                neighborsDiv.innerHTML = '<p><strong>Bet on these 19 numbers (predicted + 9 neighbors each side):</strong></p><div class="neighbors">';
-                currentPrediction.neighbors.forEach(num => {
-                    const neighborClass = num === currentPrediction.predicted ? 'neighbor predicted-number' : 'neighbor';
-                    neighborsDiv.innerHTML += `<span class="${neighborClass}">${num}</span>`;
-                });
-                neighborsDiv.innerHTML += '</div>';
-                
-                strategyDiv.innerHTML = `
-                    <div class="strategy-perf">
-                        <h3>Current Strategy: <span style="color: ${currentPrediction.strategy.color}">${currentPrediction.strategy.name}</span></h3>
-                        <p>${currentPrediction.strategy.description}</p>
-                        
-                        <h4>Strategy Performance:</h4>
-                        ${Object.entries(strategies.performance).map(([key, perf]) => {
-                            const total = perf.wins + perf.losses;
-                            const winRate = total > 0 ? Math.round((perf.wins / total) * 100) : 0;
-                            const isCurrent = key === currentPrediction.selectedStrategy;
-                            return `
-                                <div class="strategy-item ${isCurrent ? 'best-strategy' : ''}">
-                                    <strong>${STRATEGIES[key].name}:</strong>
-                                    ${perf.wins}W / ${perf.losses}L (${winRate}%)
-                                    ${perf.currentStreak > 0 ? ` | Current streak: ${perf.currentStreak}L` : ''}
-                                    ${perf.longestStreak > 0 ? ` | Longest streak: ${perf.longestStreak}L` : ''}
-                                </div>
-                            `;
-                        }).join('')}
-                    </div>
-                `;
-            } else {
-                predictionDiv.innerHTML = '<p>Enter at least 2 numbers to start predictions</p>';
-                neighborsDiv.innerHTML = '';
-                strategyDiv.innerHTML = '';
-            }
-        }
-
-        function updateHistory() {
-            const historyBody = document.getElementById("historyBody");
-            historyBody.innerHTML = '';
-            
-            const completedPredictions = predictions
-                .filter(p => p.actual !== null)
-                .reverse();
-            
-            completedPredictions.forEach((pred, i) => {
-                const row = document.createElement('tr');
-                row.className = pred.isCorrect ? 'correct' : 'incorrect';
-                
-                const neighborsDisplay = pred.neighbors.slice(0, 3).join(', ') + 
-                    (pred.neighbors.length > 3 ? '...' : '');
-                
-                row.innerHTML = `
-                    <td>${completedPredictions.length - i}</td>
-                    <td>${pred.predictedFor}</td>
-                    <td>${pred.predicted}</td>
-                    <td>${pred.actual}</td>
-                    <td title="${pred.neighbors.join(', ')}">${neighborsDisplay}</td>
-                    <td>${pred.isCorrect ? '✅' : '❌'}</td>
-                    <td>${pred.streak > 0 ? pred.streak + 'L' : ''}</td>
-                    <td><span class="strategy-tag" style="background: ${pred.strategy.color}">${pred.strategy.name}</span></td>
-                `;
-                historyBody.appendChild(row);
+            neighborsDiv.innerHTML = '<p><strong>Bet on these 19 numbers (predicted + 9 neighbors each side):</strong></p><div class="neighbors">';
+            currentPrediction.neighbors.forEach(num => {
+                const neighborClass = num === currentPrediction.predicted ? 'neighbor predicted-number' : 'neighbor';
+                neighborsDiv.innerHTML += `<span class="${neighborClass}">${num}</span>`;
             });
-
-            // Ensure table headers stay aligned with data columns
-            const table = document.getElementById("historyTable");
-            const headers = table.querySelectorAll('th');
-            const firstRow = table.querySelector('tbody tr');
+            neighborsDiv.innerHTML += '</div>';
             
-            if (firstRow) {
-                const cells = firstRow.querySelectorAll('td');
-                cells.forEach((cell, index) => {
-                    if (headers[index]) {
-                        headers[index].style.width = `${cell.offsetWidth}px`;
-                    }
-                });
-            }
+            strategyDiv.innerHTML = `
+                <div class="strategy-perf">
+                    <h3>Current Strategy: <span style="color: ${currentPrediction.strategy.color}">${currentPrediction.strategy.name}</span></h3>
+                    <p>${currentPrediction.strategy.description}</p>
+                    
+                    <h4>Strategy Performance:</h4>
+                    ${Object.entries(strategies.performance).map(([key, perf]) => {
+                        const total = perf.wins + perf.losses;
+                        const winRate = total > 0 ? Math.round((perf.wins / total) * 100) : 0;
+                        const isCurrent = key === currentPrediction.selectedStrategy;
+                        return `
+                            <div class="strategy-item ${isCurrent ? 'best-strategy' : ''}">
+                                <strong>${STRATEGIES[key].name}:</strong>
+                                ${perf.wins}W / ${perf.losses}L (${winRate}%)
+                                ${perf.currentStreak > 0 ? ` | Current streak: ${perf.currentStreak}L` : ''}
+                                ${perf.longestStreak > 0 ? ` | Longest streak: ${perf.longestStreak}L` : ''}
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            `;
+        } else {
+            predictionDiv.innerHTML = '<p>Enter at least 2 numbers to start predictions</p>';
+            neighborsDiv.innerHTML = '';
+            strategyDiv.innerHTML = '';
         }
-    </script>
-</body>
-</html>
+    }
+
+    function updateHistory() {
+        const historyBody = document.getElementById("historyBody");
+        historyBody.innerHTML = '';
+        
+        const completedPredictions = predictions
+            .filter(p => p.actual !== null)
+            .reverse();
+        
+        completedPredictions.forEach((pred, i) => {
+            const row = document.createElement('tr');
+            row.className = pred.isCorrect ? 'correct' : 'incorrect';
+            
+            const neighborsDisplay = pred.neighbors.slice(0, 3).join(', ') + 
+                (pred.neighbors.length > 3 ? '...' : '');
+            
+            row.innerHTML = `
+                <td>${completedPredictions.length - i}</td>
+                <td>${pred.predictedFor}</td>
+                <td>${pred.predicted}</td>
+                <td>${pred.actual}</td>
+                <td title="${pred.neighbors.join(', ')}">${neighborsDisplay}</td>
+                <td>${pred.isCorrect ? '✅' : '❌'}</td>
+                <td>${pred.streak > 0 ? pred.streak + 'L' : ''}</td>
+                <td><span class="strategy-tag" style="background: ${pred.strategy.color}">${pred.strategy.name}</span></td>
+            `;
+            historyBody.appendChild(row);
+        });
+
+        // Ensure table headers stay aligned with data columns
+        const table = document.getElementById("historyTable");
+        const headers = table.querySelectorAll('th');
+        const firstRow = table.querySelector('tbody tr');
+        
+        if (firstRow) {
+            const cells = firstRow.querySelectorAll('td');
+            cells.forEach((cell, index) => {
+                if (headers[index]) {
+                    headers[index].style.width = `${cell.offsetWidth}px`;
+                }
+            });
+        }
+    }
+</script>
