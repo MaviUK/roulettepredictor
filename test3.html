@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Roulette</title>
+    <title>Advanced Roulette Analyst</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -719,60 +719,27 @@
             saveToLocalStorage();
         }
 
-        // Calculate exact pocket travel between two numbers in given direction
-        function calculateExactPocketTravel(from, to, direction) {
-            if (from === to) return 0;
-            
-            let count = 0;
-            let current = from;
-            
-            while (current !== to) {
-                current = getNextNumberInDirection(current, direction);
-                count++;
-                
-                // Safety check to prevent infinite loops
-                if (count > 37) {
-                    console.error("Infinite loop detected in pocket travel calculation");
-                    return 0;
-                }
-            }
-            
-            return count;
-        }
-
-        // Get next number in specified direction
-        function getNextNumberInDirection(number, direction) {
-            const index = wheelLayout.indexOf(number);
-            if (index === -1) return number; // shouldn't happen
-            
-            if (direction === 'cw') {
-                // Clockwise (next number is previous in the array)
-                return wheelLayout[(index - 1 + wheelLayout.length) % wheelLayout.length];
-            } else {
-                // Counter-clockwise (next number is next in the array)
-                return wheelLayout[(index + 1) % wheelLayout.length];
-            }
-        }
-
+        // MAIN PREDICTION FUNCTION (UPDATED)
         function generatePrediction() {
             if (spinHistory.length < 2) {
                 resetPrediction();
                 return;
             }
-            
+
             const neighborCount = parseInt(neighborCountSelect.value) || 9;
             const lastSpin = spinHistory[spinHistory.length - 1];
-            
+
             // Get last 5 travel distances in current direction
             const recentTravels = [];
             let count = 0;
             
-            // Walk backwards through history to find last 5 spins in current direction
             for (let i = spinHistory.length - 1; i > 0 && count < 5; i--) {
                 if (spinHistory[i].direction === currentDirection) {
-                    const from = spinHistory[i-1].number;
-                    const to = spinHistory[i].number;
-                    const travel = calculateExactPocketTravel(from, to, currentDirection);
+                    const travel = calculateExactPocketTravel(
+                        spinHistory[i-1].number, 
+                        spinHistory[i].number, 
+                        currentDirection
+                    );
                     recentTravels.push(travel);
                     count++;
                 }
@@ -782,42 +749,70 @@
                 resetPrediction();
                 return;
             }
-            
+
             // Remove highest/lowest and average middle values
             recentTravels.sort((a,b) => a - b);
             const trimmed = recentTravels.slice(1, -1);
             const avgTravel = Math.round(trimmed.reduce((a,b) => a + b, 0) / trimmed.length);
             
-            // Calculate predicted number by moving avgTravel pockets in current direction
+            // Calculate predicted number
             let predictedNumber = lastSpin.number;
             for (let i = 0; i < avgTravel; i++) {
                 predictedNumber = getNextNumberInDirection(predictedNumber, currentDirection);
             }
-            
+
             // Get neighbors
             const leftNeighbors = [];
             const rightNeighbors = [];
             let currentNum = predictedNumber;
             
-            // Get left neighbors (CCW direction)
+            // Left neighbors (CCW)
             for (let i = 0; i < neighborCount; i++) {
                 currentNum = getNextNumberInDirection(currentNum, 'ccw');
-                leftNeighbors.unshift(currentNum); // Add to beginning to maintain order
+                leftNeighbors.unshift(currentNum);
             }
             
             currentNum = predictedNumber;
-            // Get right neighbors (CW direction)
+            // Right neighbors (CW)
             for (let i = 0; i < neighborCount; i++) {
                 currentNum = getNextNumberInDirection(currentNum, 'cw');
                 rightNeighbors.push(currentNum);
             }
-            
-            // Update current selection
+
+            // Update selection
             currentPrediction = predictedNumber;
             currentSelection = [...leftNeighbors, predictedNumber, ...rightNeighbors];
-            
-            // Update display
             updatePredictionDisplay(predictedNumber, leftNeighbors, rightNeighbors);
+        }
+
+        // Helper function to calculate exact pocket travel
+        function calculateExactPocketTravel(from, to, direction) {
+            if (from === to) return 0;
+            
+            let count = 0;
+            let current = from;
+            
+            while (current !== to) {
+                current = getNextNumberInDirection(current, direction);
+                count++;
+                if (count > 37) return 0; // Safety
+            }
+            
+            return count;
+        }
+
+        // Helper function to get next number in direction
+        function getNextNumberInDirection(number, direction) {
+            const index = wheelLayout.indexOf(number);
+            if (index === -1) return number;
+            
+            if (direction === 'cw') {
+                // Clockwise moves backward in array
+                return wheelLayout[(index - 1 + wheelLayout.length) % wheelLayout.length];
+            } else {
+                // CCW moves forward in array
+                return wheelLayout[(index + 1) % wheelLayout.length];
+            }
         }
 
         function updatePredictionDisplay(mainNumber, leftNeighbors, rightNeighbors) {
