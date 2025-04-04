@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Roulette</title>
+    <style>
+        /* ... (keep all existing CSS styles the same) ... */
+    </style>
+</head>
+<body>
+    <!-- ... (keep all existing HTML the same) ... -->
+
+    <script>
+        // ... (keep all existing wheelLayout, redNumbers, and initial state declarations the same) ... 
+
+        function generatePrediction() {
+            if (spinHistory.length < 2) {
+                resetPrediction();
+                return;
+            }
+            
+            const neighborCount = parseInt(neighborCountSelect.value) || 9;
+            const lastSpin = spinHistory[spinHistory.length - 1];
+            
+            // Get the last 2 spins in the current direction
+            const recentDirectionSpins = spinHistory
+                .slice().reverse() // Start from most recent
+                .filter(spin => spin.direction === currentDirection)
+                .slice(0, 2); // Take exactly 2 most recent
+            
+            // If we don't have exactly 2 spins in this direction, use what we have
+            if (recentDirectionSpins.length < 2) {
+                resetPrediction();
+                return;
+            }
+            
+            // Calculate the travel distances for these spins
+            const travelDistances = [];
+            const spinIndices = [];
+            
+            for (let i = 0; i < recentDirectionSpins.length; i++) {
+                const spin = recentDirectionSpins[i];
+                const spinIndex = spinHistory.findIndex(s => s.number === spin.number);
+                
+                if (spinIndex > 0) { // We need the previous spin to calculate travel
+                    const prevSpin = spinHistory[spinIndex - 1];
+                    const prevIndex = wheelLayout.indexOf(prevSpin.number);
+                    const currentIndex = wheelLayout.indexOf(spin.number);
+                    
+                    let travel;
+                    if (spin.direction === 'cw') {
+                        travel = (prevIndex - currentIndex + wheelLayout.length) % wheelLayout.length;
+                    } else {
+                        travel = (currentIndex - prevIndex + wheelLayout.length) % wheelLayout.length;
+                    }
+                    
+                    travelDistances.push(travel);
+                    spinIndices.push(currentIndex);
+                }
+            }
+            
+            // Calculate average travel distance
+            const avgTravel = travelDistances.reduce((a, b) => a + b, 0) / travelDistances.length;
+            
+            // Predict landing position based on average travel from last number
+            let predictedIndex;
+            const lastIndex = wheelLayout.indexOf(lastSpin.number);
+            
+            if (currentDirection === 'cw') {
+                predictedIndex = (lastIndex - Math.round(avgTravel) + wheelLayout.length) % wheelLayout.length;
+            } else {
+                predictedIndex = (lastIndex + Math.round(avgTravel)) % wheelLayout.length;
+            }
+            
+            const mainPrediction = wheelLayout[predictedIndex];
+            
+            // Get neighbors on each side based on selected count
+            const leftNeighbors = [];
+            const rightNeighbors = [];
+            
+            for (let i = 1; i <= neighborCount; i++) {
+                leftNeighbors.push(
+                    wheelLayout[(predictedIndex - i + wheelLayout.length) % wheelLayout.length]
+                );
+                rightNeighbors.push(
+                    wheelLayout[(predictedIndex + i) % wheelLayout.length]
+                );
+            }
+            
+            // Update current selection (main + left + right neighbors)
+            currentPrediction = mainPrediction;
+            currentSelection = [mainPrediction, ...leftNeighbors, ...rightNeighbors];
+            
+            // Update display
+            updatePredictionDisplay(mainPrediction, leftNeighbors, rightNeighbors);
+        }
+
+        // ... (keep all remaining JavaScript functions the same) ...
+    </script>
+</body>
+</html>
