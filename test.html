@@ -23,10 +23,11 @@
       width: 100%;
       margin-bottom: 1rem;
     }
-    #prediction {
-      font-size: 1.5rem;
+    #prediction, #loss-stats {
+      font-size: 1.2rem;
       font-weight: bold;
       color: green;
+      margin-top: 1rem;
     }
   </style>
 </head>
@@ -34,10 +35,11 @@
   <div class="container">
     <h2>Roulette Spin Predictor</h2>
     <label for="lastSpins">Enter Last Spins (one per line):</label>
-    <textarea id="lastSpins" rows="6" placeholder="e.g.,\n32\n15\n0\n26\n3"></textarea>
+    <textarea id="lastSpins" rows="10" placeholder="e.g.,\n32\n15\n0\n26\n3"></textarea>
 
     <button onclick="predictNextSpin()">Predict Next Spin</button>
     <div id="prediction"></div>
+    <div id="loss-stats"></div>
   </div>
 
   <script>
@@ -48,16 +50,6 @@
       7, 28, 12, 35, 3, 26
     ];
 
-    function getNeighbors(index, count, direction) {
-      let neighbors = [wheel[index]];
-      for (let i = 1; i <= count; i++) {
-        let left = (index - i + wheel.length) % wheel.length;
-        let right = (index + i) % wheel.length;
-        neighbors.push(wheel[direction === 'cw' ? right : left]);
-      }
-      return [...new Set(neighbors)];
-    }
-
     function predictNextSpin() {
       const input = document.getElementById('lastSpins').value;
       const spins = input.split(/\n|,/).map(s => parseInt(s.trim())).filter(n => !isNaN(n));
@@ -66,15 +58,6 @@
         document.getElementById('prediction').innerText = 'Enter at least 3 spins.';
         return;
       }
-
-      let freq = {};
-      for (let s of spins) {
-        freq[s] = (freq[s] || 0) + 1;
-      }
-
-      let sorted = Object.entries(freq).sort((a,b) => b[1] - a[1]);
-      let hot = parseInt(sorted[0][0]);
-      let cold = parseInt(sorted[sorted.length - 1][0]);
 
       let movementCW = 0, movementCCW = 0;
       for (let i = 1; i < spins.length; i++) {
@@ -87,31 +70,46 @@
       let avgCW = movementCW / (spins.length - 1);
       let avgCCW = movementCCW / (spins.length - 1);
 
-      // Choose direction with smaller average movement (smoother trend)
       const direction = avgCW <= avgCCW ? 'cw' : 'ccw';
       const avgMove = Math.round(direction === 'cw' ? avgCW : avgCCW);
 
-      // Predict next base number
-      let last = wheel.indexOf(spins[spins.length - 1]);
-      let predictionIndex = (direction === 'cw')
+      let lossStreak = 0;
+      let maxLossStreak = 0;
+
+      for (let i = 2; i < spins.length; i++) {
+        const lastSpin = spins[i - 1];
+        const lastIndex = wheel.indexOf(lastSpin);
+        const predictedIndex = direction === 'cw'
+          ? (lastIndex + avgMove) % wheel.length
+          : (lastIndex - avgMove + wheel.length) % wheel.length;
+
+        let predictedZone = [];
+        for (let j = -9; j <= 9; j++) {
+          const idx = (predictedIndex + j + wheel.length) % wheel.length;
+          predictedZone.push(wheel[idx]);
+        }
+
+        if (predictedZone.includes(spins[i])) {
+          lossStreak = 0;
+        } else {
+          lossStreak++;
+          if (lossStreak > maxLossStreak) maxLossStreak = lossStreak;
+        }
+      }
+
+      const last = wheel.indexOf(spins[spins.length - 1]);
+      const predictionIndex = direction === 'cw'
         ? (last + avgMove) % wheel.length
         : (last - avgMove + wheel.length) % wheel.length;
 
-      // Generate bet zone: 1 number + 9 neighbors = 10 total
-      let basePrediction = wheel[predictionIndex];
-      let neighbors = [];
-      for (let i = 1; i <= 4; i++) {
-        let left = (predictionIndex - i + wheel.length) % wheel.length;
-        let right = (predictionIndex + i) % wheel.length;
-        neighbors.push(wheel[direction === 'cw' ? right : left]);
+      let finalBet = [];
+      for (let j = -9; j <= 9; j++) {
+        const idx = (predictionIndex + j + wheel.length) % wheel.length;
+        finalBet.push(wheel[idx]);
       }
-      let extra = (direction === 'cw')
-        ? (predictionIndex + 5) % wheel.length
-        : (predictionIndex - 5 + wheel.length) % wheel.length;
-      neighbors.push(wheel[extra]);
 
-      let finalBet = [...new Set([basePrediction, ...neighbors])];
       document.getElementById('prediction').innerText = `Direction: ${direction.toUpperCase()} | Bet on: ${finalBet.join(', ')}`;
+      document.getElementById('loss-stats').innerText = `Max consecutive losses: ${maxLossStreak}`;
     }
   </script>
 </body>
