@@ -125,7 +125,8 @@
 
     function updateStats(newSpin, to) {
       const lastPrediction = predictNext(spins);
-      const correct = lastPrediction === to;
+      const predictionNeighbors = lastPrediction ? getNeighbors(lastPrediction) : [];
+      const correct = predictionNeighbors.includes(to);
 
       if (!correct) {
         lossStreak[newSpin.direction]++;
@@ -145,9 +146,9 @@
       document.getElementById('prediction').innerHTML = `Next predicted number: <strong>${prediction ?? "Not enough data yet"}</strong>`;
       document.getElementById('neighbors').innerHTML = prediction ? `Neighbors (±9): <strong>${neighborText}</strong>` : "";
 
-      const cwSpins = spins.filter(s => s.direction === "CW").slice(-5).map(spin =>
+      const cwSpins = spins.filter(s => s.direction === "CW").slice(-5).reverse().map(spin =>
         `<p>From: ${spin.from} → To: ${spin.to} | Pockets: ${spin.pockets}</p>`).join('');
-      const ccwSpins = spins.filter(s => s.direction === "CCW").slice(-5).map(spin =>
+      const ccwSpins = spins.filter(s => s.direction === "CCW").slice(-5).reverse().map(spin =>
         `<p>From: ${spin.from} → To: ${spin.to} | Pockets: ${spin.pockets}</p>`).join('');
 
       document.getElementById('cwHistory').innerHTML = cwSpins;
