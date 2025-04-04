@@ -712,22 +712,31 @@
             
             const neighborCount = parseInt(neighborCountSelect.value) || 9;
             const lastSpin = spinHistory[spinHistory.length - 1];
+            const lastIndex = wheelLayout.indexOf(lastSpin.number);
             
-            // Get the last 2 spins in the current direction
+            // Get the last 20 spins in the current direction
             const recentDirectionSpins = spinHistory
                 .slice().reverse() // Start from most recent
                 .filter(spin => spin.direction === currentDirection)
-                .slice(0, 2); // Take exactly 2 most recent
+                .slice(0, 20); // Take up to 20 most recent
             
-            // If we don't have exactly 2 spins in this direction, use what we have
-            if (recentDirectionSpins.length < 2) {
+            // If we don't have enough spins in this direction, use what we have
+            if (recentDirectionSpins.length < 1) {
                 resetPrediction();
                 return;
             }
             
-            // Calculate the travel distances for these spins
-            const travelDistances = [];
-            const spinIndices = [];
+            // Calculate weights - more recent spins have higher weight
+            // Create weights that decrease linearly from most recent to oldest
+            const weights = [];
+            const totalSpins = recentDirectionSpins.length;
+            for (let i = 0; i < totalSpins; i++) {
+                weights.push((totalSpins - i) / totalSpins);
+            }
+            
+            // Calculate weighted average travel distance for these spins
+            let weightedAvgTravel = 0;
+            let totalWeight = 0;
             
             for (let i = 0; i < recentDirectionSpins.length; i++) {
                 const spin = recentDirectionSpins[i];
@@ -745,18 +754,19 @@
                         travel = (currentIndex - prevIndex + wheelLayout.length) % wheelLayout.length;
                     }
                     
-                    travelDistances.push(travel);
-                    spinIndices.push(currentIndex);
+                    weightedAvgTravel += travel * weights[i];
+                    totalWeight += weights[i];
                 }
             }
             
-            // Calculate average travel distance
-            const avgTravel = travelDistances.reduce((a, b) => a + b, 0) / travelDistances.length;
+            // Calculate average travel distance using only these spins
+            let avgTravel = weightedAvgTravel / totalWeight;
             
-            // Predict landing position based on average travel from last number
+            // Apply some randomness to simulate real variance (smaller range now)
+            avgTravel = avgTravel * (0.95 + Math.random() * 0.1);
+            
+            // Predict landing position
             let predictedIndex;
-            const lastIndex = wheelLayout.indexOf(lastSpin.number);
-            
             if (currentDirection === 'cw') {
                 predictedIndex = (lastIndex - Math.round(avgTravel) + wheelLayout.length) % wheelLayout.length;
             } else {
@@ -1107,25 +1117,56 @@
             const headers = [
                 'Timestamp', 'Spin Number', 'Result', 'Landed Number', 
                 'Numbers Bet', 'Bet Per Number', 'Total Bet', 'Payout',
-                'Profit/Loss', 'Streak', 'Bankroll After', 'Direction'
+                'Profit/Loss', 'Streak', 'Bankroll After', 'Direction',
+                'From Number', 'To Number', 'Pockets Traveled'
             ];
             
             const csvRows = [
                 headers.join(','), // header row first
-                ...martingaleTransactions.map(t => [
-                    t.timestamp,
-                    t.spinNumber,
-                    t.result,
-                    t.numberLanded,
-                    `"${t.numbersBet}"`, // wrap in quotes in case numbers contain commas
-                    t.betPerNumber.toFixed(2),
-                    t.totalBet.toFixed(2),
-                    t.payout.toFixed(2),
-                    t.profitLoss.toFixed(2),
-                    t.currentStreak,
-                    t.bankrollAfter.toFixed(2),
-                    t.direction.toUpperCase()
-                ].join(','))
+                ...martingaleTransactions.map((t, index) => {
+                    // Get the travel pattern data for this spin
+                    let travelData = {};
+                    if (index > 0) {
+                        const spinIndex = spinHistory.findIndex(s => s.number === t.numberLanded);
+                        if (spinIndex > 0) {
+                            const prevSpin = spinHistory[spinIndex - 1];
+                            const prevIndex = wheelLayout.indexOf(prevSpin.number);
+                            const currentIndex = wheelLayout.indexOf(t.numberLanded);
+                            
+                            let travelDistance;
+                            if (prevSpin.direction === 'cw') {
+                                travelDistance = (prevIndex - currentIndex + wheelLayout.length) % wheelLayout.length;
+                            } else {
+                                travelDistance = (currentIndex - prevIndex + wheelLayout.length) % wheelLayout.length;
+                            }
+                            
+                            travelData = {
+                                direction: prevSpin.direction,
+                                from: prevSpin.number,
+                                to: t.numberLanded,
+                                pockets: travelDistance
+                            };
+                        }
+                    }
+                    
+                    return [
+                        t.timestamp,
+                        t.spinNumber,
+                        t.result,
+                        t.numberLanded,
+                        `"${t.numbersBet}"`, // wrap in quotes in case numbers contain commas
+                        t.betPerNumber.toFixed(2),
+                        t.totalBet.toFixed(2),
+                        t.payout.toFixed(2),
+                        t.profitLoss.toFixed(2),
+                        t.currentStreak,
+                        t.bankrollAfter.toFixed(2),
+                        t.direction.toUpperCase(),
+                        travelData.from || '',
+                        travelData.to || '',
+                        travelData.pockets || ''
+                    ].join(',');
+                })
             ];
             
             const csvContent = csvRows.join('\n');
