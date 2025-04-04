@@ -3,13 +3,142 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Smart Roulette Predictor</title>
+    <title>Inverse Roulette Predictor</title>
     <style>
-        /* [Keep all your existing styles the same] */
-        .safety-mechanism {
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+            color: #333;
+        }
+        h1, h2, h3 {
+            color: #2c3e50;
+        }
+        textarea {
+            width: 100%;
+            height: 100px;
+            margin-bottom: 10px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button {
+            padding: 10px 15px;
+            background: #3498db;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 4px;
+            margin-right: 10px;
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+        button:hover {
+            background: #2980b9;
+        }
+        button.clear {
+            background: #e74c3c;
+        }
+        button.clear:hover {
+            background: #c0392b;
+        }
+        .stats-container {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+            border: 1px solid #eee;
+        }
+        .prediction-container {
+            background: #e8f4fd;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+            border-left: 4px solid #3498db;
+        }
+        .neighbors {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin: 15px 0;
+        }
+        .neighbor {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background: white;
+        }
+        .predicted-number {
+            background: #e74c3c;
+            color: white;
+            font-weight: bold;
+        }
+        .inverse-number {
+            background: #2ecc71;
+            color: white;
+            font-weight: bold;
+        }
+        .history-container {
+            margin-top: 30px;
+            overflow-x: auto;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: center;
+        }
+        th {
+            background: #2c3e50;
+            color: white;
+            position: sticky;
+            top: 0;
+        }
+        tr.correct {
+            background: #e6ffed;
+        }
+        tr.incorrect {
+            background: #ffebee;
+        }
+        .history-body {
+            max-height: 500px;
+            overflow-y: auto;
+            display: block;
+        }
+        .alert {
             background: #fff3cd;
             padding: 10px;
             border-left: 4px solid #ffc107;
+            margin: 10px 0;
+        }
+        .table-wrapper {
+            overflow-x: auto;
+        }
+        #historyTable {
+            table-layout: fixed;
+            width: 100%;
+        }
+        #historyTable th {
+            position: sticky;
+            top: 0;
+            background: #2c3e50;
+            z-index: 10;
+        }
+        #historyTable td, #historyTable th {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .inverse-notice {
+            background: #d4edda;
+            padding: 10px;
+            border-left: 4px solid #28a745;
             margin: 10px 0;
             font-weight: bold;
         }
@@ -23,66 +152,243 @@
     </style>
 </head>
 <body>
-    <!-- [Keep all your existing HTML structure the same] -->
+    <h1>Inverse Roulette Predictor</h1>
+    <div class="inverse-notice">
+        STRATEGY: Betting opposite of predicted number (since predictions were losing consistently)
+    </div>
+    
+    <div class="input-section">
+        <h2>Enter Numbers</h2>
+        <textarea id="numbersInput" placeholder="Enter numbers separated by commas or spaces (e.g., 17, 32, 0, 26)"></textarea>
+        <div>
+            <button onclick="addNumbers()">Add Historical Numbers</button>
+            <button onclick="addSingleNumber()">Add Single Number</button>
+            <button onclick="clearData()" class="clear">Clear All Data</button>
+        </div>
+    </div>
+    
+    <div class="stats-container">
+        <h2>Statistics</h2>
+        <div id="currentStats"></div>
+    </div>
+    
+    <div class="prediction-container">
+        <h2>Next Prediction</h2>
+        <div id="currentPrediction"></div>
+        <div id="neighborsDisplay"></div>
+    </div>
+    
+    <div class="history-container">
+        <h2>Prediction History (Newest First)</h2>
+        <div class="table-wrapper">
+            <table id="historyTable">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Predicted For</th>
+                        <th>Predicted</th>
+                        <th>Inverse Bet</th>
+                        <th>Actual</th>
+                        <th>Result</th>
+                        <th>Streak</th>
+                    </tr>
+                </thead>
+                <tbody id="historyBody" class="history-body"></tbody>
+            </table>
+        </div>
+    </div>
 
     <script>
         // European roulette wheel layout
         const WHEEL = [0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10, 5, 24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26];
         
-        // Configuration with strict loss prevention
-        const MAX_LOSS_STREAK = 6;
-        const SAFETY_THRESHOLD = 3;
-        const SECTOR_SIZE = 6;
-        const MIN_HISTORY = 10;
-        const EMERGENCY_CHANGE_AFTER = 4;
-
         // Game state
         let numbers = [];
         let predictions = [];
         let lossStreak = 0;
         let longestLossStreak = 0;
+        let inverseWins = 0;
+        let inverseLosses = 0;
         let currentPrediction = null;
-        let safetyMode = false;
         let emergencyMode = false;
-        let sectorHits = new Array(Math.ceil(WHEEL.length / SECTOR_SIZE)).fill(0);
-        let lastSectorHit = null;
-        let strategyPerformance = {
-            standard: { wins: 0, losses: 0 },
-            safety: { wins: 0, losses: 0 },
-            emergency: { wins: 0, losses: 0 }
-        };
 
         // Initialize on load
         window.onload = function() {
             loadData();
         };
 
-        // [Keep your existing loadData(), saveData(), and clearData() functions]
+        // Load saved data
+        function loadData() {
+            const savedData = localStorage.getItem('inverseRouletteData');
+            if (savedData) {
+                const data = JSON.parse(savedData);
+                numbers = data.numbers || [];
+                predictions = data.predictions || [];
+                lossStreak = data.lossStreak || 0;
+                longestLossStreak = data.longestLossStreak || 0;
+                inverseWins = data.inverseWins || 0;
+                inverseLosses = data.inverseLosses || 0;
+                updateDisplay();
+                makeNextPrediction();
+            }
+        }
 
-        // Improved prediction logic with multiple safety nets
+        // Save data
+        function saveData() {
+            const data = {
+                numbers,
+                predictions,
+                lossStreak,
+                longestLossStreak,
+                inverseWins,
+                inverseLosses
+            };
+            localStorage.setItem('inverseRouletteData', JSON.stringify(data));
+        }
+
+        // Clear all data
+        function clearData() {
+            if (confirm("Are you sure you want to clear all data?")) {
+                numbers = [];
+                predictions = [];
+                lossStreak = 0;
+                longestLossStreak = 0;
+                inverseWins = 0;
+                inverseLosses = 0;
+                localStorage.removeItem('inverseRouletteData');
+                updateDisplay();
+            }
+        }
+
+        // Add multiple historical numbers
+        function addNumbers() {
+            const input = document.getElementById("numbersInput").value.trim();
+            if (!input) {
+                alert("Please enter some numbers first");
+                return;
+            }
+            
+            const newNumbers = input.split(/[\s,]+/).map(num => parseInt(num)).filter(num => !isNaN(num));
+            
+            if (newNumbers.length === 0) {
+                alert("No valid numbers found");
+                return;
+            }
+            
+            newNumbers.forEach(num => {
+                if (numbers.length > 0 && predictions.length > 0) {
+                    const lastPred = predictions[predictions.length-1];
+                    if (lastPred.actual === null) {
+                        checkPrediction(num);
+                    }
+                }
+                
+                numbers.push(num);
+                makeNextPrediction();
+            });
+            
+            document.getElementById("numbersInput").value = "";
+            saveData();
+            updateDisplay();
+        }
+
+        // Add single new number
+        function addSingleNumber() {
+            const input = document.getElementById("numbersInput").value.trim();
+            if (!input) {
+                alert("Please enter a number first");
+                return;
+            }
+            
+            const num = parseInt(input);
+            if (isNaN(num)) {
+                alert("Please enter a valid number");
+                return;
+            }
+            
+            if (numbers.length > 0 && predictions.length > 0) {
+                const lastPred = predictions[predictions.length-1];
+                if (lastPred.actual === null) {
+                    checkPrediction(num);
+                }
+            }
+            
+            numbers.push(num);
+            makeNextPrediction();
+            
+            document.getElementById("numbersInput").value = "";
+            saveData();
+            updateDisplay();
+        }
+
+        // Check if inverse prediction was correct
+        function checkPrediction(actualNumber) {
+            const lastPrediction = predictions[predictions.length-1];
+            
+            // The inverse is correct if the actual number is NOT in the predicted neighbors
+            const isInverseCorrect = !lastPrediction.neighbors.includes(actualNumber);
+            
+            if (isInverseCorrect) {
+                inverseWins++;
+                lossStreak = 0;
+            } else {
+                inverseLosses++;
+                lossStreak++;
+                if (lossStreak > longestLossStreak) {
+                    longestLossStreak = lossStreak;
+                }
+                
+                // Activate emergency mode after 4 losses
+                if (lossStreak >= 4) {
+                    emergencyMode = true;
+                }
+            }
+            
+            // Store results
+            lastPrediction.actual = actualNumber;
+            lastPrediction.isCorrect = isInverseCorrect;
+            lastPrediction.streak = lossStreak;
+            
+            saveData();
+        }
+
+        // Make inverse prediction for NEXT spin
         function makeNextPrediction() {
-            if (numbers.length < MIN_HISTORY) {
+            if (numbers.length < 2) {
                 currentPrediction = null;
                 updateDisplay();
                 return;
             }
 
-            // Check if we need to activate safety mechanisms
-            if (lossStreak >= EMERGENCY_CHANGE_AFTER) {
-                emergencyMode = true;
-                safetyMode = true;
-            } else if (lossStreak >= SAFETY_THRESHOLD) {
-                safetyMode = true;
+            const lastNum = numbers[numbers.length-1];
+            const lastIdx = WHEEL.indexOf(lastNum);
+            
+            // In emergency mode, we use a completely different approach
+            let predictedIdx;
+            if (emergencyMode) {
+                // Emergency strategy - pick a number from the opposite side of the wheel
+                predictedIdx = (lastIdx + 18 + Math.floor(Math.random() * 5) - 2) % 37;
+                emergencyMode = false; // Try normal mode next time
             } else {
-                safetyMode = false;
-                emergencyMode = false;
+                // Standard prediction - opposite of what would normally be predicted
+                const step = analyzeStepPattern();
+                predictedIdx = (lastIdx + step) % 37;
             }
-
-            const prediction = generatePrediction();
+            
+            const predictedNumber = WHEEL[predictedIdx];
+            const neighbors = getNeighbors(predictedNumber);
+            
+            // The inverse bet is the number directly opposite on the wheel
+            const inverseBetNumber = WHEEL[(predictedIdx + 18) % 37];
+            const inverseNeighbors = getNeighbors(inverseBetNumber);
+            
             currentPrediction = {
-                ...prediction,
-                safetyMode,
-                emergencyMode,
+                predictedFor: lastNum,
+                predicted: predictedNumber,
+                inverseBet: inverseBetNumber,
+                neighbors: inverseNeighbors, // We show neighbors for the inverse bet
+                actual: null,
+                isCorrect: null,
                 streak: lossStreak,
                 timestamp: new Date()
             };
@@ -92,235 +398,121 @@
             updateDisplay();
         }
 
-        function generatePrediction() {
-            const lastNum = numbers[numbers.length-1];
-            const lastIdx = WHEEL.indexOf(lastNum);
-            
-            if (emergencyMode) {
-                // Emergency mode - completely different approach
-                return generateEmergencyPrediction(lastNum);
-            } else if (safetyMode) {
-                // Safety mode - conservative prediction
-                return generateSafetyPrediction(lastNum);
-            } else {
-                // Standard prediction
-                return generateStandardPrediction(lastNum);
-            }
-        }
-
-        function generateStandardPrediction(lastNum) {
-            const lastIdx = WHEEL.indexOf(lastNum);
-            
-            // 1. Find the most common recent step pattern
-            const stepPattern = analyzeStepPattern();
-            const predictedStep = stepPattern.mostCommon;
-            
-            // 2. Get cold sectors to avoid
-            const coldSectors = getColdSectors();
-            const coldNumbers = getNumbersInSectors(coldSectors);
-            
-            // 3. Generate prediction avoiding cold numbers
-            let predictedIdx, predictedNumber;
-            let attempts = 0;
-            
-            do {
-                predictedIdx = (lastIdx + predictedStep + attempts) % 37;
-                predictedNumber = WHEEL[predictedIdx];
-                attempts++;
-            } while (coldNumbers.includes(predictedNumber) && attempts < 37);
-            
-            return {
-                predictedFor: lastNum,
-                predicted: predictedNumber,
-                neighbors: getNeighbors(predictedNumber),
-                strategy: "Standard Pattern"
-            };
-        }
-
-        function generateSafetyPrediction(lastNum) {
-            // Use sector-based prediction with recent bias
-            const hotSectors = getHotSectors(2); // Get 2 hottest sectors
-            const hotNumbers = getNumbersInSectors(hotSectors);
-            
-            // Find the most recent hot number
-            let lastHotNum = lastNum;
-            for (let i = numbers.length-2; i >= 0; i--) {
-                if (hotNumbers.includes(numbers[i])) {
-                    lastHotNum = numbers[i];
-                    break;
-                }
-            }
-            
-            // Predict continuation in hot sector
-            const lastHotIdx = WHEEL.indexOf(lastHotNum);
-            const step = analyzeStepPattern().medianStep;
-            const predictedIdx = (lastHotIdx + step) % 37;
-            const predictedNumber = WHEEL[predictedIdx];
-            
-            return {
-                predictedFor: lastNum,
-                predicted: predictedNumber,
-                neighbors: getNeighbors(predictedNumber),
-                strategy: "Safety Hot Sectors"
-            };
-        }
-
-        function generateEmergencyPrediction(lastNum) {
-            // Completely different approach - anti-pattern
-            const coldSectors = getColdSectors();
-            const coldNumbers = getNumbersInSectors(coldSectors);
-            
-            // Find the least recent number
-            const leastRecent = findLeastRecentNumber();
-            const leastRecentIdx = WHEEL.indexOf(leastRecent);
-            
-            // Predict opposite of normal pattern
-            const stepPattern = analyzeStepPattern();
-            const antiStep = 37 - stepPattern.medianStep;
-            const predictedIdx = (leastRecentIdx + antiStep) % 37;
-            const predictedNumber = WHEEL[predictedIdx];
-            
-            return {
-                predictedFor: lastNum,
-                predicted: predictedNumber,
-                neighbors: getNeighbors(predictedNumber),
-                strategy: "Emergency Anti-Pattern"
-            };
-        }
-
-        // Helper functions
+        // Analyze step pattern to predict next number
         function analyzeStepPattern() {
-            if (numbers.length < 2) return { mostCommon: 1, medianStep: 1 };
+            if (numbers.length < 2) return 1;
             
+            // Look at last 5 steps
             const steps = [];
-            for (let i = 1; i < Math.min(numbers.length, 10); i++) {
-                const prevIdx = WHEEL.indexOf(numbers[i-1]);
-                const currIdx = WHEEL.indexOf(numbers[i]);
+            const lookback = Math.min(5, numbers.length - 1);
+            
+            for (let i = 1; i <= lookback; i++) {
+                const prevIdx = WHEEL.indexOf(numbers[numbers.length - i - 1]);
+                const currIdx = WHEEL.indexOf(numbers[numbers.length - i]);
                 steps.push((currIdx - prevIdx + 37) % 37);
             }
             
-            // Find most common step
-            const frequency = {};
-            steps.forEach(step => {
-                frequency[step] = (frequency[step] || 0) + 1;
-            });
+            // Return the median step
+            steps.sort((a, b) => a - b);
+            return steps[Math.floor(steps.length / 2)];
+        }
+
+        // Get neighbors (9 each side)
+        function getNeighbors(number) {
+            const idx = WHEEL.indexOf(number);
+            const neighbors = [];
             
-            const mostCommon = parseInt(Object.entries(frequency)
-                .sort((a, b) => b[1] - a[1])[0][0]);
+            for (let i = idx - 9; i <= idx + 9; i++) {
+                const wrappedIdx = (i + 37) % 37;
+                neighbors.push(WHEEL[wrappedIdx]);
+            }
             
-            // Calculate median step
-            const median = arr => {
-                const mid = Math.floor(arr.length / 2);
-                const nums = [...arr].sort((a, b) => a - b);
-                return arr.length % 2 !== 0 ? nums[mid] : (nums[mid - 1] + nums[mid]) / 2;
-            };
+            return neighbors;
+        }
+
+        // Update the display
+        function updateDisplay() {
+            updateStats();
+            updateCurrentPrediction();
+            updateHistory();
+        }
+
+        function updateStats() {
+            const statsDiv = document.getElementById("currentStats");
+            const totalPredictions = inverseWins + inverseLosses;
+            const accuracy = totalPredictions > 0 ? Math.round((inverseWins / totalPredictions) * 100) : 0;
             
-            return {
-                mostCommon,
-                medianStep: Math.round(median(steps))
-            };
+            statsDiv.innerHTML = `
+                <p><strong>Total spins:</strong> ${numbers.length}</p>
+                <p><strong>Inverse predictions made:</strong> ${totalPredictions}</p>
+                <p><strong>Inverse prediction accuracy:</strong> ${accuracy}%</p>
+                <p><strong>Inverse wins/losses:</strong> ${inverseWins}W / ${inverseLosses}L</p>
+                <p><strong>Current streak:</strong> ${lossStreak} ${lossStreak > 0 ? 'losses' : ''}</p>
+                <p><strong>Longest losing streak:</strong> ${longestLossStreak}</p>
+                ${lossStreak >= 3 ? '<div class="alert">⚠️ Loss streak detected - system will adjust prediction</div>' : ''}
+                ${lossStreak >= 4 ? '<div class="emergency-alert">⚠️ EMERGENCY MODE: Using alternate prediction strategy</div>' : ''}
+            `;
         }
 
-        function getHotSectors(count = 1) {
-            const avgHits = numbers.length / sectorHits.length;
-            return [...sectorHits.entries()]
-                .sort((a, b) => b[1] - a[1])
-                .slice(0, count)
-                .map(([sector]) => sector);
-        }
-
-        function getColdSectors() {
-            const avgHits = numbers.length / sectorHits.length;
-            return [...sectorHits.entries()]
-                .filter(([_, hits]) => hits < avgHits * 0.7)
-                .sort((a, b) => a[1] - b[1])
-                .slice(0, 2)
-                .map(([sector]) => sector);
-        }
-
-        function getNumbersInSectors(sectors) {
-            const numbersInSectors = [];
-            sectors.forEach(sector => {
-                const startIdx = sector * SECTOR_SIZE;
-                const endIdx = Math.min(startIdx + SECTOR_SIZE, WHEEL.length);
-                for (let i = startIdx; i < endIdx; i++) {
-                    numbersInSectors.push(WHEEL[i]);
-                }
-            });
-            return numbersInSectors;
-        }
-
-        function findLeastRecentNumber() {
-            // Find number that hasn't appeared in the longest time
-            const numCounts = {};
-            numbers.forEach((num, idx) => {
-                numCounts[num] = idx; // Store last occurrence index
-            });
-            
-            return Object.entries(numCounts)
-                .sort((a, b) => a[1] - b[1])[0][0];
-        }
-
-        // [Keep your existing update functions, but add safety mode indicators]
         function updateCurrentPrediction() {
             const predictionDiv = document.getElementById("currentPrediction");
             const neighborsDiv = document.getElementById("neighborsDisplay");
             
             if (numbers.length > 0 && currentPrediction) {
-                let modeIndicator = '';
-                if (currentPrediction.emergencyMode) {
-                    modeIndicator = '<div class="emergency-alert">EMERGENCY MODE: Using anti-pattern prediction</div>';
-                } else if (currentPrediction.safetyMode) {
-                    modeIndicator = '<div class="safety-mechanism">SAFETY MODE: Using conservative prediction</div>';
-                }
-                
                 predictionDiv.innerHTML = `
-                    ${modeIndicator}
                     <p><strong>Last number:</strong> ${numbers[numbers.length-1]}</p>
-                    <p><strong>Predicted number:</strong> ${currentPrediction.predicted}</p>
-                    <p><strong>Strategy:</strong> ${currentPrediction.strategy}</p>
+                    <p><strong>Original prediction (avoid):</strong> 
+                        <span style="color:#e74c3c">${currentPrediction.predicted}</span>
+                    </p>
+                    <p><strong>Inverse bet (recommended):</strong> 
+                        <span style="color:#2ecc71; font-weight:bold">${currentPrediction.inverseBet}</span>
+                    </p>
+                    ${lossStreak >= 4 ? '<p><strong>Strategy:</strong> Emergency anti-pattern</p>' : ''}
                 `;
                 
                 neighborsDiv.innerHTML = `
-                    <p><strong>Bet on these 19 numbers:</strong></p>
+                    <p><strong>Bet on these 19 numbers (inverse + 9 neighbors each side):</strong></p>
                     <div class="neighbors">
                         ${currentPrediction.neighbors.map(num => `
-                            <span class="neighbor ${num === currentPrediction.predicted ? 'predicted-number' : ''}">
+                            <span class="neighbor ${num === currentPrediction.inverseBet ? 'inverse-number' : ''}">
                                 ${num}
                             </span>
                         `).join('')}
                     </div>
                 `;
-            }
-        }
-
-        // [Keep your existing checkPrediction function, but update it to track strategy performance]
-        function checkPrediction(actualNumber) {
-            const lastPrediction = predictions[predictions.length-1];
-            const isCorrect = lastPrediction.neighbors.includes(actualNumber);
-            
-            // Update performance tracking
-            const strategyType = lastPrediction.emergencyMode ? 'emergency' : 
-                               lastPrediction.safetyMode ? 'safety' : 'standard';
-            
-            if (isCorrect) {
-                strategyPerformance[strategyType].wins++;
-                lossStreak = 0;
+            } else if (numbers.length > 0) {
+                predictionDiv.innerHTML = '<p>Enter at least 2 numbers to start predictions</p>';
+                neighborsDiv.innerHTML = '';
             } else {
-                strategyPerformance[strategyType].losses++;
-                lossStreak++;
-                if (lossStreak > longestLossStreak) {
-                    longestLossStreak = lossStreak;
-                }
+                predictionDiv.innerHTML = '<p>Enter numbers to begin predictions</p>';
+                neighborsDiv.innerHTML = '';
             }
-            
-            // Update prediction record
-            lastPrediction.actual = actualNumber;
-            lastPrediction.isCorrect = isCorrect;
-            lastPrediction.streak = lossStreak;
         }
 
-        // [Keep your other existing functions like getNeighbors, updateStats, etc.]
+        function updateHistory() {
+            const historyBody = document.getElementById("historyBody");
+            historyBody.innerHTML = '';
+            
+            const completedPredictions = predictions
+                .filter(p => p.actual !== null)
+                .reverse();
+            
+            completedPredictions.forEach((pred, i) => {
+                const row = document.createElement('tr');
+                row.className = pred.isCorrect ? 'correct' : 'incorrect';
+                
+                row.innerHTML = `
+                    <td>${completedPredictions.length - i}</td>
+                    <td>${pred.predictedFor}</td>
+                    <td style="color:#e74c3c">${pred.predicted}</td>
+                    <td style="color:#2ecc71; font-weight:bold">${pred.inverseBet}</td>
+                    <td>${pred.actual}</td>
+                    <td>${pred.isCorrect ? '✅' : '❌'}</td>
+                    <td>${pred.streak > 0 ? pred.streak + 'L' : ''}</td>
+                `;
+                historyBody.appendChild(row);
+            });
+        }
     </script>
 </body>
 </html>
