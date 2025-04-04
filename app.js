@@ -254,6 +254,28 @@ function animateSpin(number, direction, callback) {
     }, 5000);
 }
 
+// Add batch spins with alternating directions
+function addBatchSpins(numbers, firstDirection) {
+    if (!Array.isArray(numbers)) {
+        console.error('Input must be an array of numbers');
+        return false;
+    }
+
+    if (numbers.length === 0) return true;
+
+    // Add first spin with specified direction
+    addSpin(numbers[0], firstDirection);
+
+    // Add remaining spins with alternating directions
+    for (let i = 1; i < numbers.length; i++) {
+        const lastDirection = spinHistory[spinHistory.length - 1].direction;
+        const nextDirection = lastDirection === 'CW' ? 'CCW' : 'CW';
+        addSpin(numbers[i], nextDirection);
+    }
+
+    return true;
+}
+
 // Event listeners
 document.addEventListener('DOMContentLoaded', () => {
     initWheel();
@@ -307,56 +329,38 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('directionInput').value = randomDirection;
         addSpin(randomNumber, randomDirection);
     });
-});
-// [Previous code remains the same until the event listeners section]
-
-// Replace the existing batch import functions with these:
-
-function addBatchSpins(numbers, firstDirection) {
-    if (!Array.isArray(numbers)) {
-        console.error('Input must be an array of numbers');
-        return false;
-    }
-
-    if (numbers.length === 0) return true;
-
-    // Add first spin with specified direction
-    addSpin(numbers[0], firstDirection);
-
-    // Add remaining spins with alternating directions
-    for (let i = 1; i < numbers.length; i++) {
-        const lastDirection = spinHistory[spinHistory.length - 1].direction;
-        const nextDirection = lastDirection === 'CW' ? 'CCW' : 'CW';
-        addSpin(numbers[i], nextDirection);
-    }
-
-    return true;
-}
-
-// Update the batch import event listener
-document.getElementById('batchImportBtn').addEventListener('click', () => {
-    const numberInput = prompt('Paste all numbers (0-36), separated by commas or spaces:\nExample: 17, 32, 5, 0, 23, 12');
     
-    if (!numberInput) return;
-    
-    // Parse input into array of numbers
-    const numbers = numberInput.split(/[\s,]+/).map(num => {
-        const parsed = parseInt(num.trim());
-        return isNaN(parsed) ? null : parsed;
-    }).filter(num => num !== null && num >= 0 && num <= 36);
-    
-    if (numbers.length === 0) {
-        alert('No valid numbers entered');
-        return;
-    }
+    // Add batch import button
+    const batchImportBtn = document.createElement('button');
+    batchImportBtn.textContent = 'Import Batch Spins';
+    batchImportBtn.className = 'btn btn-secondary mt-3';
+    batchImportBtn.id = 'batchImportBtn';
+    document.querySelector('.card-body').appendChild(batchImportBtn);
 
-    // Ask for first spin direction
-    const direction = prompt(`Enter direction for first spin (${numbers[0]}):\nCW for Clockwise\nCCW for Counter-Clockwise`);
-    
-    if (!direction || !['CW', 'CCW'].includes(direction.toUpperCase())) {
-        alert('Invalid direction - must be CW or CCW');
-        return;
-    }
+    document.getElementById('batchImportBtn').addEventListener('click', () => {
+        const numberInput = prompt('Paste all numbers (0-36), separated by commas or spaces:\nExample: 17, 32, 5, 0, 23, 12');
+        
+        if (!numberInput) return;
+        
+        // Parse input into array of numbers
+        const numbers = numberInput.split(/[\s,]+/).map(num => {
+            const parsed = parseInt(num.trim());
+            return isNaN(parsed) ? null : parsed;
+        }).filter(num => num !== null && num >= 0 && num <= 36);
+        
+        if (numbers.length === 0) {
+            alert('No valid numbers entered');
+            return;
+        }
 
-    addBatchSpins(numbers, direction.toUpperCase());
+        // Ask for first spin direction
+        const direction = prompt(`Enter direction for first spin (${numbers[0]}):\nCW for Clockwise\nCCW for Counter-Clockwise`);
+        
+        if (!direction || !['CW', 'CCW'].includes(direction.toUpperCase())) {
+            alert('Invalid direction - must be CW or CCW');
+            return;
+        }
+
+        addBatchSpins(numbers, direction.toUpperCase());
+    });
 });
