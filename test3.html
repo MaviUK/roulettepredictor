@@ -159,12 +159,15 @@
     }
 
     function addSimpleSpin() {
-      const toInput = document.getElementById('singleTo');
-      const to = Number(toInput.value);
-      const direction = document.getElementById('direction').value;
-      const from = spins.length ? spins[spins.length - 1].to : to;
-      const pockets = calculatePockets(from, to, direction);
-      const newSpin = { from, to, direction, pockets };
+  const toInput = document.getElementById('singleTo');
+  const to = Number(toInput.value);
+  const direction = document.getElementById('direction').value;
+  const from = spins.length ? spins[spins.length - 1].to : to;
+  const pockets = calculatePockets(from, to, direction);
+  const newSpin = { from, to, direction, pockets };
+  updateStats(newSpin, to);
+  toInput.value = ''; // Clear input after adding
+}
       updateStats(newSpin, to);
       toInput.value = ''; // Clear input after adding
     };
@@ -172,17 +175,22 @@
     }
 
     function addBatchSpins() {
-      const inputBox = document.getElementById('batchInput');
-      const input = inputBox.value;
-      const numbers = input.split(/[^0-9]+/).map(n => parseInt(n)).filter(n => !isNaN(n));
-      if (numbers.length < 2) return alert("Need at least 2 numbers.");
+  const inputBox = document.getElementById('batchInput');
+  const input = inputBox.value;
+  const numbers = input.split(/[^0-9]+/).map(n => parseInt(n)).filter(n => !isNaN(n));
+  if (numbers.length < 2) return alert("Need at least 2 numbers.");
 
-      let direction = document.getElementById('direction').value;
-      for (let i = 1; i < numbers.length; i++) {
-        const from = numbers[i - 1];
-        const to = numbers[i];
-        const pockets = calculatePockets(from, to, direction);
-        const newSpin = { from, to, direction, pockets };
+  let direction = document.getElementById('direction').value;
+  for (let i = 1; i < numbers.length; i++) {
+    const from = numbers[i - 1];
+    const to = numbers[i];
+    const pockets = calculatePockets(from, to, direction);
+    const newSpin = { from, to, direction, pockets };
+    updateStats(newSpin, to);
+    direction = direction === "CW" ? "CCW" : "CW";
+  }
+  inputBox.value = ''; // Clear textarea after adding
+}
         updateStats(newSpin, to);
         direction = direction === "CW" ? "CCW" : "CW";
       }
