@@ -310,12 +310,16 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 // [Previous code remains the same until the event listeners section]
 
-// Add this function to handle batch spins
+// Modify the addBatchSpins function to alternate directions
 function addBatchSpins(spinData) {
     if (!Array.isArray(spinData)) {
         console.error('Batch data must be an array');
         return false;
     }
+
+    let lastDirection = spinHistory.length > 0 
+        ? spinHistory[spinHistory.length - 1].direction 
+        : null;
 
     spinData.forEach((spin, index) => {
         // For the first spin in history, we need manual direction
@@ -324,66 +328,51 @@ function addBatchSpins(spinData) {
             return;
         }
 
-        // For subsequent spins, calculate direction automatically if not provided
-        if (spinHistory.length > 0 && !spin.direction) {
-            const lastNumber = spinHistory[spinHistory.length - 1].number;
-            const currentNumber = spin.number;
-            
-            // Calculate both possible directions
-            const cwPockets = calculatePockets(lastNumber, currentNumber, 'CW');
-            const ccwPockets = calculatePockets(lastNumber, currentNumber, 'CCW');
-            
-            // Determine most likely direction (shorter distance)
-            spin.direction = cwPockets <= ccwPockets ? 'CW' : 'CCW';
+        // For subsequent spins, alternate direction if not provided
+        if (!spin.direction) {
+            if (!lastDirection) {
+                // Shouldn't happen as we checked first spin above
+                console.error('Direction could not be determined');
+                return;
+            }
+            spin.direction = lastDirection === 'CW' ? 'CCW' : 'CW';
         }
 
         addSpin(spin.number, spin.direction);
+        lastDirection = spin.direction;
     });
 
     return true;
 }
 
-// Add this to your event listeners section
-document.addEventListener('DOMContentLoaded', () => {
-    initWheel();
+// Update the batch import event listener to clarify alternating directions
+document.getElementById('batchImportBtn').addEventListener('click', () => {
+    const batchInput = prompt(`Enter spins in format:\nnumber,direction(optional)\nDirections will alternate if not specified\nExample:\n17,CW\n32\n5\n0\n(Will alternate CW, CCW, CW, CCW)`);
     
-    // [Previous event listeners remain the same...]
-
-    // Add batch import button and functionality
-    const batchImportBtn = document.createElement('button');
-    batchImportBtn.textContent = 'Import Batch Spins';
-    batchImportBtn.className = 'btn btn-secondary mt-3';
-    batchImportBtn.id = 'batchImportBtn';
-    document.querySelector('.card-body').appendChild(batchImportBtn);
-
-    document.getElementById('batchImportBtn').addEventListener('click', () => {
-        const batchInput = prompt(`Enter spins in format:\nnumber,direction(optional)\nSeparated by new lines\nExample:\n17,CW\n32\n5\n0,CCW`);
+    if (!batchInput) return;
+    
+    const spinLines = batchInput.split('\n');
+    const batchData = [];
+    
+    spinLines.forEach(line => {
+        line = line.trim();
+        if (!line) return;
         
-        if (!batchInput) return;
+        const parts = line.split(',');
+        const number = parseInt(parts[0]);
         
-        const spinLines = batchInput.split('\n');
-        const batchData = [];
-        
-        spinLines.forEach(line => {
-            line = line.trim();
-            if (!line) return;
-            
-            const parts = line.split(',');
-            const number = parseInt(parts[0]);
-            
-            if (isNaN(number) || number < 0 || number > 36) {
-                alert(`Invalid number: ${parts[0]}`);
-                return;
-            }
-            
-            batchData.push({
-                number: number,
-                direction: parts[1] ? parts[1].trim().toUpperCase() : null
-            });
-        });
-        
-        if (batchData.length > 0) {
-            addBatchSpins(batchData);
+        if (isNaN(number) || number < 0 || number > 36) {
+            alert(`Invalid number: ${parts[0]}`);
+            return;
         }
+        
+        batchData.push({
+            number: number,
+            direction: parts[1] ? parts[1].trim().toUpperCase() : null
+        });
     });
+    
+    if (batchData.length > 0) {
+        addBatchSpins(batchData);
+    }
 });
