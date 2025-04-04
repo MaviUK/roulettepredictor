@@ -410,3 +410,102 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initialize with empty prediction display
     updatePrediction();
 });
+// [Previous wheel numbers and initialization code remains exactly the same...]
+
+// Predict the next number (this was missing in previous version)
+function predictNext() {
+    if (spinHistory.length < 5) {
+        return {
+            success: false,
+            message: "Need at least 5 spins in the current direction to make a prediction"
+        };
+    }
+    
+    // Get last 5 spins in the next direction (opposite of current)
+    const nextDirection = currentDirection === 'CW' ? 'CCW' : 'CW';
+    const last5Spins = spinHistory
+        .filter(spin => spin.direction === nextDirection)
+        .slice(-5);
+    
+    if (last5Spins.length < 5) {
+        return {
+            success: false,
+            message: `Need at least 5 spins in ${nextDirection} direction to make a prediction`
+        };
+    }
+    
+    // Calculate pockets for each of the last 5 spins
+    const pocketData = [];
+    for (let i = 1; i < last5Spins.length; i++) {
+        const from = last5Spins[i-1].number;
+        const to = last5Spins[i].number;
+        const pockets = calculatePockets(from, to, nextDirection);
+        pocketData.push(pockets);
+    }
+    
+    // Remove highest and lowest, average the remaining 3
+    pocketData.sort((a, b) => a - b);
+    const middle3 = pocketData.slice(1, -1);
+    const averagePockets = Math.round(middle3.reduce((sum, val) => sum + val, 0) / middle3.length);
+    
+    // Get current number
+    const currentNumber = spinHistory[spinHistory.length - 1].number;
+    const currentIndex = wheelNumbers.indexOf(currentNumber);
+    
+    // Calculate predicted number
+    let predictedIndex;
+    if (nextDirection === 'CW') {
+        predictedIndex = (currentIndex + averagePockets) % wheelNumbers.length;
+    } else {
+        predictedIndex = (currentIndex - averagePockets + wheelNumbers.length) % wheelNumbers.length;
+    }
+    
+    const predictedNumber = wheelNumbers[predictedIndex];
+    
+    return {
+        success: true,
+        predictedNumber,
+        predictedDirection: nextDirection,
+        averagePockets,
+        currentNumber,
+        calculationSteps: {
+            last5Spins,
+            pocketData,
+            middle3,
+            averagePockets
+        }
+    };
+}
+
+// Update the prediction display automatically
+function updatePrediction() {
+    const prediction = predictNext();
+    const resultDiv = document.getElementById('predictionResult');
+    
+    if (prediction.success) {
+        resultDiv.innerHTML = `
+            <p><strong>Next Predicted Number:</strong> ${prediction.predictedNumber}</p>
+            <p><strong>Expected Direction:</strong> ${prediction.predictedDirection}</p>
+            <p><strong>From Current Number:</strong> ${prediction.currentNumber}</p>
+            <p><strong>Pockets to move:</strong> ${prediction.averagePockets} ${prediction.predictedDirection}</p>
+        `;
+    } else {
+        resultDiv.innerHTML = `
+            <p><strong>Prediction Status:</strong> ${prediction.message}</p>
+            <p>Need at least 5 spins in each direction for predictions</p>
+        `;
+    }
+}
+
+// [Rest of your existing code remains the same...]
+
+// Make sure updatePrediction() is called after every spin
+// by including it in your addSpin() function:
+function addSpin(number, direction = null) {
+    // [Existing addSpin code...]
+    
+    spinHistory.push(spin);
+    updateHistoryTable();
+    updateStreakDisplay();
+    updatePrediction(); // This line makes predictions update automatically
+}
