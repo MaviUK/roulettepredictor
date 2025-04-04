@@ -18,7 +18,7 @@
       border-radius: 10px;
       box-shadow: 0 0 15px rgba(0,0,0,0.1);
     }
-    label, input, select, button {
+    label, textarea, button {
       display: block;
       width: 100%;
       margin-bottom: 1rem;
@@ -33,14 +33,8 @@
 <body>
   <div class="container">
     <h2>Roulette Spin Predictor</h2>
-    <label for="lastSpins">Enter Last Spins (comma-separated):</label>
-    <input type="text" id="lastSpins" placeholder="e.g., 32,15,0,26,3">
-
-    <label for="direction">Direction:</label>
-    <select id="direction">
-      <option value="cw">Clockwise</option>
-      <option value="ccw">Counter-Clockwise</option>
-    </select>
+    <label for="lastSpins">Enter Last Spins (one per line):</label>
+    <textarea id="lastSpins" rows="6" placeholder="e.g.,\n32\n15\n0\n26\n3"></textarea>
 
     <button onclick="predictNextSpin()">Predict Next Spin</button>
     <div id="prediction"></div>
@@ -66,8 +60,7 @@
 
     function predictNextSpin() {
       const input = document.getElementById('lastSpins').value;
-      const direction = document.getElementById('direction').value;
-      const spins = input.split(',').map(Number).filter(n => !isNaN(n));
+      const spins = input.split(/\n|,/).map(s => parseInt(s.trim())).filter(n => !isNaN(n));
 
       if (spins.length < 3) {
         document.getElementById('prediction').innerText = 'Enter at least 3 spins.';
@@ -83,33 +76,42 @@
       let hot = parseInt(sorted[0][0]);
       let cold = parseInt(sorted[sorted.length - 1][0]);
 
-      let hotIndex = wheel.indexOf(hot);
-      let coldIndex = wheel.indexOf(cold);
-
-      // Compute average movement in chosen direction
-      let movement = 0;
+      let movementCW = 0, movementCCW = 0;
       for (let i = 1; i < spins.length; i++) {
         let prev = wheel.indexOf(spins[i - 1]);
         let curr = wheel.indexOf(spins[i]);
-        if (direction === 'cw') {
-          movement += (curr - prev + wheel.length) % wheel.length;
-        } else {
-          movement += (prev - curr + wheel.length) % wheel.length;
-        }
+        movementCW += (curr - prev + wheel.length) % wheel.length;
+        movementCCW += (prev - curr + wheel.length) % wheel.length;
       }
-      let avgMove = Math.round(movement / (spins.length - 1));
 
-      // Predict next base number from last spin
+      let avgCW = movementCW / (spins.length - 1);
+      let avgCCW = movementCCW / (spins.length - 1);
+
+      // Choose direction with smaller average movement (smoother trend)
+      const direction = avgCW <= avgCCW ? 'cw' : 'ccw';
+      const avgMove = Math.round(direction === 'cw' ? avgCW : avgCCW);
+
+      // Predict next base number
       let last = wheel.indexOf(spins[spins.length - 1]);
       let predictionIndex = (direction === 'cw')
         ? (last + avgMove) % wheel.length
         : (last - avgMove + wheel.length) % wheel.length;
 
-      // Generate bet zone (max of 10 numbers)
+      // Generate bet zone: 1 number + 9 neighbors = 10 total
       let basePrediction = wheel[predictionIndex];
-      let neighbors = getNeighbors(predictionIndex, 4, direction); // 1 base + 4 either side = 9 max
+      let neighbors = [];
+      for (let i = 1; i <= 4; i++) {
+        let left = (predictionIndex - i + wheel.length) % wheel.length;
+        let right = (predictionIndex + i) % wheel.length;
+        neighbors.push(wheel[direction === 'cw' ? right : left]);
+      }
+      let extra = (direction === 'cw')
+        ? (predictionIndex + 5) % wheel.length
+        : (predictionIndex - 5 + wheel.length) % wheel.length;
+      neighbors.push(wheel[extra]);
 
-      document.getElementById('prediction').innerText = `Bet on: ${[...new Set([basePrediction, ...neighbors])].join(', ')}`;
+      let finalBet = [...new Set([basePrediction, ...neighbors])];
+      document.getElementById('prediction').innerText = `Direction: ${direction.toUpperCase()} | Bet on: ${finalBet.join(', ')}`;
     }
   </script>
 </body>
