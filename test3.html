@@ -124,8 +124,8 @@
     }
 
     function updateStats(newSpin, to) {
-      const lastPrediction = predictNext(spins);
-      const predictionNeighbors = lastPrediction ? getNeighbors(lastPrediction) : [];
+      const previousPrediction = predictNext(spins);
+      const predictionNeighbors = previousPrediction ? getNeighbors(previousPrediction) : [];
       const correct = predictionNeighbors.includes(to);
 
       if (!correct) {
