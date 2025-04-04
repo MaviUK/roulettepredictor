@@ -22,7 +22,7 @@
       gap: 1rem;
       margin-bottom: 1rem;
     }
-    input, select, button {
+    input, select, button, textarea {
       padding: 0.5rem;
       font-size: 1rem;
     }
@@ -31,6 +31,11 @@
       color: white;
       border: none;
       border-radius: 4px;
+    }
+    textarea {
+      width: 100%;
+      margin-top: 1rem;
+      height: 100px;
     }
   </style>
 </head>
@@ -46,6 +51,9 @@
     </select>
     <button onclick="addSpin()">Add Spin</button>
   </div>
+
+  <textarea id="batchInput" placeholder="Paste numbers like: 12,5,17,8,32"></textarea>
+  <button onclick="addBatchSpins()">Add Batch</button>
 
   <div class="section">
     <h2>🔮 Prediction</h2>
@@ -104,24 +112,18 @@
       return europeanWheel[newIndex];
     }
 
-    function addSpin() {
-      const from = Number(document.getElementById('from').value);
-      const to = Number(document.getElementById('to').value);
-      const direction = document.getElementById('direction').value;
-
-      const pockets = calculatePockets(from, to, direction);
-      const newSpin = { from, to, direction, pockets };
+    function updateStats(newSpin, to) {
       const lastPrediction = predictNext(spins);
       const correct = lastPrediction === to;
 
       if (!correct) {
-        lossStreak[direction]++;
+        lossStreak[newSpin.direction]++;
         lossStreak.total++;
         maxLoss.CW = Math.max(maxLoss.CW, lossStreak.CW);
         maxLoss.CCW = Math.max(maxLoss.CCW, lossStreak.CCW);
         maxLoss.total = Math.max(maxLoss.total, lossStreak.total);
       } else {
-        lossStreak[direction] = 0;
+        lossStreak[newSpin.direction] = 0;
         lossStreak.total = 0;
       }
 
@@ -137,6 +139,32 @@
       document.getElementById('cwStreak').textContent = maxLoss.CW;
       document.getElementById('ccwStreak').textContent = maxLoss.CCW;
       document.getElementById('totalStreak').textContent = maxLoss.total;
+    }
+
+    function addSpin() {
+      const from = Number(document.getElementById('from').value);
+      const to = Number(document.getElementById('to').value);
+      const direction = document.getElementById('direction').value;
+
+      const pockets = calculatePockets(from, to, direction);
+      const newSpin = { from, to, direction, pockets };
+      updateStats(newSpin, to);
+    }
+
+    function addBatchSpins() {
+      const input = document.getElementById('batchInput').value;
+      const numbers = input.split(/[^0-9]+/).map(n => parseInt(n)).filter(n => !isNaN(n));
+      if (numbers.length < 2) return alert("Need at least 2 numbers.");
+
+      let direction = document.getElementById('direction').value;
+      for (let i = 1; i < numbers.length; i++) {
+        const from = numbers[i - 1];
+        const to = numbers[i];
+        const pockets = calculatePockets(from, to, direction);
+        const newSpin = { from, to, direction, pockets };
+        updateStats(newSpin, to);
+        direction = direction === "CW" ? "CCW" : "CW";
+      }
     }
   </script>
 </body>
