@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Inverse Roulette Predictor</title>
+    <title>Roulette Number Predictor</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -71,12 +71,7 @@
             background: white;
         }
         .predicted-number {
-            background: #e74c3c;
-            color: white;
-            font-weight: bold;
-        }
-        .inverse-number {
-            background: #2ecc71;
+            background: #3498db;
             color: white;
             font-weight: bold;
         }
@@ -135,14 +130,7 @@
             overflow: hidden;
             text-overflow: ellipsis;
         }
-        .inverse-notice {
-            background: #d4edda;
-            padding: 10px;
-            border-left: 4px solid #28a745;
-            margin: 10px 0;
-            font-weight: bold;
-        }
-        .emergency-alert {
+        .safety-alert {
             background: #f8d7da;
             color: #721c24;
             padding: 10px;
@@ -152,10 +140,7 @@
     </style>
 </head>
 <body>
-    <h1>Inverse Roulette Predictor</h1>
-    <div class="inverse-notice">
-        STRATEGY: Betting opposite of predicted number (since predictions were losing consistently)
-    </div>
+    <h1>Roulette Number Predictor</h1>
     
     <div class="input-section">
         <h2>Enter Numbers</h2>
@@ -187,7 +172,6 @@
                         <th>#</th>
                         <th>Predicted For</th>
                         <th>Predicted</th>
-                        <th>Inverse Bet</th>
                         <th>Actual</th>
                         <th>Result</th>
                         <th>Streak</th>
@@ -207,10 +191,10 @@
         let predictions = [];
         let lossStreak = 0;
         let longestLossStreak = 0;
-        let inverseWins = 0;
-        let inverseLosses = 0;
+        let wins = 0;
+        let losses = 0;
         let currentPrediction = null;
-        let emergencyMode = false;
+        let safetyMode = false;
 
         // Initialize on load
         window.onload = function() {
@@ -219,15 +203,15 @@
 
         // Load saved data
         function loadData() {
-            const savedData = localStorage.getItem('inverseRouletteData');
+            const savedData = localStorage.getItem('roulettePredictorData');
             if (savedData) {
                 const data = JSON.parse(savedData);
                 numbers = data.numbers || [];
                 predictions = data.predictions || [];
                 lossStreak = data.lossStreak || 0;
                 longestLossStreak = data.longestLossStreak || 0;
-                inverseWins = data.inverseWins || 0;
-                inverseLosses = data.inverseLosses || 0;
+                wins = data.wins || 0;
+                losses = data.losses || 0;
                 updateDisplay();
                 makeNextPrediction();
             }
@@ -240,10 +224,10 @@
                 predictions,
                 lossStreak,
                 longestLossStreak,
-                inverseWins,
-                inverseLosses
+                wins,
+                losses
             };
-            localStorage.setItem('inverseRouletteData', JSON.stringify(data));
+            localStorage.setItem('roulettePredictorData', JSON.stringify(data));
         }
 
         // Clear all data
@@ -253,9 +237,9 @@
                 predictions = [];
                 lossStreak = 0;
                 longestLossStreak = 0;
-                inverseWins = 0;
-                inverseLosses = 0;
-                localStorage.removeItem('inverseRouletteData');
+                wins = 0;
+                losses = 0;
+                localStorage.removeItem('roulettePredictorData');
                 updateDisplay();
             }
         }
@@ -321,38 +305,36 @@
             updateDisplay();
         }
 
-        // Check if inverse prediction was correct
+        // Check if prediction was correct
         function checkPrediction(actualNumber) {
             const lastPrediction = predictions[predictions.length-1];
+            const isCorrect = lastPrediction.neighbors.includes(actualNumber);
             
-            // The inverse is correct if the actual number is NOT in the predicted neighbors
-            const isInverseCorrect = !lastPrediction.neighbors.includes(actualNumber);
-            
-            if (isInverseCorrect) {
-                inverseWins++;
+            if (isCorrect) {
+                wins++;
                 lossStreak = 0;
             } else {
-                inverseLosses++;
+                losses++;
                 lossStreak++;
                 if (lossStreak > longestLossStreak) {
                     longestLossStreak = lossStreak;
                 }
                 
-                // Activate emergency mode after 4 losses
-                if (lossStreak >= 4) {
-                    emergencyMode = true;
+                // Activate safety mode after 3 losses
+                if (lossStreak >= 3) {
+                    safetyMode = true;
                 }
             }
             
             // Store results
             lastPrediction.actual = actualNumber;
-            lastPrediction.isCorrect = isInverseCorrect;
+            lastPrediction.isCorrect = isCorrect;
             lastPrediction.streak = lossStreak;
             
             saveData();
         }
 
-        // Make inverse prediction for NEXT spin
+        // Make prediction for NEXT spin
         function makeNextPrediction() {
             if (numbers.length < 2) {
                 currentPrediction = null;
@@ -363,30 +345,22 @@
             const lastNum = numbers[numbers.length-1];
             const lastIdx = WHEEL.indexOf(lastNum);
             
-            // In emergency mode, we use a completely different approach
+            // In safety mode, we use a different prediction method
             let predictedIdx;
-            if (emergencyMode) {
-                // Emergency strategy - pick a number from the opposite side of the wheel
-                predictedIdx = (lastIdx + 18 + Math.floor(Math.random() * 5) - 2) % 37;
-                emergencyMode = false; // Try normal mode next time
+            if (safetyMode) {
+                predictedIdx = (lastIdx + getSafetyStep()) % 37;
+                safetyMode = false; // Try normal mode next time
             } else {
-                // Standard prediction - opposite of what would normally be predicted
-                const step = analyzeStepPattern();
-                predictedIdx = (lastIdx + step) % 37;
+                predictedIdx = (lastIdx + getPredictedStep()) % 37;
             }
             
             const predictedNumber = WHEEL[predictedIdx];
             const neighbors = getNeighbors(predictedNumber);
             
-            // The inverse bet is the number directly opposite on the wheel
-            const inverseBetNumber = WHEEL[(predictedIdx + 18) % 37];
-            const inverseNeighbors = getNeighbors(inverseBetNumber);
-            
             currentPrediction = {
                 predictedFor: lastNum,
                 predicted: predictedNumber,
-                inverseBet: inverseBetNumber,
-                neighbors: inverseNeighbors, // We show neighbors for the inverse bet
+                neighbors,
                 actual: null,
                 isCorrect: null,
                 streak: lossStreak,
@@ -398,8 +372,8 @@
             updateDisplay();
         }
 
-        // Analyze step pattern to predict next number
-        function analyzeStepPattern() {
+        // Calculate predicted step based on recent patterns
+        function getPredictedStep() {
             if (numbers.length < 2) return 1;
             
             // Look at last 5 steps
@@ -415,6 +389,18 @@
             // Return the median step
             steps.sort((a, b) => a - b);
             return steps[Math.floor(steps.length / 2)];
+        }
+
+        // Different step calculation for safety mode
+        function getSafetyStep() {
+            if (numbers.length < 2) return 1;
+            
+            // Look for repeating patterns
+            const lastStep = (WHEEL.indexOf(numbers[numbers.length-1]) - 
+                           WHEEL.indexOf(numbers[numbers.length-2]) + 37) % 37;
+            
+            // Try to break the pattern
+            return (lastStep + 9) % 18 + 1; // Returns a step between 1-18
         }
 
         // Get neighbors (9 each side)
@@ -439,18 +425,18 @@
 
         function updateStats() {
             const statsDiv = document.getElementById("currentStats");
-            const totalPredictions = inverseWins + inverseLosses;
-            const accuracy = totalPredictions > 0 ? Math.round((inverseWins / totalPredictions) * 100) : 0;
+            const totalPredictions = wins + losses;
+            const accuracy = totalPredictions > 0 ? Math.round((wins / totalPredictions) * 100) : 0;
             
             statsDiv.innerHTML = `
                 <p><strong>Total spins:</strong> ${numbers.length}</p>
-                <p><strong>Inverse predictions made:</strong> ${totalPredictions}</p>
-                <p><strong>Inverse prediction accuracy:</strong> ${accuracy}%</p>
-                <p><strong>Inverse wins/losses:</strong> ${inverseWins}W / ${inverseLosses}L</p>
+                <p><strong>Predictions made:</strong> ${totalPredictions}</p>
+                <p><strong>Prediction accuracy:</strong> ${accuracy}%</p>
+                <p><strong>Wins/losses:</strong> ${wins}W / ${losses}L</p>
                 <p><strong>Current streak:</strong> ${lossStreak} ${lossStreak > 0 ? 'losses' : ''}</p>
                 <p><strong>Longest losing streak:</strong> ${longestLossStreak}</p>
-                ${lossStreak >= 3 ? '<div class="alert">⚠️ Loss streak detected - system will adjust prediction</div>' : ''}
-                ${lossStreak >= 4 ? '<div class="emergency-alert">⚠️ EMERGENCY MODE: Using alternate prediction strategy</div>' : ''}
+                ${lossStreak >= 3 ? '<div class="alert">⚠️ Safety mode activated for next prediction</div>' : ''}
+                ${lossStreak >= 5 ? '<div class="safety-alert">⚠️ WARNING: Long loss streak detected</div>' : ''}
             `;
         }
 
@@ -461,20 +447,16 @@
             if (numbers.length > 0 && currentPrediction) {
                 predictionDiv.innerHTML = `
                     <p><strong>Last number:</strong> ${numbers[numbers.length-1]}</p>
-                    <p><strong>Original prediction (avoid):</strong> 
-                        <span style="color:#e74c3c">${currentPrediction.predicted}</span>
+                    <p><strong>Predicted number:</strong> 
+                        <span class="predicted-number">${currentPrediction.predicted}</span>
                     </p>
-                    <p><strong>Inverse bet (recommended):</strong> 
-                        <span style="color:#2ecc71; font-weight:bold">${currentPrediction.inverseBet}</span>
-                    </p>
-                    ${lossStreak >= 4 ? '<p><strong>Strategy:</strong> Emergency anti-pattern</p>' : ''}
                 `;
                 
                 neighborsDiv.innerHTML = `
-                    <p><strong>Bet on these 19 numbers (inverse + 9 neighbors each side):</strong></p>
+                    <p><strong>Bet on these 19 numbers (predicted + 9 neighbors each side):</strong></p>
                     <div class="neighbors">
                         ${currentPrediction.neighbors.map(num => `
-                            <span class="neighbor ${num === currentPrediction.inverseBet ? 'inverse-number' : ''}">
+                            <span class="neighbor ${num === currentPrediction.predicted ? 'predicted-number' : ''}">
                                 ${num}
                             </span>
                         `).join('')}
@@ -504,8 +486,7 @@
                 row.innerHTML = `
                     <td>${completedPredictions.length - i}</td>
                     <td>${pred.predictedFor}</td>
-                    <td style="color:#e74c3c">${pred.predicted}</td>
-                    <td style="color:#2ecc71; font-weight:bold">${pred.inverseBet}</td>
+                    <td>${pred.predicted}</td>
                     <td>${pred.actual}</td>
                     <td>${pred.isCorrect ? '✅' : '❌'}</td>
                     <td>${pred.streak > 0 ? pred.streak + 'L' : ''}</td>
