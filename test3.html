@@ -43,13 +43,13 @@
   <h1>🎯 Roulette Prediction Tool</h1>
 
   <div class="input-group">
-    <input type="number" id="from" placeholder="From" />
-    <input type="number" id="to" placeholder="To" />
+    <input type="number" id="singleTo" placeholder="Add Spin (To number only)" />
     <select id="direction">
       <option value="CW">CW</option>
       <option value="CCW">CCW</option>
     </select>
-    <button onclick="addSpin()">Add Spin</button>
+    <button onclick="addSimpleSpin()">Add Spin</button>
+    <button onclick="resetAll()">Reset</button>
   </div>
 
   <textarea id="batchInput" placeholder="Paste numbers like: 12,5,17,8,32"></textarea>
@@ -58,11 +58,13 @@
   <div class="section">
     <h2>🔮 Prediction</h2>
     <p id="prediction">Next predicted number: <strong>Not enough data yet</strong></p>
+    <p id="neighbors"></p>
   </div>
 
   <div class="section">
     <h2>📜 Spin History</h2>
-    <div id="history"></div>
+    <div><strong>Clockwise:</strong><div id="cwHistory"></div></div>
+    <div style="margin-top: 1rem;"><strong>Counterclockwise:</strong><div id="ccwHistory"></div></div>
   </div>
 
   <div class="section" style="background-color: #fef3c7;">
@@ -92,6 +94,15 @@
       return direction === "CW"
         ? (toIndex - fromIndex + europeanWheel.length) % europeanWheel.length
         : (fromIndex - toIndex + europeanWheel.length) % europeanWheel.length;
+    }
+
+    function getNeighbors(number) {
+      const idx = getIndex(number);
+      let neighbors = [];
+      for (let i = -9; i <= 9; i++) {
+        neighbors.push(europeanWheel[(idx + i + europeanWheel.length) % europeanWheel.length]);
+      }
+      return neighbors;
     }
 
     function predictNext(history) {
@@ -129,23 +140,27 @@
 
       spins.push(newSpin);
       const prediction = predictNext(spins);
+      const neighborText = prediction ? getNeighbors(prediction).join(", ") : "";
+
       document.getElementById('prediction').innerHTML = `Next predicted number: <strong>${prediction ?? "Not enough data yet"}</strong>`;
+      document.getElementById('neighbors').innerHTML = prediction ? `Neighbors (±9): <strong>${neighborText}</strong>` : "";
 
-      const lastSpins = spins.slice(-5).map(spin =>
-        `<p><strong>${spin.direction}</strong> | From: ${spin.from} → To: ${spin.to} | Pockets: ${spin.pockets}</p>`
-      ).join('');
-      document.getElementById('history').innerHTML = lastSpins;
+      const cwSpins = spins.filter(s => s.direction === "CW").slice(-5).map(spin =>
+        `<p>From: ${spin.from} → To: ${spin.to} | Pockets: ${spin.pockets}</p>`).join('');
+      const ccwSpins = spins.filter(s => s.direction === "CCW").slice(-5).map(spin =>
+        `<p>From: ${spin.from} → To: ${spin.to} | Pockets: ${spin.pockets}</p>`).join('');
 
+      document.getElementById('cwHistory').innerHTML = cwSpins;
+      document.getElementById('ccwHistory').innerHTML = ccwSpins;
       document.getElementById('cwStreak').textContent = maxLoss.CW;
       document.getElementById('ccwStreak').textContent = maxLoss.CCW;
       document.getElementById('totalStreak').textContent = maxLoss.total;
     }
 
-    function addSpin() {
-      const from = Number(document.getElementById('from').value);
-      const to = Number(document.getElementById('to').value);
+    function addSimpleSpin() {
+      const to = Number(document.getElementById('singleTo').value);
       const direction = document.getElementById('direction').value;
-
+      const from = spins.length ? spins[spins.length - 1].to : to;
       const pockets = calculatePockets(from, to, direction);
       const newSpin = { from, to, direction, pockets };
       updateStats(newSpin, to);
@@ -165,6 +180,21 @@
         updateStats(newSpin, to);
         direction = direction === "CW" ? "CCW" : "CW";
       }
+    }
+
+    function resetAll() {
+      spins = [];
+      lossStreak = { CW: 0, CCW: 0, total: 0 };
+      maxLoss = { CW: 0, CCW: 0, total: 0 };
+      document.getElementById('prediction').innerHTML = 'Next predicted number: <strong>Not enough data yet</strong>';
+      document.getElementById('neighbors').innerHTML = '';
+      document.getElementById('cwHistory').innerHTML = '';
+      document.getElementById('ccwHistory').innerHTML = '';
+      document.getElementById('cwStreak').textContent = '0';
+      document.getElementById('ccwStreak').textContent = '0';
+      document.getElementById('totalStreak').textContent = '0';
+      document.getElementById('batchInput').value = '';
+      document.getElementById('singleTo').value = '';
     }
   </script>
 </body>
