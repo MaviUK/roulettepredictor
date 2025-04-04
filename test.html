@@ -1,499 +1,116 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Roulette Number Predictor</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 900px;
-            margin: 0 auto;
-            padding: 20px;
-            line-height: 1.6;
-            color: #333;
-        }
-        h1, h2, h3 {
-            color: #2c3e50;
-        }
-        textarea {
-            width: 100%;
-            height: 100px;
-            margin-bottom: 10px;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-        }
-        button {
-            padding: 10px 15px;
-            background: #3498db;
-            color: white;
-            border: none;
-            cursor: pointer;
-            border-radius: 4px;
-            margin-right: 10px;
-            margin-bottom: 10px;
-            font-weight: bold;
-        }
-        button:hover {
-            background: #2980b9;
-        }
-        button.clear {
-            background: #e74c3c;
-        }
-        button.clear:hover {
-            background: #c0392b;
-        }
-        .stats-container {
-            background: #f8f9fa;
-            padding: 15px;
-            border-radius: 5px;
-            margin: 20px 0;
-            border: 1px solid #eee;
-        }
-        .prediction-container {
-            background: #e8f4fd;
-            padding: 15px;
-            border-radius: 5px;
-            margin: 20px 0;
-            border-left: 4px solid #3498db;
-        }
-        .neighbors {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            margin: 15px 0;
-        }
-        .neighbor {
-            padding: 8px 12px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            background: white;
-        }
-        .predicted-number {
-            background: #3498db;
-            color: white;
-            font-weight: bold;
-        }
-        .history-container {
-            margin-top: 30px;
-            overflow-x: auto;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 10px;
-        }
-        th, td {
-            border: 1px solid #ddd;
-            padding: 10px;
-            text-align: center;
-        }
-        th {
-            background: #2c3e50;
-            color: white;
-            position: sticky;
-            top: 0;
-        }
-        tr.correct {
-            background: #e6ffed;
-        }
-        tr.incorrect {
-            background: #ffebee;
-        }
-        .history-body {
-            max-height: 500px;
-            overflow-y: auto;
-            display: block;
-        }
-        .alert {
-            background: #fff3cd;
-            padding: 10px;
-            border-left: 4px solid #ffc107;
-            margin: 10px 0;
-        }
-        .table-wrapper {
-            overflow-x: auto;
-        }
-        #historyTable {
-            table-layout: fixed;
-            width: 100%;
-        }
-        #historyTable th {
-            position: sticky;
-            top: 0;
-            background: #2c3e50;
-            z-index: 10;
-        }
-        #historyTable td, #historyTable th {
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        .safety-alert {
-            background: #f8d7da;
-            color: #721c24;
-            padding: 10px;
-            border-left: 4px solid #dc3545;
-            margin: 10px 0;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Roulette Spin Predictor</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 2rem;
+      background: #f2f2f2;
+    }
+    .container {
+      max-width: 600px;
+      margin: auto;
+      background: #fff;
+      padding: 2rem;
+      border-radius: 10px;
+      box-shadow: 0 0 15px rgba(0,0,0,0.1);
+    }
+    label, input, select, button {
+      display: block;
+      width: 100%;
+      margin-bottom: 1rem;
+    }
+    #prediction {
+      font-size: 1.5rem;
+      font-weight: bold;
+      color: green;
+    }
+  </style>
 </head>
 <body>
-    <h1>Roulette Number Predictor</h1>
-    
-    <div class="input-section">
-        <h2>Enter Numbers</h2>
-        <textarea id="numbersInput" placeholder="Enter numbers separated by commas or spaces (e.g., 17, 32, 0, 26)"></textarea>
-        <div>
-            <button onclick="addNumbers()">Add Historical Numbers</button>
-            <button onclick="addSingleNumber()">Add Single Number</button>
-            <button onclick="clearData()" class="clear">Clear All Data</button>
-        </div>
-    </div>
-    
-    <div class="stats-container">
-        <h2>Statistics</h2>
-        <div id="currentStats"></div>
-    </div>
-    
-    <div class="prediction-container">
-        <h2>Next Prediction</h2>
-        <div id="currentPrediction"></div>
-        <div id="neighborsDisplay"></div>
-    </div>
-    
-    <div class="history-container">
-        <h2>Prediction History (Newest First)</h2>
-        <div class="table-wrapper">
-            <table id="historyTable">
-                <thead>
-                    <tr>
-                        <th>#</th>
-                        <th>Predicted For</th>
-                        <th>Predicted</th>
-                        <th>Actual</th>
-                        <th>Result</th>
-                        <th>Streak</th>
-                    </tr>
-                </thead>
-                <tbody id="historyBody" class="history-body"></tbody>
-            </table>
-        </div>
-    </div>
+  <div class="container">
+    <h2>Roulette Spin Predictor</h2>
+    <label for="lastSpins">Enter Last Spins (comma-separated):</label>
+    <input type="text" id="lastSpins" placeholder="e.g., 32,15,0,26,3">
 
-    <script>
-        // European roulette wheel layout
-        const WHEEL = [0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10, 5, 24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26];
-        
-        // Game state
-        let numbers = [];
-        let predictions = [];
-        let lossStreak = 0;
-        let longestLossStreak = 0;
-        let wins = 0;
-        let losses = 0;
-        let currentPrediction = null;
-        let safetyMode = false;
+    <label for="direction">Direction:</label>
+    <select id="direction">
+      <option value="cw">Clockwise</option>
+      <option value="ccw">Counter-Clockwise</option>
+    </select>
 
-        // Initialize on load
-        window.onload = function() {
-            loadData();
-        };
+    <button onclick="predictNextSpin()">Predict Next Spin</button>
+    <div id="prediction"></div>
+  </div>
 
-        // Load saved data
-        function loadData() {
-            const savedData = localStorage.getItem('roulettePredictorData');
-            if (savedData) {
-                const data = JSON.parse(savedData);
-                numbers = data.numbers || [];
-                predictions = data.predictions || [];
-                lossStreak = data.lossStreak || 0;
-                longestLossStreak = data.longestLossStreak || 0;
-                wins = data.wins || 0;
-                losses = data.losses || 0;
-                updateDisplay();
-                makeNextPrediction();
-            }
+  <script>
+    const wheel = [
+      0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6,
+      27, 13, 36, 11, 30, 8, 23, 10, 5, 24,
+      16, 33, 1, 20, 14, 31, 9, 22, 18, 29,
+      7, 28, 12, 35, 3, 26
+    ];
+
+    function getNeighbors(index, count, direction) {
+      let neighbors = [wheel[index]];
+      for (let i = 1; i <= count; i++) {
+        let left = (index - i + wheel.length) % wheel.length;
+        let right = (index + i) % wheel.length;
+        neighbors.push(wheel[direction === 'cw' ? right : left]);
+      }
+      return [...new Set(neighbors)];
+    }
+
+    function predictNextSpin() {
+      const input = document.getElementById('lastSpins').value;
+      const direction = document.getElementById('direction').value;
+      const spins = input.split(',').map(Number).filter(n => !isNaN(n));
+
+      if (spins.length < 3) {
+        document.getElementById('prediction').innerText = 'Enter at least 3 spins.';
+        return;
+      }
+
+      let freq = {};
+      for (let s of spins) {
+        freq[s] = (freq[s] || 0) + 1;
+      }
+
+      let sorted = Object.entries(freq).sort((a,b) => b[1] - a[1]);
+      let hot = parseInt(sorted[0][0]);
+      let cold = parseInt(sorted[sorted.length - 1][0]);
+
+      let hotIndex = wheel.indexOf(hot);
+      let coldIndex = wheel.indexOf(cold);
+
+      // Compute average movement in chosen direction
+      let movement = 0;
+      for (let i = 1; i < spins.length; i++) {
+        let prev = wheel.indexOf(spins[i - 1]);
+        let curr = wheel.indexOf(spins[i]);
+        if (direction === 'cw') {
+          movement += (curr - prev + wheel.length) % wheel.length;
+        } else {
+          movement += (prev - curr + wheel.length) % wheel.length;
         }
+      }
+      let avgMove = Math.round(movement / (spins.length - 1));
 
-        // Save data
-        function saveData() {
-            const data = {
-                numbers,
-                predictions,
-                lossStreak,
-                longestLossStreak,
-                wins,
-                losses
-            };
-            localStorage.setItem('roulettePredictorData', JSON.stringify(data));
-        }
+      // Predict next base number from last spin
+      let last = wheel.indexOf(spins[spins.length - 1]);
+      let predictionIndex = (direction === 'cw')
+        ? (last + avgMove) % wheel.length
+        : (last - avgMove + wheel.length) % wheel.length;
 
-        // Clear all data
-        function clearData() {
-            if (confirm("Are you sure you want to clear all data?")) {
-                numbers = [];
-                predictions = [];
-                lossStreak = 0;
-                longestLossStreak = 0;
-                wins = 0;
-                losses = 0;
-                localStorage.removeItem('roulettePredictorData');
-                updateDisplay();
-            }
-        }
+      // Generate bet zone (max of 10 numbers)
+      let basePrediction = wheel[predictionIndex];
+      let neighbors = getNeighbors(predictionIndex, 4, direction); // 1 base + 4 either side = 9 max
 
-        // Add multiple historical numbers
-        function addNumbers() {
-            const input = document.getElementById("numbersInput").value.trim();
-            if (!input) {
-                alert("Please enter some numbers first");
-                return;
-            }
-            
-            const newNumbers = input.split(/[\s,]+/).map(num => parseInt(num)).filter(num => !isNaN(num));
-            
-            if (newNumbers.length === 0) {
-                alert("No valid numbers found");
-                return;
-            }
-            
-            newNumbers.forEach(num => {
-                if (numbers.length > 0 && predictions.length > 0) {
-                    const lastPred = predictions[predictions.length-1];
-                    if (lastPred.actual === null) {
-                        checkPrediction(num);
-                    }
-                }
-                
-                numbers.push(num);
-                makeNextPrediction();
-            });
-            
-            document.getElementById("numbersInput").value = "";
-            saveData();
-            updateDisplay();
-        }
-
-        // Add single new number
-        function addSingleNumber() {
-            const input = document.getElementById("numbersInput").value.trim();
-            if (!input) {
-                alert("Please enter a number first");
-                return;
-            }
-            
-            const num = parseInt(input);
-            if (isNaN(num)) {
-                alert("Please enter a valid number");
-                return;
-            }
-            
-            if (numbers.length > 0 && predictions.length > 0) {
-                const lastPred = predictions[predictions.length-1];
-                if (lastPred.actual === null) {
-                    checkPrediction(num);
-                }
-            }
-            
-            numbers.push(num);
-            makeNextPrediction();
-            
-            document.getElementById("numbersInput").value = "";
-            saveData();
-            updateDisplay();
-        }
-
-        // Check if prediction was correct
-        function checkPrediction(actualNumber) {
-            const lastPrediction = predictions[predictions.length-1];
-            const isCorrect = lastPrediction.neighbors.includes(actualNumber);
-            
-            if (isCorrect) {
-                wins++;
-                lossStreak = 0;
-            } else {
-                losses++;
-                lossStreak++;
-                if (lossStreak > longestLossStreak) {
-                    longestLossStreak = lossStreak;
-                }
-                
-                // Activate safety mode after 3 losses
-                if (lossStreak >= 3) {
-                    safetyMode = true;
-                }
-            }
-            
-            // Store results
-            lastPrediction.actual = actualNumber;
-            lastPrediction.isCorrect = isCorrect;
-            lastPrediction.streak = lossStreak;
-            
-            saveData();
-        }
-
-        // Make prediction for NEXT spin
-        function makeNextPrediction() {
-            if (numbers.length < 2) {
-                currentPrediction = null;
-                updateDisplay();
-                return;
-            }
-
-            const lastNum = numbers[numbers.length-1];
-            const lastIdx = WHEEL.indexOf(lastNum);
-            
-            // In safety mode, we use a different prediction method
-            let predictedIdx;
-            if (safetyMode) {
-                predictedIdx = (lastIdx + getSafetyStep()) % 37;
-                safetyMode = false; // Try normal mode next time
-            } else {
-                predictedIdx = (lastIdx + getPredictedStep()) % 37;
-            }
-            
-            const predictedNumber = WHEEL[predictedIdx];
-            const neighbors = getNeighbors(predictedNumber);
-            
-            currentPrediction = {
-                predictedFor: lastNum,
-                predicted: predictedNumber,
-                neighbors,
-                actual: null,
-                isCorrect: null,
-                streak: lossStreak,
-                timestamp: new Date()
-            };
-            
-            predictions.push(currentPrediction);
-            saveData();
-            updateDisplay();
-        }
-
-        // Calculate predicted step based on recent patterns
-        function getPredictedStep() {
-            if (numbers.length < 2) return 1;
-            
-            // Look at last 5 steps
-            const steps = [];
-            const lookback = Math.min(5, numbers.length - 1);
-            
-            for (let i = 1; i <= lookback; i++) {
-                const prevIdx = WHEEL.indexOf(numbers[numbers.length - i - 1]);
-                const currIdx = WHEEL.indexOf(numbers[numbers.length - i]);
-                steps.push((currIdx - prevIdx + 37) % 37);
-            }
-            
-            // Return the median step
-            steps.sort((a, b) => a - b);
-            return steps[Math.floor(steps.length / 2)];
-        }
-
-        // Different step calculation for safety mode
-        function getSafetyStep() {
-            if (numbers.length < 2) return 1;
-            
-            // Look for repeating patterns
-            const lastStep = (WHEEL.indexOf(numbers[numbers.length-1]) - 
-                           WHEEL.indexOf(numbers[numbers.length-2]) + 37) % 37;
-            
-            // Try to break the pattern
-            return (lastStep + 9) % 18 + 1; // Returns a step between 1-18
-        }
-
-        // Get neighbors (9 each side)
-        function getNeighbors(number) {
-            const idx = WHEEL.indexOf(number);
-            const neighbors = [];
-            
-            for (let i = idx - 9; i <= idx + 9; i++) {
-                const wrappedIdx = (i + 37) % 37;
-                neighbors.push(WHEEL[wrappedIdx]);
-            }
-            
-            return neighbors;
-        }
-
-        // Update the display
-        function updateDisplay() {
-            updateStats();
-            updateCurrentPrediction();
-            updateHistory();
-        }
-
-        function updateStats() {
-            const statsDiv = document.getElementById("currentStats");
-            const totalPredictions = wins + losses;
-            const accuracy = totalPredictions > 0 ? Math.round((wins / totalPredictions) * 100) : 0;
-            
-            statsDiv.innerHTML = `
-                <p><strong>Total spins:</strong> ${numbers.length}</p>
-                <p><strong>Predictions made:</strong> ${totalPredictions}</p>
-                <p><strong>Prediction accuracy:</strong> ${accuracy}%</p>
-                <p><strong>Wins/losses:</strong> ${wins}W / ${losses}L</p>
-                <p><strong>Current streak:</strong> ${lossStreak} ${lossStreak > 0 ? 'losses' : ''}</p>
-                <p><strong>Longest losing streak:</strong> ${longestLossStreak}</p>
-                ${lossStreak >= 3 ? '<div class="alert">⚠️ Safety mode activated for next prediction</div>' : ''}
-                ${lossStreak >= 5 ? '<div class="safety-alert">⚠️ WARNING: Long loss streak detected</div>' : ''}
-            `;
-        }
-
-        function updateCurrentPrediction() {
-            const predictionDiv = document.getElementById("currentPrediction");
-            const neighborsDiv = document.getElementById("neighborsDisplay");
-            
-            if (numbers.length > 0 && currentPrediction) {
-                predictionDiv.innerHTML = `
-                    <p><strong>Last number:</strong> ${numbers[numbers.length-1]}</p>
-                    <p><strong>Predicted number:</strong> 
-                        <span class="predicted-number">${currentPrediction.predicted}</span>
-                    </p>
-                `;
-                
-                neighborsDiv.innerHTML = `
-                    <p><strong>Bet on these 19 numbers (predicted + 9 neighbors each side):</strong></p>
-                    <div class="neighbors">
-                        ${currentPrediction.neighbors.map(num => `
-                            <span class="neighbor ${num === currentPrediction.predicted ? 'predicted-number' : ''}">
-                                ${num}
-                            </span>
-                        `).join('')}
-                    </div>
-                `;
-            } else if (numbers.length > 0) {
-                predictionDiv.innerHTML = '<p>Enter at least 2 numbers to start predictions</p>';
-                neighborsDiv.innerHTML = '';
-            } else {
-                predictionDiv.innerHTML = '<p>Enter numbers to begin predictions</p>';
-                neighborsDiv.innerHTML = '';
-            }
-        }
-
-        function updateHistory() {
-            const historyBody = document.getElementById("historyBody");
-            historyBody.innerHTML = '';
-            
-            const completedPredictions = predictions
-                .filter(p => p.actual !== null)
-                .reverse();
-            
-            completedPredictions.forEach((pred, i) => {
-                const row = document.createElement('tr');
-                row.className = pred.isCorrect ? 'correct' : 'incorrect';
-                
-                row.innerHTML = `
-                    <td>${completedPredictions.length - i}</td>
-                    <td>${pred.predictedFor}</td>
-                    <td>${pred.predicted}</td>
-                    <td>${pred.actual}</td>
-                    <td>${pred.isCorrect ? '✅' : '❌'}</td>
-                    <td>${pred.streak > 0 ? pred.streak + 'L' : ''}</td>
-                `;
-                historyBody.appendChild(row);
-            });
-        }
-    </script>
+      document.getElementById('prediction').innerText = `Bet on: ${[...new Set([basePrediction, ...neighbors])].join(', ')}`;
+    }
+  </script>
 </body>
 </html>
