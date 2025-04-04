@@ -39,10 +39,23 @@ function initWheel() {
 }
 
 // Add a spin to history
-function addSpin(number, direction) {
-    // Validate input
-    if (number < 0 || number > 36 || !['CW', 'CCW'].includes(direction)) {
-        console.error('Invalid spin data');
+function addSpin(number, direction = null) {
+    // Validate number
+    if (number < 0 || number > 36) {
+        console.error('Invalid number');
+        return;
+    }
+
+    // Determine direction if not provided
+    if (direction === null) {
+        if (spinHistory.length === 0) {
+            console.error('First spin must have direction');
+            return;
+        }
+        const lastDirection = spinHistory[spinHistory.length - 1].direction;
+        direction = lastDirection === 'CW' ? 'CCW' : 'CW';
+    } else if (!['CW', 'CCW'].includes(direction)) {
+        console.error('Invalid direction');
         return;
     }
     
@@ -254,8 +267,8 @@ function animateSpin(number, direction, callback) {
     }, 5000);
 }
 
-// Add batch spins with alternating directions
-function addBatchSpins(numbers, firstDirection) {
+// Add batch spins with automatic alternating directions
+function addBatchSpins(numbers) {
     if (!Array.isArray(numbers)) {
         console.error('Input must be an array of numbers');
         return false;
@@ -263,14 +276,23 @@ function addBatchSpins(numbers, firstDirection) {
 
     if (numbers.length === 0) return true;
 
-    // Add first spin with specified direction
-    addSpin(numbers[0], firstDirection);
+    // First spin needs direction if history is empty
+    if (spinHistory.length === 0) {
+        const direction = prompt(`Enter direction for first spin (${numbers[0]}):\nCW for Clockwise\nCCW for Counter-Clockwise`);
+        
+        if (!direction || !['CW', 'CCW'].includes(direction.toUpperCase())) {
+            alert('Invalid direction - must be CW or CCW');
+            return false;
+        }
+        
+        addSpin(numbers[0], direction.toUpperCase());
+    } else {
+        addSpin(numbers[0]);
+    }
 
-    // Add remaining spins with alternating directions
+    // Add remaining spins with automatic alternating directions
     for (let i = 1; i < numbers.length; i++) {
-        const lastDirection = spinHistory[spinHistory.length - 1].direction;
-        const nextDirection = lastDirection === 'CW' ? 'CCW' : 'CW';
-        addSpin(numbers[i], nextDirection);
+        addSpin(numbers[i]);
     }
 
     return true;
@@ -283,7 +305,14 @@ document.addEventListener('DOMContentLoaded', () => {
     // Spin button
     document.getElementById('spinBtn').addEventListener('click', () => {
         const randomNumber = Math.floor(Math.random() * 37);
-        const randomDirection = Math.random() > 0.5 ? 'CW' : 'CCW';
+        let randomDirection;
+        
+        if (spinHistory.length === 0) {
+            randomDirection = Math.random() > 0.5 ? 'CW' : 'CCW';
+        } else {
+            const lastDirection = spinHistory[spinHistory.length - 1].direction;
+            randomDirection = lastDirection === 'CW' ? 'CCW' : 'CW';
+        }
         
         animateSpin(randomNumber, randomDirection, () => {
             addSpin(randomNumber, randomDirection);
@@ -307,27 +336,42 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
     
-    // Add spin button
+    // Add spin button - now only needs number input
     document.getElementById('addSpinBtn').addEventListener('click', () => {
         const number = parseInt(document.getElementById('numberInput').value);
-        const direction = document.getElementById('directionInput').value;
         
         if (isNaN(number) || number < 0 || number > 36) {
             alert('Please enter a valid number between 0 and 36');
             return;
         }
         
-        addSpin(number, direction);
+        // For first spin, prompt for direction
+        if (spinHistory.length === 0) {
+            const direction = prompt(`Enter direction for first spin (${number}):\nCW for Clockwise\nCCW for Counter-Clockwise`);
+            
+            if (!direction || !['CW', 'CCW'].includes(direction.toUpperCase())) {
+                alert('Invalid direction - must be CW or CCW');
+                return;
+            }
+            
+            addSpin(number, direction.toUpperCase());
+        } else {
+            addSpin(number);
+        }
     });
     
     // Add random spin button
     document.getElementById('addRandomBtn').addEventListener('click', () => {
         const randomNumber = Math.floor(Math.random() * 37);
-        const randomDirection = Math.random() > 0.5 ? 'CW' : 'CCW';
-        
         document.getElementById('numberInput').value = randomNumber;
-        document.getElementById('directionInput').value = randomDirection;
-        addSpin(randomNumber, randomDirection);
+        
+        if (spinHistory.length === 0) {
+            const randomDirection = Math.random() > 0.5 ? 'CW' : 'CCW';
+            document.getElementById('directionInput').value = randomDirection;
+            addSpin(randomNumber, randomDirection);
+        } else {
+            addSpin(randomNumber);
+        }
     });
     
     // Add batch import button
@@ -353,14 +397,6 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // Ask for first spin direction
-        const direction = prompt(`Enter direction for first spin (${numbers[0]}):\nCW for Clockwise\nCCW for Counter-Clockwise`);
-        
-        if (!direction || !['CW', 'CCW'].includes(direction.toUpperCase())) {
-            alert('Invalid direction - must be CW or CCW');
-            return;
-        }
-
-        addBatchSpins(numbers, direction.toUpperCase());
+        addBatchSpins(numbers);
     });
 });
