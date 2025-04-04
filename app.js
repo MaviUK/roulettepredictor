@@ -310,69 +310,53 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 // [Previous code remains the same until the event listeners section]
 
-// Modify the addBatchSpins function to alternate directions
-function addBatchSpins(spinData) {
-    if (!Array.isArray(spinData)) {
-        console.error('Batch data must be an array');
+// Replace the existing batch import functions with these:
+
+function addBatchSpins(numbers, firstDirection) {
+    if (!Array.isArray(numbers)) {
+        console.error('Input must be an array of numbers');
         return false;
     }
 
-    let lastDirection = spinHistory.length > 0 
-        ? spinHistory[spinHistory.length - 1].direction 
-        : null;
+    if (numbers.length === 0) return true;
 
-    spinData.forEach((spin, index) => {
-        // For the first spin in history, we need manual direction
-        if (spinHistory.length === 0 && !spin.direction) {
-            console.error(`First spin must have direction (spin ${index})`);
-            return;
-        }
+    // Add first spin with specified direction
+    addSpin(numbers[0], firstDirection);
 
-        // For subsequent spins, alternate direction if not provided
-        if (!spin.direction) {
-            if (!lastDirection) {
-                // Shouldn't happen as we checked first spin above
-                console.error('Direction could not be determined');
-                return;
-            }
-            spin.direction = lastDirection === 'CW' ? 'CCW' : 'CW';
-        }
-
-        addSpin(spin.number, spin.direction);
-        lastDirection = spin.direction;
-    });
+    // Add remaining spins with alternating directions
+    for (let i = 1; i < numbers.length; i++) {
+        const lastDirection = spinHistory[spinHistory.length - 1].direction;
+        const nextDirection = lastDirection === 'CW' ? 'CCW' : 'CW';
+        addSpin(numbers[i], nextDirection);
+    }
 
     return true;
 }
 
-// Update the batch import event listener to clarify alternating directions
+// Update the batch import event listener
 document.getElementById('batchImportBtn').addEventListener('click', () => {
-    const batchInput = prompt(`Enter spins in format:\nnumber,direction(optional)\nDirections will alternate if not specified\nExample:\n17,CW\n32\n5\n0\n(Will alternate CW, CCW, CW, CCW)`);
+    const numberInput = prompt('Paste all numbers (0-36), separated by commas or spaces:\nExample: 17, 32, 5, 0, 23, 12');
     
-    if (!batchInput) return;
+    if (!numberInput) return;
     
-    const spinLines = batchInput.split('\n');
-    const batchData = [];
+    // Parse input into array of numbers
+    const numbers = numberInput.split(/[\s,]+/).map(num => {
+        const parsed = parseInt(num.trim());
+        return isNaN(parsed) ? null : parsed;
+    }).filter(num => num !== null && num >= 0 && num <= 36);
     
-    spinLines.forEach(line => {
-        line = line.trim();
-        if (!line) return;
-        
-        const parts = line.split(',');
-        const number = parseInt(parts[0]);
-        
-        if (isNaN(number) || number < 0 || number > 36) {
-            alert(`Invalid number: ${parts[0]}`);
-            return;
-        }
-        
-        batchData.push({
-            number: number,
-            direction: parts[1] ? parts[1].trim().toUpperCase() : null
-        });
-    });
-    
-    if (batchData.length > 0) {
-        addBatchSpins(batchData);
+    if (numbers.length === 0) {
+        alert('No valid numbers entered');
+        return;
     }
+
+    // Ask for first spin direction
+    const direction = prompt(`Enter direction for first spin (${numbers[0]}):\nCW for Clockwise\nCCW for Counter-Clockwise`);
+    
+    if (!direction || !['CW', 'CCW'].includes(direction.toUpperCase())) {
+        alert('Invalid direction - must be CW or CCW');
+        return;
+    }
+
+    addBatchSpins(numbers, direction.toUpperCase());
 });
