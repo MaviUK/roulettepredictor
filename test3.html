@@ -242,10 +242,7 @@ let currentCCWStreak = 0;
     }
     maxTotalStreak = Math.max(maxTotalStreak, currentLossStreak);
   }
-  document.getElementById("bankroll").textContent = bankroll.toFixed(2);
-  document.getElementById("profit").textContent = (bankroll - parseFloat(document.getElementById("bankrollStart").value)).toFixed(2);
-  document.getElementById("lossStreak").textContent = currentLossStreak;
-  document.getElementById("currentBet").textContent = baseBet.toFixed(2);
+  
   document.getElementById("maxCWStreak").textContent = maxCWStreak;
   document.getElementById("maxCCWStreak").textContent = maxCCWStreak;
   document.getElementById("maxTotalStreak").textContent = maxTotalStreak;
