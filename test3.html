@@ -8,7 +8,7 @@
     body {
       font-family: Arial, sans-serif;
       padding: 2rem;
-      max-width: 800px;
+      max-width: 900px;
       margin: auto;
     }
     .section {
@@ -19,6 +19,7 @@
     }
     .input-group {
       display: flex;
+      flex-wrap: wrap;
       gap: 1rem;
       margin-bottom: 1rem;
     }
@@ -37,6 +38,18 @@
       width: 100%;
       margin-top: 1rem;
       height: 100px;
+    }
+    #wheelDisplay span {
+      display: inline-block;
+      width: 32px;
+      height: 32px;
+      line-height: 32px;
+      margin: 2px;
+      text-align: center;
+      border-radius: 50%;
+      border: 1px solid #ccc;
+      font-weight: bold;
+      background-color: #f0f0f0;
     }
   </style>
 </head>
@@ -75,6 +88,11 @@
     <p>Max CW Loss Streak: <strong id="cwStreak">0</strong></p>
     <p>Max CCW Loss Streak: <strong id="ccwStreak">0</strong></p>
     <p>Max Combined Loss Streak: <strong id="totalStreak">0</strong></p>
+  </div>
+
+  <div class="section">
+    <h2>🎡 Wheel Layout</h2>
+    <div id="wheelDisplay" style="display: flex; flex-wrap: wrap; gap: 4px; padding: 10px; border: 1px solid #ddd; border-radius: 8px;"></div>
   </div>
 
   <script>
@@ -126,6 +144,22 @@
       return europeanWheel[newIndex];
     }
 
+    function renderWheel(predicted, neighbors) {
+      const wheel = document.getElementById("wheelDisplay");
+      wheel.innerHTML = "";
+      europeanWheel.forEach(num => {
+        const span = document.createElement("span");
+        span.textContent = num;
+        if (num === predicted) {
+          span.style.backgroundColor = "red";
+          span.style.color = "white";
+        } else if (neighbors.includes(num)) {
+          span.style.backgroundColor = "yellow";
+        }
+        wheel.appendChild(span);
+      });
+    }
+
     function updateStats(newSpin, to) {
       const previousPrediction = predictNext(spins);
       const predictionNeighbors = previousPrediction ? getNeighbors(previousPrediction) : [];
@@ -143,11 +177,13 @@
       }
 
       spins.push(newSpin);
+
       const prediction = predictNext(spins);
       const neighborText = prediction ? getNeighbors(prediction).join(", ") : "";
 
       document.getElementById('prediction').innerHTML = `Next predicted number: <strong>${prediction ?? "Not enough data yet"}</strong>`;
       document.getElementById('neighbors').innerHTML = prediction ? `Neighbors (±9): <strong>${neighborText}</strong>` : "";
+      renderWheel(prediction, prediction ? getNeighbors(prediction) : []);
 
       const cwSpins = spins.filter(s => s.direction === "CW").slice(-5).reverse().map(spin =>
         `<p>From: ${spin.from} → To: ${spin.to} | Pockets: ${spin.pockets}</p>`).join('');
@@ -204,10 +240,12 @@
       document.getElementById('totalStreak').textContent = '0';
       document.getElementById('batchInput').value = '';
       document.getElementById('singleTo').value = '';
+      document.getElementById('wheelDisplay').innerHTML = '';
     }
 
     function exportResults() {
       if (spins.length === 0) return alert("No spins to export.");
+
       const rows = [["Predicted Number", "Landed Number", "Pockets", "Result", "Losing Streak"]];
       let currentLoss = 0;
 
