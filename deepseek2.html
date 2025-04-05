@@ -934,27 +934,44 @@
         }
 
         function updateTravelPatternsDisplay() {
-            travelPatternsDiv.innerHTML = `
-                <div class="pattern-row">
-                    <span>Direction</span>
-                    <span>From</span>
-                    <span>To</span>
-                    <span>Pockets</span>
-                </div>
-            `;
-            
-            stats.travelPatterns.slice(0, 5).forEach(pattern => {
-                const row = document.createElement('div');
-                row.className = 'pattern-row';
-                row.innerHTML = `
-                    <span>${pattern.direction.toUpperCase()}</span>
-                    <span>${pattern.from}</span>
-                    <span>${pattern.to}</span>
-                    <span>${pattern.distance}</span>
-                `;
-                travelPatternsDiv.appendChild(row);
-            });
+    travelPatternsDiv.innerHTML = `
+        <div class="pattern-row header">
+            <span>Direction</span>
+            <span>From</span>
+            <span>To</span>
+            <span>Pockets</span>
+        </div>
+    `;
+    
+    // Show last 10 spins (or all if less than 10)
+    const displayCount = Math.min(spinHistory.length, 10);
+    const startIndex = Math.max(spinHistory.length - displayCount, 0);
+    
+    for (let i = startIndex; i < spinHistory.length - 1; i++) {
+        const fromSpin = spinHistory[i];
+        const toSpin = spinHistory[i + 1];
+        
+        const fromIndex = wheelLayout.indexOf(fromSpin.number);
+        const toIndex = wheelLayout.indexOf(toSpin.number);
+        
+        let distance;
+        if (fromSpin.direction === 'cw') {
+            distance = (fromIndex - toIndex + wheelLayout.length) % wheelLayout.length;
+        } else {
+            distance = (toIndex - fromIndex + wheelLayout.length) % wheelLayout.length;
         }
+        
+        const row = document.createElement('div');
+        row.className = 'pattern-row';
+        row.innerHTML = `
+            <span>${fromSpin.direction.toUpperCase()}</span>
+            <span>${fromSpin.number}</span>
+            <span>${toSpin.number}</span>
+            <span>${distance}</span>
+        `;
+        travelPatternsDiv.appendChild(row);
+    }
+}
 
         function updateWheelDisplay() {
             // Clear previous markers
