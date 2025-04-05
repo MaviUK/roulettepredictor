@@ -249,10 +249,7 @@ let currentCCWStreak = 0;
   document.getElementById("maxCWStreak").textContent = maxCWStreak;
   document.getElementById("maxCCWStreak").textContent = maxCCWStreak;
   document.getElementById("maxTotalStreak").textContent = maxTotalStreak;
-} else {
-        bankroll -= baseBet * 19; // lose total across all 19 numbers
-        currentLossStreak++;
-      }
+
       document.getElementById("bankroll").textContent = bankroll.toFixed(2);
       document.getElementById("profit").textContent = (bankroll - parseFloat(document.getElementById("bankrollStart").value)).toFixed(2);
       document.getElementById("lossStreak").textContent = currentLossStreak;
