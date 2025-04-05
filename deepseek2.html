@@ -676,11 +676,12 @@
                 updateMartingaleStats(number);
             }
             
-            // Alternate direction for next spin
-            currentDirection = currentDirection === 'cw' ? 'ccw' : 'cw';
-            
-            // Generate new prediction
-            generatePrediction();
+            // Flip direction for upcoming spin FIRST
+currentDirection = currentDirection === 'cw' ? 'ccw' : 'cw';
+
+// Then generate prediction for the new direction
+generatePrediction();
+;
             
             updateHistoryDisplay();
             updateStatsDisplay();
