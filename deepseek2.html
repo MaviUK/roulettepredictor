@@ -692,47 +692,47 @@
             saveToLocalStorage();
         }
 
-       function generatePrediction() {
-    if (spinHistory.length < 2) {
+     function generatePrediction() {
+      if (spinHistory.length < 2) {
         resetPrediction();
         return;
-    }
+      }
 
-    // Filter last 5 spins *that happened in the same direction as the NEXT spin*
-    const relevantSpins = spinHistory
-        .slice()
-        .reverse()
-        .filter(spin => spin.direction === currentDirection)
-        .slice(0, 5);
+      // Step 1: Filter spins in chronological order by currentDirection
+      const allDirectionSpins = spinHistory
+        .filter(spin => spin.direction === currentDirection);
 
-    if (relevantSpins.length < 2) {
+      // Step 2: Take the last 5 in that direction
+      const relevantSpins = allDirectionSpins.slice(-5);
+
+      if (relevantSpins.length < 2) {
         resetPrediction();
         distanceDetailsDiv.textContent = "Not enough data (need at least 2 spins in this direction)";
         return;
-    }
+      }
 
-    const distances = [];
-    let distanceDetails = "Distance calculations:<br>";
+      const distances = [];
+      let distanceDetails = "Distance calculations:<br>";
 
-    for (let i = 0; i < relevantSpins.length - 1; i++) {
-        const fromSpin = relevantSpins[i + 1];
-        const toSpin = relevantSpins[i];
+      for (let i = 0; i < relevantSpins.length - 1; i++) {
+        const fromSpin = relevantSpins[i];
+        const toSpin = relevantSpins[i + 1];
 
         const fromIndex = wheelLayout.indexOf(fromSpin.number);
         const toIndex = wheelLayout.indexOf(toSpin.number);
 
         let distance;
         if (currentDirection === 'cw') {
-            distance = (fromIndex - toIndex + wheelLayout.length) % wheelLayout.length;
+          distance = (fromIndex - toIndex + wheelLayout.length) % wheelLayout.length;
         } else {
-            distance = (toIndex - fromIndex + wheelLayout.length) % wheelLayout.length;
+          distance = (toIndex - fromIndex + wheelLayout.length) % wheelLayout.length;
         }
 
         distances.push(distance);
         distanceDetails += `${fromSpin.number} → ${toSpin.number} (${currentDirection.toUpperCase()}): ${distance} pockets<br>`;
-    }
+      }
 
-    if (distances.length >= 3) {
+      if (distances.length >= 3) {
         const sortedDistances = [...distances].sort((a, b) => a - b);
         const trimmedDistances = sortedDistances.slice(1, -1);
         const averageStep = Math.round(trimmedDistances.reduce((sum, val) => sum + val, 0) / trimmedDistances.length);
@@ -747,9 +747,9 @@
 
         let predictedIndex;
         if (currentDirection === 'cw') {
-            predictedIndex = (lastIndex - averageStep + wheelLayout.length) % wheelLayout.length;
+          predictedIndex = (lastIndex - averageStep + wheelLayout.length) % wheelLayout.length;
         } else {
-            predictedIndex = (lastIndex + averageStep) % wheelLayout.length;
+          predictedIndex = (lastIndex + averageStep) % wheelLayout.length;
         }
 
         const mainPrediction = wheelLayout[predictedIndex];
@@ -758,12 +758,12 @@
         const rightNeighbors = [];
 
         for (let i = 1; i <= 9; i++) {
-            leftNeighbors.push(
-                wheelLayout[(predictedIndex - i + wheelLayout.length) % wheelLayout.length]
-            );
-            rightNeighbors.push(
-                wheelLayout[(predictedIndex + i) % wheelLayout.length]
-            );
+          leftNeighbors.push(
+            wheelLayout[(predictedIndex - i + wheelLayout.length) % wheelLayout.length]
+          );
+          rightNeighbors.push(
+            wheelLayout[(predictedIndex + i) % wheelLayout.length]
+          );
         }
 
         currentPrediction = mainPrediction;
@@ -771,11 +771,11 @@
 
         updatePredictionDisplay(mainPrediction, leftNeighbors, rightNeighbors);
         distanceDetailsDiv.innerHTML = distanceDetails;
-    } else {
+      } else {
         resetPrediction();
         distanceDetailsDiv.textContent = "Not enough data (need at least 3 distances)";
+      }
     }
-}
 
         function updatePredictionDisplay(mainNumber, leftNeighbors, rightNeighbors) {
             const mainColor = getColorForNumber(mainNumber);
