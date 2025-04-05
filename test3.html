@@ -1,154 +1,236 @@
-<script>
-  const europeanWheel = [
-    0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23,
-    10, 5, 24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26
-  ];
-
-  let spins = [];
-  let lossStreak = { CW: 0, CCW: 0, total: 0 };
-  let maxLoss = { CW: 0, CCW: 0, total: 0 };
-
-  function getIndex(number) {
-    return europeanWheel.indexOf(number);
-  }
-
-  function calculatePockets(from, to, direction) {
-    const fromIndex = getIndex(from);
-    const toIndex = getIndex(to);
-    return direction === "CW"
-      ? (toIndex - fromIndex + europeanWheel.length) % europeanWheel.length
-      : (fromIndex - toIndex + europeanWheel.length) % europeanWheel.length;
-  }
-
-  function getNeighbors(number) {
-    const idx = getIndex(number);
-    let neighbors = [];
-    for (let i = -9; i <= 9; i++) {
-      neighbors.push(europeanWheel[(idx + i + europeanWheel.length) % europeanWheel.length]);
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Roulette Prediction Tool</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 2rem;
+      max-width: 800px;
+      margin: auto;
     }
-    return neighbors;
-  }
+    .section {
+      background-color: #f3f4f6;
+      padding: 1rem;
+      border-radius: 8px;
+      margin-bottom: 1rem;
+    }
+    .input-group {
+      display: flex;
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+    input, select, button, textarea {
+      padding: 0.5rem;
+      font-size: 1rem;
+    }
+    button {
+      background-color: #4f46e5;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    textarea {
+      width: 100%;
+      margin-top: 1rem;
+      height: 100px;
+    }
+  </style>
+</head>
+<body>
+  <h1>🎯 Roulette Prediction Tool</h1>
 
-  function predictNext(history) {
-    if (history.length < 5) return null;
-    const lastSpin = history[history.length - 1];
-    const dir = lastSpin.direction === "CW" ? "CCW" : "CW";
-    const relevant = history.filter(s => s.direction === dir).slice(-5);
-    if (relevant.length < 5) return null;
+  <div class="input-group">
+    <input type="number" id="singleTo" placeholder="Add Spin (To number only)" />
+    <select id="direction">
+      <option value="CW">CW</option>
+      <option value="CCW">CCW</option>
+    </select>
+    <button onclick="addSimpleSpin()">Add Spin</button>
+    <button onclick="resetAll()">Reset</button>
+  </div>
 
-    const pocketsList = relevant.map(s => s.pockets).sort((a, b) => a - b).slice(1, 4);
-    const avgPockets = Math.round(pocketsList.reduce((a, b) => a + b, 0) / 3);
+  <textarea id="batchInput" placeholder="Paste numbers like: 12,5,17,8,32"></textarea>
+  <button onclick="addBatchSpins()">Add Batch</button>
 
-    const fromIndex = getIndex(lastSpin.to);
-    const newIndex = dir === "CW"
-      ? (fromIndex + avgPockets) % europeanWheel.length
-      : (fromIndex - avgPockets + europeanWheel.length) % europeanWheel.length;
+  <div class="section">
+    <h2>🔮 Prediction</h2>
+    <p id="prediction">Next predicted number: <strong>Not enough data yet</strong></p>
+    <p id="neighbors"></p>
+  </div>
 
-    return europeanWheel[newIndex];
-  }
+  <button onclick="exportResults()">Export Results to Excel</button>
 
-  function updateStats(newSpin, to) {
-    const previousPrediction = predictNext(spins);
-    const predictionNeighbors = previousPrediction ? getNeighbors(previousPrediction) : [];
-    const correct = predictionNeighbors.includes(to);
+  <div class="section">
+    <h2>📜 Spin History</h2>
+    <div><strong>Clockwise:</strong><div id="cwHistory"></div></div>
+    <div style="margin-top: 1rem;"><strong>Counterclockwise:</strong><div id="ccwHistory"></div></div>
+  </div>
 
-    if (!correct) {
-      lossStreak[newSpin.direction]++;
-      lossStreak.total++;
-      maxLoss.CW = Math.max(maxLoss.CW, lossStreak.CW);
-      maxLoss.CCW = Math.max(maxLoss.CCW, lossStreak.CCW);
-      maxLoss.total = Math.max(maxLoss.total, lossStreak.total);
-    } else {
-      lossStreak[newSpin.direction] = 0;
-      lossStreak.total = 0;
+  <div class="section" style="background-color: #fef3c7;">
+    <h2>📉 Streak Stats</h2>
+    <p>Max CW Loss Streak: <strong id="cwStreak">0</strong></p>
+    <p>Max CCW Loss Streak: <strong id="ccwStreak">0</strong></p>
+    <p>Max Combined Loss Streak: <strong id="totalStreak">0</strong></p>
+  </div>
+
+  <script>
+    const europeanWheel = [
+      0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23,
+      10, 5, 24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26
+    ];
+
+    let spins = [];
+    let lossStreak = { CW: 0, CCW: 0, total: 0 };
+    let maxLoss = { CW: 0, CCW: 0, total: 0 };
+
+    function getIndex(number) {
+      return europeanWheel.indexOf(number);
     }
 
-    spins.push(newSpin);
-    const prediction = predictNext(spins);
-    const neighborText = prediction ? getNeighbors(prediction).join(", ") : "";
+    function calculatePockets(from, to, direction) {
+      const fromIndex = getIndex(from);
+      const toIndex = getIndex(to);
+      return direction === "CW"
+        ? (toIndex - fromIndex + europeanWheel.length) % europeanWheel.length
+        : (fromIndex - toIndex + europeanWheel.length) % europeanWheel.length;
+    }
 
-    document.getElementById('prediction').innerHTML = `Next predicted number: <strong>${prediction ?? "Not enough data yet"}</strong>`;
-    document.getElementById('neighbors').innerHTML = prediction ? `Neighbors (±9): <strong>${neighborText}</strong>` : "";
+    function getNeighbors(number) {
+      const idx = getIndex(number);
+      let neighbors = [];
+      for (let i = -9; i <= 9; i++) {
+        neighbors.push(europeanWheel[(idx + i + europeanWheel.length) % europeanWheel.length]);
+      }
+      return neighbors;
+    }
 
-    const cwSpins = spins.filter(s => s.direction === "CW").slice(-5).reverse().map(spin =>
-      `<p>From: ${spin.from} → To: ${spin.to} | Pockets: ${spin.pockets}</p>`).join('');
-    const ccwSpins = spins.filter(s => s.direction === "CCW").slice(-5).reverse().map(spin =>
-      `<p>From: ${spin.from} → To: ${spin.to} | Pockets: ${spin.pockets}</p>`).join('');
+    function predictNext(history) {
+      if (history.length < 5) return null;
+      const lastSpin = history[history.length - 1];
+      const dir = lastSpin.direction === "CW" ? "CCW" : "CW";
+      const relevant = history.filter(s => s.direction === dir).slice(-5);
+      if (relevant.length < 5) return null;
 
-    document.getElementById('cwHistory').innerHTML = cwSpins;
-    document.getElementById('ccwHistory').innerHTML = ccwSpins;
-    document.getElementById('cwStreak').textContent = maxLoss.CW;
-    document.getElementById('ccwStreak').textContent = maxLoss.CCW;
-    document.getElementById('totalStreak').textContent = maxLoss.total;
-  }
+      const pocketsList = relevant.map(s => s.pockets).sort((a, b) => a - b).slice(1, 4);
+      const avgPockets = Math.round(pocketsList.reduce((a, b) => a + b, 0) / 3);
 
-  function addSimpleSpin() {
-    const toInput = document.getElementById('singleTo');
-    const to = Number(toInput.value);
-    if (isNaN(to)) return alert("Please enter a valid number.");
-    const direction = document.getElementById('direction').value;
-    const from = spins.length ? spins[spins.length - 1].to : to;
-    const pockets = calculatePockets(from, to, direction);
-    const newSpin = { from, to, direction, pockets };
-    updateStats(newSpin, to);
-    toInput.value = '';
-  }
+      const fromIndex = getIndex(lastSpin.to);
+      const newIndex = dir === "CW"
+        ? (fromIndex + avgPockets) % europeanWheel.length
+        : (fromIndex - avgPockets + europeanWheel.length) % europeanWheel.length;
 
-  function addBatchSpins() {
-    const inputBox = document.getElementById('batchInput');
-    const input = inputBox.value;
-    const numbers = input.split(/[^0-9]+/).map(n => parseInt(n)).filter(n => !isNaN(n));
-    if (numbers.length < 2) return alert("Need at least 2 numbers.");
+      return europeanWheel[newIndex];
+    }
 
-    let direction = document.getElementById('direction').value;
-    for (let i = 1; i < numbers.length; i++) {
-      const from = numbers[i - 1];
-      const to = numbers[i];
+    function updateStats(newSpin, to) {
+      const previousPrediction = predictNext(spins);
+      const predictionNeighbors = previousPrediction ? getNeighbors(previousPrediction) : [];
+      const correct = predictionNeighbors.includes(to);
+
+      if (!correct) {
+        lossStreak[newSpin.direction]++;
+        lossStreak.total++;
+        maxLoss.CW = Math.max(maxLoss.CW, lossStreak.CW);
+        maxLoss.CCW = Math.max(maxLoss.CCW, lossStreak.CCW);
+        maxLoss.total = Math.max(maxLoss.total, lossStreak.total);
+      } else {
+        lossStreak[newSpin.direction] = 0;
+        lossStreak.total = 0;
+      }
+
+      spins.push(newSpin);
+      const prediction = predictNext(spins);
+      const neighborText = prediction ? getNeighbors(prediction).join(", ") : "";
+
+      document.getElementById('prediction').innerHTML = `Next predicted number: <strong>${prediction ?? "Not enough data yet"}</strong>`;
+      document.getElementById('neighbors').innerHTML = prediction ? `Neighbors (±9): <strong>${neighborText}</strong>` : "";
+
+      const cwSpins = spins.filter(s => s.direction === "CW").slice(-5).reverse().map(spin =>
+        `<p>From: ${spin.from} → To: ${spin.to} | Pockets: ${spin.pockets}</p>`).join('');
+      const ccwSpins = spins.filter(s => s.direction === "CCW").slice(-5).reverse().map(spin =>
+        `<p>From: ${spin.from} → To: ${spin.to} | Pockets: ${spin.pockets}</p>`).join('');
+
+      document.getElementById('cwHistory').innerHTML = cwSpins;
+      document.getElementById('ccwHistory').innerHTML = ccwSpins;
+      document.getElementById('cwStreak').textContent = maxLoss.CW;
+      document.getElementById('ccwStreak').textContent = maxLoss.CCW;
+      document.getElementById('totalStreak').textContent = maxLoss.total;
+    }
+
+    function addSimpleSpin() {
+      const toInput = document.getElementById('singleTo');
+      const to = Number(toInput.value);
+      if (isNaN(to)) return alert("Please enter a valid number.");
+      const direction = document.getElementById('direction').value;
+      const from = spins.length ? spins[spins.length - 1].to : to;
       const pockets = calculatePockets(from, to, direction);
       const newSpin = { from, to, direction, pockets };
       updateStats(newSpin, to);
-      direction = direction === "CW" ? "CCW" : "CW";
-    }
-    inputBox.value = '';
-  }
-
-  function resetAll() {
-    spins = [];
-    lossStreak = { CW: 0, CCW: 0, total: 0 };
-    maxLoss = { CW: 0, CCW: 0, total: 0 };
-    document.getElementById('prediction').innerHTML = 'Next predicted number: <strong>Not enough data yet</strong>';
-    document.getElementById('neighbors').innerHTML = '';
-    document.getElementById('cwHistory').innerHTML = '';
-    document.getElementById('ccwHistory').innerHTML = '';
-    document.getElementById('cwStreak').textContent = '0';
-    document.getElementById('ccwStreak').textContent = '0';
-    document.getElementById('totalStreak').textContent = '0';
-    document.getElementById('batchInput').value = '';
-    document.getElementById('singleTo').value = '';
-  }
-
-  function exportResults() {
-    if (spins.length === 0) return alert("No spins to export.");
-
-    const rows = [["Predicted Number", "Landed Number", "Pockets", "Result", "Losing Streak"]];
-
-    for (let i = 1; i < spins.length; i++) {
-      const historySoFar = spins.slice(0, i);
-      const prediction = predictNext(historySoFar);
-      const predictionNeighbors = prediction ? getNeighbors(prediction) : [];
-      const landed = spins[i].to;
-      const result = predictionNeighbors.includes(landed) ? "Win" : "Lose";
-      const lossCount = rows.filter(r => r[3] === "Lose").length - rows.filter(r => r[3] === "Win").length;
-      rows.push([prediction ?? "N/A", landed, spins[i].pockets, result, result === "Win" ? 0 : lossCount]);
+      toInput.value = '';
     }
 
-    let csvContent = "data:text/csv;charset=utf-8," + rows.map(e => e.join(",")).join("\n");
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", "roulette_predictions.csv");
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  }
-</script>
+    function addBatchSpins() {
+      const inputBox = document.getElementById('batchInput');
+      const input = inputBox.value;
+      const numbers = input.split(/[^0-9]+/).map(n => parseInt(n)).filter(n => !isNaN(n));
+      if (numbers.length < 2) return alert("Need at least 2 numbers.");
+
+      let direction = document.getElementById('direction').value;
+      for (let i = 1; i < numbers.length; i++) {
+        const from = numbers[i - 1];
+        const to = numbers[i];
+        const pockets = calculatePockets(from, to, direction);
+        const newSpin = { from, to, direction, pockets };
+        updateStats(newSpin, to);
+        direction = direction === "CW" ? "CCW" : "CW";
+      }
+      inputBox.value = '';
+    }
+
+    function resetAll() {
+      spins = [];
+      lossStreak = { CW: 0, CCW: 0, total: 0 };
+      maxLoss = { CW: 0, CCW: 0, total: 0 };
+      document.getElementById('prediction').innerHTML = 'Next predicted number: <strong>Not enough data yet</strong>';
+      document.getElementById('neighbors').innerHTML = '';
+      document.getElementById('cwHistory').innerHTML = '';
+      document.getElementById('ccwHistory').innerHTML = '';
+      document.getElementById('cwStreak').textContent = '0';
+      document.getElementById('ccwStreak').textContent = '0';
+      document.getElementById('totalStreak').textContent = '0';
+      document.getElementById('batchInput').value = '';
+      document.getElementById('singleTo').value = '';
+    }
+
+    function exportResults() {
+      if (spins.length === 0) return alert("No spins to export.");
+
+      const rows = [["Predicted Number", "Landed Number", "Pockets", "Result", "Losing Streak"]];
+      let currentLoss = 0;
+
+      for (let i = 1; i < spins.length; i++) {
+        const historySoFar = spins.slice(0, i);
+        const prediction = predictNext(historySoFar);
+        const predictionNeighbors = prediction ? getNeighbors(prediction) : [];
+        const landed = spins[i].to;
+        const result = predictionNeighbors.includes(landed) ? "Win" : "Lose";
+        currentLoss = result === "Lose" ? currentLoss + 1 : 0;
+        rows.push([prediction ?? "N/A", landed, spins[i].pockets, result, currentLoss]);
+      }
+
+      let csvContent = "data:text/csv;charset=utf-8," + rows.map(e => e.join(",")).join("\\n");
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", "roulette_predictions.csv");
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  </script>
+</body>
+</html>
