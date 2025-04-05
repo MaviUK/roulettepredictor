@@ -266,9 +266,19 @@ let currentCCWStreak = 0;
     }
 
     function handleSpin(to) {
-      const direction = spins.length && spins.at(-1).direction === "CW" ? "CCW" : "CW";
+  const toIdx = getIndex(to);
+  if (toIdx === -1) {
+    alert("Invalid number: " + to);
+    return;
+  }
+  const direction = spins.length && spins.at(-1).direction === "CW" ? "CCW" : "CW";
       const from = spins.length ? spins.at(-1).to : to;
-      const pockets = Math.abs(getIndex(to) - getIndex(from));
+      const fromIdx = getIndex(from);
+  if (fromIdx === -1) {
+    alert("Invalid 'from' number: " + from);
+    return;
+  }
+  const pockets = Math.abs(toIdx - fromIdx);
       spins.push({ from, to, direction, pockets });
       const predicted = predictNext();
       if (!predicted) {
@@ -290,17 +300,26 @@ let currentCCWStreak = 0;
     }
 
     function addSimpleSpin() {
-      const input = document.getElementById("singleTo");
-      const to = Number(input.value);
-      if (!isNaN(to)) handleSpin(to);
+  const input = document.getElementById("singleTo");
+  const to = Number(input.value);
+  if (!isNaN(to) && europeanWheel.includes(to)) {
+    console.log("Adding spin:", to);
+    handleSpin(to);
+  } else {
+    alert("Invalid number. Please enter a value from 0 to 36.");
+  }
       input.value = '';
     }
 
     function addBatchSpins() {
-      const input = document.getElementById("batchInput").value;
-      const numbers = input.split(/[^0-9]+/).map(Number).filter(n => !isNaN(n));
-      numbers.forEach(n => handleSpin(n));
-      document.getElementById("batchInput").value = '';
+  const input = document.getElementById("batchInput").value;
+  const numbers = input.split(/[^0-9]+/).map(Number).filter(n => !isNaN(n) && europeanWheel.includes(n));
+  if (numbers.length === 0) {
+    alert("No valid numbers found in batch. Use numbers between 0 and 36.");
+    return;
+  }
+  numbers.forEach(n => handleSpin(n));
+  document.getElementById("batchInput").value = '';
     }
 
     function resetMartingale() {
