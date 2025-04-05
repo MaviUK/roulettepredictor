@@ -225,12 +225,34 @@ let currentCCWStreak = 0;
 
     function updateStats(predicted, result, direction) {
   baseBet = parseFloat(document.getElementById("baseBet").value);
+  let totalBet = baseBet * 19;
+
   if (result) {
-    bankroll += baseBet * 18;
+    bankroll += baseBet * 36; // win returns 36x base bet on one number
     currentLossStreak = 0;
     if (direction === 'CW') currentCWStreak = 0;
     if (direction === 'CCW') currentCCWStreak = 0;
   } else {
+    bankroll -= totalBet; // lose deducts total bet across 19 numbers
+    currentLossStreak++;
+    if (direction === 'CW') {
+      currentCWStreak++;
+      maxCWStreak = Math.max(maxCWStreak, currentCWStreak);
+    } else {
+      currentCCWStreak++;
+      maxCCWStreak = Math.max(maxCCWStreak, currentCCWStreak);
+    }
+    maxTotalStreak = Math.max(maxTotalStreak, currentLossStreak);
+  }
+
+  document.getElementById("bankroll").textContent = bankroll.toFixed(2);
+  document.getElementById("profit").textContent = (bankroll - parseFloat(document.getElementById("bankrollStart").value)).toFixed(2);
+  document.getElementById("lossStreak").textContent = currentLossStreak;
+  document.getElementById("currentBet").textContent = baseBet.toFixed(2);
+  document.getElementById("maxCWStreak").textContent = maxCWStreak;
+  document.getElementById("maxCCWStreak").textContent = maxCCWStreak;
+  document.getElementById("maxTotalStreak").textContent = maxTotalStreak;
+} else {
     bankroll -= baseBet * 19;
     currentLossStreak++;
     if (direction === 'CW') {
@@ -413,8 +435,8 @@ let currentCCWStreak = 0;
     ]);
   }
 
-  const csv = "data:text/csv;charset=utf-8," + rows.map(r => r.join(",")).join("\r\n");
-
+  const csv = "data:text/csv;charset=utf-8," + rows.map(r => r.join(",")).join("
+");
   const link = document.createElement("a");
   link.href = encodeURI(csv);
   link.download = "roulette_results.csv";
