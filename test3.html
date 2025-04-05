@@ -136,10 +136,12 @@
           <p>Total Profit/Loss: <span id="profit">0</span></p>
           <p>Loss Streak: <span id="lossStreak">0</span></p>
         </div>
-      </div>
-    </div>
-
-    <!-- Center Panel -->
+      <p>Max CW Loss Streak: <strong id="maxCWStreak">0</strong></p>
+<p>Max CCW Loss Streak: <strong id="maxCCWStreak">0</strong></p>
+<p>Max Total Loss Streak: <strong id="maxTotalStreak">0</strong></p>
+</div>
+</div>
+<!-- Center Panel -->
     <div class="card analysis-card">
       <h2>Analysis</h2>
       <div id="wheelDisplay"></div>
@@ -169,6 +171,11 @@
     let bankroll = 1000;
     let baseBet = 1;
     let currentLossStreak = 0;
+let maxCWStreak = 0;
+let maxCCWStreak = 0;
+let maxTotalStreak = 0;
+let currentCWStreak = 0;
+let currentCCWStreak = 0;
 
     function getIndex(n) {
       return europeanWheel.indexOf(n);
@@ -216,12 +223,33 @@
       document.getElementById("rightNeighbors").innerHTML = right.map(renderBlock).join('');
     }
 
-    function updateStats(predicted, result) {
-      baseBet = parseFloat(document.getElementById("baseBet").value);
-      if (result) {
-        bankroll += baseBet * 18; // win return per number (36/2)
-        currentLossStreak = 0;
-      } else {
+    function updateStats(predicted, result, direction) {
+  baseBet = parseFloat(document.getElementById("baseBet").value);
+  if (result) {
+    bankroll += baseBet * 18;
+    currentLossStreak = 0;
+    if (direction === 'CW') currentCWStreak = 0;
+    if (direction === 'CCW') currentCCWStreak = 0;
+  } else {
+    bankroll -= baseBet * 19;
+    currentLossStreak++;
+    if (direction === 'CW') {
+      currentCWStreak++;
+      maxCWStreak = Math.max(maxCWStreak, currentCWStreak);
+    } else {
+      currentCCWStreak++;
+      maxCCWStreak = Math.max(maxCCWStreak, currentCCWStreak);
+    }
+    maxTotalStreak = Math.max(maxTotalStreak, currentLossStreak);
+  }
+  document.getElementById("bankroll").textContent = bankroll.toFixed(2);
+  document.getElementById("profit").textContent = (bankroll - parseFloat(document.getElementById("bankrollStart").value)).toFixed(2);
+  document.getElementById("lossStreak").textContent = currentLossStreak;
+  document.getElementById("currentBet").textContent = baseBet.toFixed(2);
+  document.getElementById("maxCWStreak").textContent = maxCWStreak;
+  document.getElementById("maxCCWStreak").textContent = maxCCWStreak;
+  document.getElementById("maxTotalStreak").textContent = maxTotalStreak;
+} else {
         bankroll -= baseBet * 19; // lose total across all 19 numbers
         currentLossStreak++;
       }
@@ -252,7 +280,7 @@
       if (!predicted) return;
       const neighbors = getNeighbors(predicted);
       const result = neighbors.includes(to);
-      updateStats(predicted, result);
+      updateStats(predicted, result, direction);
       document.getElementById("lastNumber").textContent = to;
       renderWheel(predicted, neighbors);
       displayNeighbors(predicted);
@@ -274,12 +302,20 @@
     }
 
     function resetMartingale() {
-      bankroll = parseFloat(document.getElementById("bankrollStart").value);
-      currentLossStreak = 0;
-      document.getElementById("bankroll").textContent = bankroll.toFixed(2);
-      document.getElementById("profit").textContent = '0';
-      document.getElementById("lossStreak").textContent = '0';
-    }
+  bankroll = parseFloat(document.getElementById("bankrollStart").value);
+  currentLossStreak = 0;
+  currentCWStreak = 0;
+  currentCCWStreak = 0;
+  maxCWStreak = 0;
+  maxCCWStreak = 0;
+  maxTotalStreak = 0;
+  document.getElementById("bankroll").textContent = bankroll.toFixed(2);
+  document.getElementById("profit").textContent = '0';
+  document.getElementById("lossStreak").textContent = '0';
+  document.getElementById("maxCWStreak").textContent = '0';
+  document.getElementById("maxCCWStreak").textContent = '0';
+  document.getElementById("maxTotalStreak").textContent = '0';
+}
 
     function resetAll() {
       spins = [];
