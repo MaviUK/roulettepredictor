@@ -692,18 +692,22 @@
             saveToLocalStorage();
         }
 
-     function generatePrediction() {
+      function generatePrediction() {
       if (spinHistory.length < 2) {
         resetPrediction();
         return;
       }
 
-      // Step 1: Filter spins in chronological order by currentDirection
-      const allDirectionSpins = spinHistory
-        .filter(spin => spin.direction === currentDirection);
+      // Step 1: Build a list of the last 5 *chronological* spins that happened in the upcoming direction
+      const spinsInOrder = [...spinHistory];
+      const relevantSpins = [];
 
-      // Step 2: Take the last 5 in that direction
-      const relevantSpins = allDirectionSpins.slice(-5);
+      for (let i = spinsInOrder.length - 1; i >= 0; i--) {
+        if (spinsInOrder[i].direction === currentDirection) {
+          relevantSpins.unshift(spinsInOrder[i]);
+          if (relevantSpins.length === 5) break;
+        }
+      }
 
       if (relevantSpins.length < 2) {
         resetPrediction();
