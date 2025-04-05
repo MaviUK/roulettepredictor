@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Roulette Prediction Tool</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Roulette Predictor</title>
   <style>
     body {
       margin: 0;
@@ -32,6 +32,12 @@
       padding: 1rem;
       box-sizing: border-box;
     }
+    .analysis-card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+    }
     .input-group, textarea, button, select, input {
       font-size: 1rem;
       margin: 0.25rem 0;
@@ -53,6 +59,10 @@
       border-radius: 50%;
       margin: 1rem auto;
       border: 2px solid #999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: visible;
     }
     .wheel-number {
       position: absolute;
@@ -94,12 +104,15 @@
     .neighbor-zones h4 {
       margin: 0.25rem 0;
     }
+    .martingale-summary p {
+      margin: 0.25rem 0;
+    }
   </style>
 </head>
 <body>
   <h1>🎯 Roulette Predictor</h1>
   <div class="container">
-    <!-- Left Panel: Data Input -->
+    <!-- Left Panel -->
     <div class="card">
       <h2>Data Input</h2>
       <label>Single Spin Entry</label>
@@ -113,61 +126,56 @@
       <div style="margin-top: 2rem;">
         <h3>Martingale Betting System</h3>
         <label>Base Bet per Number:</label>
-        <input type="number" value="0.1" />
+        <input type="number" id="baseBet" value="1" />
         <label>Starting Bankroll:</label>
-        <input type="number" value="2000" />
-        <label>Max Losses in a Row:</label>
-        <input type="number" value="12" />
-        <button>Reset Martingale</button>
-        <button style="background: green; margin-top: 0.5rem;">Download Martingale Data</button>
-        <p><strong>Current Bet:</strong> 0.10</p>
-        <p><strong>Bankroll:</strong> 430.80</p>
-        <p><strong>Total Profit/Loss:</strong> <span style="color:red;">-1569.20</span></p>
-        <p><strong>Current Streak:</strong> 0</p>
+        <input type="number" id="bankrollStart" value="1000" />
+        <button onclick="resetMartingale()">Reset Martingale</button>
+        <div class="martingale-summary">
+          <p>Current Bet: <span id="currentBet">1</span></p>
+          <p>Bankroll: <span id="bankroll">1000</span></p>
+          <p>Total Profit/Loss: <span id="profit">0</span></p>
+          <p>Loss Streak: <span id="lossStreak">0</span></p>
+        </div>
       </div>
     </div>
 
-    <!-- Center Panel: Analysis -->
-    <div class="card">
+    <!-- Center Panel -->
+    <div class="card analysis-card">
       <h2>Analysis</h2>
       <div id="wheelDisplay"></div>
       <div class="neighbor-zones">
         <h4>Predicted Number: <span id="prediction">—</span></h4>
-        <div>
-          <strong>Left 9 (CCW):</strong>
-          <div id="leftNeighbors"></div>
-          <strong>Right 9 (CW):</strong>
-          <div id="rightNeighbors"></div>
-        </div>
+        <div><strong>Left 9 (CCW):</strong> <div id="leftNeighbors"></div></div>
+        <div><strong>Right 9 (CW):</strong> <div id="rightNeighbors"></div></div>
         <p style="margin-top: 0.5rem;">Last Number: <strong id="lastNumber">—</strong></p>
       </div>
     </div>
 
-    <!-- Right Panel: History -->
+    <!-- Right Panel -->
     <div class="card">
       <h2>Spin History</h2>
       <button onclick="resetAll()">Clear History</button>
       <button onclick="exportResults()">Export Data</button>
       <div class="history-grid" id="cwHistory"></div>
-      <div class="history-grid" id="ccwHistory"></div>
     </div>
   </div>
 
   <script>
-    const europeanWheel = [0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23,
-      10, 5, 24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26];
-
+    const europeanWheel = [0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10, 5, 24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26];
     const redNumbers = [32, 19, 21, 25, 27, 36, 30, 23, 5, 16, 1, 14, 9, 18, 7, 12, 3];
     const blackNumbers = [15, 4, 2, 17, 6, 13, 11, 8, 10, 24, 33, 20, 31, 22, 29, 28, 35, 26];
 
     let spins = [];
+    let bankroll = 1000;
+    let baseBet = 1;
+    let currentLossStreak = 0;
 
-    function getIndex(number) {
-      return europeanWheel.indexOf(number);
+    function getIndex(n) {
+      return europeanWheel.indexOf(n);
     }
 
-    function getNeighbors(number) {
-      const idx = getIndex(number);
+    function getNeighbors(num) {
+      const idx = getIndex(num);
       let neighbors = [];
       for (let i = -9; i <= 9; i++) {
         neighbors.push(europeanWheel[(idx + i + europeanWheel.length) % europeanWheel.length]);
@@ -175,112 +183,121 @@
       return neighbors;
     }
 
+    function renderBlock(n) {
+      let color = redNumbers.includes(n) ? 'red' : blackNumbers.includes(n) ? 'black' : n === 0 ? 'green' : 'gray';
+      return `<span class="number-block ${color}">${n}</span>`;
+    }
+
     function renderWheel(predicted, neighbors) {
       const wheel = document.getElementById("wheelDisplay");
       wheel.innerHTML = "";
       const angleStep = 360 / europeanWheel.length;
-
-      europeanWheel.forEach((num, i) => {
+      europeanWheel.forEach((n, i) => {
         const angle = i * angleStep;
         const el = document.createElement("div");
         el.className = "wheel-number";
         el.style.transform = `rotate(${angle}deg) translate(0, -125px) rotate(-${angle}deg)`;
-
-        if (num === 0) el.classList.add("green");
-        else if (redNumbers.includes(num)) el.classList.add("red");
-        else if (blackNumbers.includes(num)) el.classList.add("black");
-
-        if (num === predicted) el.classList.add("highlight");
-        else if (neighbors.includes(num)) el.classList.add("yellow");
-
-        el.textContent = num;
+        if (n === 0) el.classList.add("green");
+        else if (redNumbers.includes(n)) el.classList.add("red");
+        else if (blackNumbers.includes(n)) el.classList.add("black");
+        if (n === predicted) el.classList.add("highlight");
+        else if (neighbors.includes(n)) el.classList.add("yellow");
+        el.textContent = n;
         wheel.appendChild(el);
       });
     }
 
     function displayNeighbors(predicted) {
       const neighbors = getNeighbors(predicted);
-      document.getElementById("prediction").textContent = predicted;
       const left = neighbors.slice(0, 9);
       const right = neighbors.slice(10);
-
-      document.getElementById("leftNeighbors").innerHTML = left.map(n => renderBlock(n)).join('');
-      document.getElementById("rightNeighbors").innerHTML = right.map(n => renderBlock(n)).join('');
+      document.getElementById("prediction").textContent = predicted;
+      document.getElementById("leftNeighbors").innerHTML = left.map(renderBlock).join('');
+      document.getElementById("rightNeighbors").innerHTML = right.map(renderBlock).join('');
     }
 
-    function renderBlock(n) {
-      let color = 'background: gray;';
-      if (n === 0) color = 'background: green;';
-      else if (redNumbers.includes(n)) color = 'background: red; color: white;';
-      else if (blackNumbers.includes(n)) color = 'background: black; color: white;';
-      return `<span class="number-block" style="${color}">${n}</span>`;
+    function updateStats(predicted, result) {
+      baseBet = parseFloat(document.getElementById("baseBet").value);
+      if (result) {
+        bankroll += baseBet * 18; // win return per number (36/2)
+        currentLossStreak = 0;
+      } else {
+        bankroll -= baseBet * 19; // lose total across all 19 numbers
+        currentLossStreak++;
+      }
+      document.getElementById("bankroll").textContent = bankroll.toFixed(2);
+      document.getElementById("profit").textContent = (bankroll - parseFloat(document.getElementById("bankrollStart").value)).toFixed(2);
+      document.getElementById("lossStreak").textContent = currentLossStreak;
+      document.getElementById("currentBet").textContent = baseBet.toFixed(2);
     }
 
-    function addSimpleSpin() {
-      const toInput = document.getElementById("singleTo");
-      const to = Number(toInput.value);
-      if (isNaN(to)) return;
+    function predictNext() {
+      if (spins.length < 5) return null;
+      const last = spins.at(-1);
+      const dir = last.direction === "CW" ? "CCW" : "CW";
+      const relevant = spins.filter(s => s.direction === dir).slice(-5);
+      if (relevant.length < 5) return null;
+      const avg = Math.round(relevant.map(s => s.pockets).sort((a,b)=>a-b).slice(1,4).reduce((a,b)=>a+b)/3);
+      const idx = getIndex(last.to);
+      const newIdx = dir === "CW" ? (idx + avg) % europeanWheel.length : (idx - avg + europeanWheel.length) % europeanWheel.length;
+      return europeanWheel[newIdx];
+    }
+
+    function handleSpin(to) {
       const direction = spins.length && spins.at(-1).direction === "CW" ? "CCW" : "CW";
       const from = spins.length ? spins.at(-1).to : to;
       const pockets = Math.abs(getIndex(to) - getIndex(from));
       spins.push({ from, to, direction, pockets });
+      const predicted = predictNext();
+      if (!predicted) return;
+      const neighbors = getNeighbors(predicted);
+      const result = neighbors.includes(to);
+      updateStats(predicted, result);
       document.getElementById("lastNumber").textContent = to;
-      update(predictedFromLast());
-      toInput.value = '';
+      renderWheel(predicted, neighbors);
+      displayNeighbors(predicted);
+      document.getElementById("cwHistory").innerHTML = spins.slice(-40).map(s => renderBlock(s.to)).join('');
+    }
+
+    function addSimpleSpin() {
+      const input = document.getElementById("singleTo");
+      const to = Number(input.value);
+      if (!isNaN(to)) handleSpin(to);
+      input.value = '';
     }
 
     function addBatchSpins() {
       const input = document.getElementById("batchInput").value;
       const numbers = input.split(/[^0-9]+/).map(Number).filter(n => !isNaN(n));
-      let direction = document.getElementById("direction")?.value || "CW";
-      for (let i = 1; i < numbers.length; i++) {
-        const from = numbers[i - 1], to = numbers[i];
-        const pockets = Math.abs(getIndex(to) - getIndex(from));
-        spins.push({ from, to, direction, pockets });
-        direction = direction === "CW" ? "CCW" : "CW";
-      }
+      numbers.forEach(n => handleSpin(n));
       document.getElementById("batchInput").value = '';
-      document.getElementById("lastNumber").textContent = numbers.at(-1);
-      update(predictedFromLast());
     }
 
-    function predictedFromLast() {
-      if (spins.length < 5) return null;
-      const last = spins.at(-1);
-      const dir = last.direction === "CW" ? "CCW" : "CW";
-      const recent = spins.filter(s => s.direction === dir).slice(-5);
-      if (recent.length < 5) return null;
-      const avg = Math.round(recent.map(s => s.pockets).sort((a,b)=>a-b).slice(1,4).reduce((a,b)=>a+b)/3);
-      const idx = getIndex(last.to);
-      const newIndex = dir === "CW" ? (idx + avg) % europeanWheel.length : (idx - avg + europeanWheel.length) % europeanWheel.length;
-      return europeanWheel[newIndex];
-    }
-
-    function update(predicted) {
-      if (!predicted) return;
-      renderWheel(predicted, getNeighbors(predicted));
-      displayNeighbors(predicted);
-      const blocks = spins.slice(-30).map(s => renderBlock(s.to)).join('');
-      document.getElementById("cwHistory").innerHTML = blocks;
+    function resetMartingale() {
+      bankroll = parseFloat(document.getElementById("bankrollStart").value);
+      currentLossStreak = 0;
+      document.getElementById("bankroll").textContent = bankroll.toFixed(2);
+      document.getElementById("profit").textContent = '0';
+      document.getElementById("lossStreak").textContent = '0';
     }
 
     function resetAll() {
       spins = [];
       document.getElementById("cwHistory").innerHTML = '';
-      document.getElementById("ccwHistory").innerHTML = '';
       document.getElementById("lastNumber").textContent = '—';
       document.getElementById("wheelDisplay").innerHTML = '';
       document.getElementById("prediction").textContent = '—';
       document.getElementById("leftNeighbors").innerHTML = '';
       document.getElementById("rightNeighbors").innerHTML = '';
+      resetMartingale();
     }
 
     function exportResults() {
-      if (spins.length === 0) return alert("No spins to export.");
+      if (spins.length === 0) return;
       const rows = [["From", "To", "Direction", "Pockets"]].concat(spins.map(s => [s.from, s.to, s.direction, s.pockets]));
-      const csvContent = "data:text/csv;charset=utf-8," + rows.map(r => r.join(",")).join("\r\n");
+      const csv = "data:text/csv;charset=utf-8," + rows.map(r => r.join(",")).join("\r\n");
       const link = document.createElement("a");
-      link.href = encodeURI(csvContent);
+      link.href = encodeURI(csv);
       link.download = "spins.csv";
       document.body.appendChild(link);
       link.click();
