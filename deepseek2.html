@@ -709,7 +709,7 @@
             saveToLocalStorage();
         }
 
-        function generatePrediction() {
+         function generatePrediction() {
             if (spinHistory.length < 2) {
                 resetPrediction();
                 return;
@@ -731,7 +731,7 @@
                 return;
             }
             
-            // Calculate distances for each spin pair
+            // Calculate distances for each spin pair (same as travel patterns)
             const distances = [];
             let distanceDetails = "Distance calculations:<br>";
             
@@ -743,14 +743,14 @@
                 const toIndex = wheelLayout.indexOf(toSpin.number);
                 
                 let distance;
-                if (toSpin.direction === 'cw') {
+                if (fromSpin.direction === 'cw') {
                     distance = (fromIndex - toIndex + wheelLayout.length) % wheelLayout.length;
                 } else {
                     distance = (toIndex - fromIndex + wheelLayout.length) % wheelLayout.length;
                 }
                 
                 distances.push(distance);
-                distanceDetails += `${fromSpin.number} → ${toSpin.number} (${toSpin.direction.toUpperCase()}): ${distance} pockets<br>`;
+                distanceDetails += `${fromSpin.number} → ${toSpin.number} (${fromSpin.direction.toUpperCase()}): ${distance} pockets<br>`;
             }
             
             // If we have at least 3 distances, process them
