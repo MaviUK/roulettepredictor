@@ -168,6 +168,9 @@
   const newSpin = { from, to, direction, pockets };
   updateStats(newSpin, to);
   toInput.value = '';
+};
+  updateStats(newSpin, to);
+  toInput.value = '';
 }
   updateStats(newSpin, to);
   toInput.value = '';
@@ -196,6 +199,11 @@
     const to = numbers[i];
     const pockets = calculatePockets(from, to, direction);
     const newSpin = { from, to, direction, pockets };
+    updateStats(newSpin, to);
+    direction = direction === "CW" ? "CCW" : "CW";
+  }
+  inputBox.value = '';
+};
     updateStats(newSpin, to);
     direction = direction === "CW" ? "CCW" : "CW";
   }
