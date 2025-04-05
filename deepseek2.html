@@ -688,10 +688,8 @@ generatePrediction();
 
 
 // Then generate prediction for the new direction
- function generatePrediction() {
-  // Skip prediction if not enough travel patterns in the direction
-  const recentTravelPatterns = stats.travelPatterns
-    .filter(p => p.direction === currentDirection);
+function generatePrediction() {
+  const recentTravelPatterns = stats.travelPatterns.filter(p => p.direction === currentDirection);
 
   if (recentTravelPatterns.length < 5) {
     resetPrediction();
@@ -699,7 +697,7 @@ generatePrediction();
     return;
   }
 
-  const latestFive = recentTravelPatterns.slice(0, 5); // newest first
+  const latestFive = recentTravelPatterns.slice(0, 5);
   const distances = latestFive.map(p => p.distance);
   let distanceDetails = "Distance calculations:<br>";
 
@@ -742,47 +740,6 @@ generatePrediction();
   updatePredictionDisplay(mainPrediction, leftNeighbors, rightNeighbors);
   distanceDetailsDiv.innerHTML = distanceDetails;
 }
-
-
-        function updatePredictionDisplay(mainNumber, leftNeighbors, rightNeighbors) {
-            const mainColor = getColorForNumber(mainNumber);
-            
-            predictedNumberDiv.textContent = mainNumber;
-            predictedNumberDiv.style.color = mainColor === 'red' ? '#e74c3c' : 
-                                          mainColor === 'black' ? '#2c3e50' : '#27ae60';
-            
-            // Update left neighbors (counter-clockwise)
-            leftNeighborsDiv.innerHTML = '';
-            const leftGroupLabel = leftNeighborsDiv.parentElement.querySelector('.neighbor-group-label');
-            leftGroupLabel.textContent = `Left 9 (CCW)`;
-            
-            leftNeighbors.forEach(neighbor => {
-                const neighborColor = getColorForNumber(neighbor);
-                const neighborElement = document.createElement('div');
-                neighborElement.className = 'neighbor';
-                neighborElement.textContent = neighbor;
-                neighborElement.style.backgroundColor = neighborColor === 'red' ? '#e74c3c' : 
-                                                      neighborColor === 'black' ? '#2c3e50' : '#27ae60';
-                leftNeighborsDiv.appendChild(neighborElement);
-            });
-            
-            // Update right neighbors (clockwise)
-            rightNeighborsDiv.innerHTML = '';
-            const rightGroupLabel = rightNeighborsDiv.parentElement.querySelector('.neighbor-group-label');
-            rightGroupLabel.textContent = `Right 9 (CW)`;
-            
-            rightNeighbors.forEach(neighbor => {
-                const neighborColor = getColorForNumber(neighbor);
-                const neighborElement = document.createElement('div');
-                neighborElement.className = 'neighbor';
-                neighborElement.textContent = neighbor;
-                neighborElement.style.backgroundColor = neighborColor === 'red' ? '#e74c3c' : 
-                                                      neighborColor === 'black' ? '#2c3e50' : '#27ae60';
-                rightNeighborsDiv.appendChild(neighborElement);
-            });
-            
-            updateSelectedNumbersDisplay();
-        }
 
         function updateSelectedNumbersDisplay() {
             selectedNumbersDiv.innerHTML = '';
