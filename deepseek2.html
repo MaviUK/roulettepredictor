@@ -715,38 +715,43 @@
         return;
     }
 
-    // Find all complete CCW spins (where direction was CCW)
-    const ccwSpins = [];
+    // Determine next spin direction (alternates from last spin)
+    const nextDirection = spinHistory[spinHistory.length-1].direction === 'cw' ? 'ccw' : 'cw';
+
+    // Find all complete spins in the NEXT direction
+    const directionSpins = [];
     for (let i = 1; i < spinHistory.length; i++) {
-        if (spinHistory[i].direction === 'ccw') {
-            ccwSpins.push({
+        if (spinHistory[i].direction === nextDirection) {
+            directionSpins.push({
                 from: spinHistory[i-1].number, // Previous number (start)
-                to: spinHistory[i].number,     // Current number (end)
-                direction: 'ccw'
+                to: spinHistory[i].number,    // Current number (end)
+                direction: nextDirection
             });
         }
     }
 
-    // Take last 5 CCW spins (for 4 distances)
-    const recentCCWSpins = ccwSpins.slice(-5);
+    // Take last 5 spins in this direction
+    const recentDirectionSpins = directionSpins.slice(-5);
     
-    if (recentCCWSpins.length < 2) {
+    if (recentDirectionSpins.length < 2) {
         resetPrediction();
         return;
     }
 
-    // Calculate pockets traveled DURING each CCW spin
-    let distanceDetails = "Last 5 CCW Spin Travel Distances:<br><table>";
+    // Calculate pockets traveled DURING each same-direction spin
+    let distanceDetails = `Last 5 ${nextDirection.toUpperCase()} Spin Travel Distances:<br><table>`;
     distanceDetails += "<tr><th>Start</th><th>End</th><th>Pockets</th></tr>";
     
     const travelDistances = [];
     
-    recentCCWSpins.forEach(spin => {
+    recentDirectionSpins.forEach(spin => {
         const fromIndex = wheelLayout.indexOf(spin.from);
         const toIndex = wheelLayout.indexOf(spin.to);
         
-        // CCW travel: (to - from + 37) % 37
-        const pockets = (toIndex - fromIndex + wheelLayout.length) % wheelLayout.length;
+        // Calculate pockets traveled during this spin
+        const pockets = spin.direction === 'cw' 
+            ? (fromIndex - toIndex + wheelLayout.length) % wheelLayout.length
+            : (toIndex - fromIndex + wheelLayout.length) % wheelLayout.length;
         
         travelDistances.push(pockets);
         distanceDetails += `<tr><td>${spin.from}</td><td>${spin.to}</td><td>${pockets}</td></tr>`;
@@ -754,8 +759,8 @@
     
     distanceDetails += "</table>";
 
-    // Process distances (now using last 5 spins)
-    if (travelDistances.length >= 4) {  // Changed from 3 to 4 since we have 5 spins
+    // Process distances
+    if (travelDistances.length >= 3) {
         const sorted = [...travelDistances].sort((a,b) => a-b);
         const trimmed = sorted.slice(1, -1); // Remove min and max
         const average = Math.round(trimmed.reduce((s,v) => s+v, 0)/trimmed.length);
@@ -763,12 +768,12 @@
         distanceDetails += `<br>All distances: ${travelDistances.join(', ')}<br>`;
         distanceDetails += `Sorted: ${sorted.join(', ')}<br>`;
         distanceDetails += `Trimmed: ${trimmed.join(', ')} (removed min ${sorted[0]} and max ${sorted[sorted.length-1]})<br>`;
-        distanceDetails += `Average travel: ${average} pockets`;
+        distanceDetails += `Average travel: ${average} pockets (using in ${nextDirection.toUpperCase()} direction)`;
         
         // Apply to prediction...
         distanceDetailsDiv.innerHTML = distanceDetails;
     } else {
-        distanceDetailsDiv.innerHTML = distanceDetails + "<br>Not enough data (need at least 5 CCW spins)";
+        distanceDetailsDiv.innerHTML = distanceDetails + `<br>Not enough data (need at least 3 ${nextDirection.toUpperCase()} spins)`;
     }
 }
         function updatePredictionDisplay(mainNumber, leftNeighbors, rightNeighbors) {
