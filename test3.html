@@ -387,15 +387,6 @@ let currentCCWStreak = 0;
       tempBankroll.toFixed(2),
       (tempBankroll - parseFloat(document.getElementById("bankrollStart").value)).toFixed(2)
     ]);
-      to,
-      from,
-      pockets,
-      result,
-      direction,
-      lossStreak,
-      cwStreak,
-      ccwStreak
-    ]);
   }
 
   const csv = "data:text/csv;charset=utf-8," + rows.map(r => r.join(",")).join("
