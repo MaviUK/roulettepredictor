@@ -435,7 +435,7 @@ let currentCCWStreak = 0;
     ]);
   }
 
-  const csv = "data:text/csv;charset=utf-8," + rows.map(r => r.join(",")).join("\\r\\n");
+  const csv = "data:text/csv;charset=utf-8," + rows.map(r => r.join(",")).join("\r\n");
 
   const link = document.createElement("a");
   link.href = encodeURI(csv);
