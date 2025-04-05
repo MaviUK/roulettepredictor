@@ -680,7 +680,9 @@
             currentDirection = currentDirection === 'cw' ? 'ccw' : 'cw';
             
             // Generate new prediction
-            generatePrediction();
+            const nextDirection = currentDirection === 'cw' ? 'ccw' : 'cw';
+generatePrediction(nextDirection);
+
             
             updateHistoryDisplay();
             updateStatsDisplay();
@@ -692,17 +694,17 @@
             saveToLocalStorage();
         }
 
-       function generatePrediction() {
+       function generatePrediction(directionForNextSpin) {
     if (spinHistory.length < 2) {
         resetPrediction();
         return;
     }
 
-    // Filter last 5 spins *that happened in the same direction as the NEXT spin*
+    // Use the direction passed in, not the currentDirection
     const relevantSpins = spinHistory
         .slice()
         .reverse()
-        .filter(spin => spin.direction === currentDirection)
+        .filter(spin => spin.direction === directionForNextSpin)
         .slice(0, 5);
 
     if (relevantSpins.length < 2) {
@@ -722,14 +724,14 @@
         const toIndex = wheelLayout.indexOf(toSpin.number);
 
         let distance;
-        if (currentDirection === 'cw') {
+        if (directionForNextSpin === 'cw') {
             distance = (fromIndex - toIndex + wheelLayout.length) % wheelLayout.length;
         } else {
             distance = (toIndex - fromIndex + wheelLayout.length) % wheelLayout.length;
         }
 
         distances.push(distance);
-        distanceDetails += `${fromSpin.number} → ${toSpin.number} (${currentDirection.toUpperCase()}): ${distance} pockets<br>`;
+        distanceDetails += `${fromSpin.number} → ${toSpin.number} (${directionForNextSpin.toUpperCase()}): ${distance} pockets<br>`;
     }
 
     if (distances.length >= 3) {
@@ -746,7 +748,7 @@
         const lastIndex = wheelLayout.indexOf(lastSpin.number);
 
         let predictedIndex;
-        if (currentDirection === 'cw') {
+        if (directionForNextSpin === 'cw') {
             predictedIndex = (lastIndex - averageStep + wheelLayout.length) % wheelLayout.length;
         } else {
             predictedIndex = (lastIndex + averageStep) % wheelLayout.length;
@@ -768,6 +770,7 @@
 
         currentPrediction = mainPrediction;
         currentSelection = [mainPrediction, ...leftNeighbors, ...rightNeighbors];
+        currentDirection = directionForNextSpin; // now actually update it
 
         updatePredictionDisplay(mainPrediction, leftNeighbors, rightNeighbors);
         distanceDetailsDiv.innerHTML = distanceDetails;
@@ -776,6 +779,7 @@
         distanceDetailsDiv.textContent = "Not enough data (need at least 3 distances)";
     }
 }
+
 
         function updatePredictionDisplay(mainNumber, leftNeighbors, rightNeighbors) {
             const mainColor = getColorForNumber(mainNumber);
