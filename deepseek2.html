@@ -715,25 +715,24 @@
         return;
     }
     
-    // Get the last 5 spins in the CURRENT direction (the one we're about to predict for)
-    const recentDirectionSpins = spinHistory
-        .slice() // Create a copy
-        .reverse() // Start from most recent
-        .filter(spin => spin.direction === currentDirection)
-        .slice(0, 5); // Take up to 5 most recent
-
+    // Get ALL spins in the CURRENT direction (the one we're about to predict for)
+    const allDirectionSpins = spinHistory.filter(spin => spin.direction === currentDirection);
+    
+    // Take the last 5 spins in this direction
+    const recentDirectionSpins = allDirectionSpins.slice(-5);
+    
     // If we don't have enough spins in this direction, use what we have
     if (recentDirectionSpins.length < 2) {
         resetPrediction();
         return;
     }
     
-    // Calculate distances for each spin pair IN THE CURRENT DIRECTION
+    // Calculate distances between CONSECUTIVE spins in this direction
     const distances = [];
     let distanceDetails = "Distance calculations (for upcoming " + currentDirection.toUpperCase() + " direction):<br>";
     
-    for (let i = 0; i < recentDirectionSpins.length - 1; i++) {
-        const fromSpin = recentDirectionSpins[i+1];
+    for (let i = 1; i < recentDirectionSpins.length; i++) {
+        const fromSpin = recentDirectionSpins[i-1];
         const toSpin = recentDirectionSpins[i];
         
         const fromIndex = wheelLayout.indexOf(fromSpin.number);
@@ -750,7 +749,7 @@
         distanceDetails += `${fromSpin.number} → ${toSpin.number}: ${distance} pockets<br>`;
     }
     
-    // If we have at least 3 distances, process them
+    // Rest of the function remains the same...
     if (distances.length >= 3) {
         // Sort distances to easily remove min and max
         const sortedDistances = [...distances].sort((a, b) => a - b);
@@ -806,7 +805,6 @@
         distanceDetailsDiv.textContent = "Not enough data (need at least 3 spins in current direction)";
     }
 }
-
         function updatePredictionDisplay(mainNumber, leftNeighbors, rightNeighbors) {
             const mainColor = getColorForNumber(mainNumber);
             
