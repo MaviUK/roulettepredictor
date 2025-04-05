@@ -161,10 +161,14 @@
     function addSimpleSpin() {
   const toInput = document.getElementById('singleTo');
   const to = Number(toInput.value);
+  if (isNaN(to)) return alert("Please enter a valid number.");
   const direction = document.getElementById('direction').value;
   const from = spins.length ? spins[spins.length - 1].to : to;
   const pockets = calculatePockets(from, to, direction);
   const newSpin = { from, to, direction, pockets };
+  updateStats(newSpin, to);
+  toInput.value = '';
+};
   updateStats(newSpin, to);
   toInput.value = ''; // Clear input after adding
 }
@@ -186,6 +190,11 @@
     const to = numbers[i];
     const pockets = calculatePockets(from, to, direction);
     const newSpin = { from, to, direction, pockets };
+    updateStats(newSpin, to);
+    direction = direction === "CW" ? "CCW" : "CW";
+  }
+  inputBox.value = '';
+};
     updateStats(newSpin, to);
     direction = direction === "CW" ? "CCW" : "CW";
   }
