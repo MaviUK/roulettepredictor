@@ -727,8 +727,8 @@
         }
     }
 
-    // Take last 4 CCW spins (for 3 distances)
-    const recentCCWSpins = ccwSpins.slice(-4);
+    // Take last 5 CCW spins (for 4 distances)
+    const recentCCWSpins = ccwSpins.slice(-5);
     
     if (recentCCWSpins.length < 2) {
         resetPrediction();
@@ -736,7 +736,7 @@
     }
 
     // Calculate pockets traveled DURING each CCW spin
-    let distanceDetails = "CCW Spin Travel Distance:<br><table>";
+    let distanceDetails = "Last 5 CCW Spin Travel Distances:<br><table>";
     distanceDetails += "<tr><th>Start</th><th>End</th><th>Pockets</th></tr>";
     
     const travelDistances = [];
@@ -754,10 +754,10 @@
     
     distanceDetails += "</table>";
 
-    // Process distances
-    if (travelDistances.length >= 3) {
+    // Process distances (now using last 5 spins)
+    if (travelDistances.length >= 4) {  // Changed from 3 to 4 since we have 5 spins
         const sorted = [...travelDistances].sort((a,b) => a-b);
-        const trimmed = sorted.slice(1, -1);
+        const trimmed = sorted.slice(1, -1); // Remove min and max
         const average = Math.round(trimmed.reduce((s,v) => s+v, 0)/trimmed.length);
         
         distanceDetails += `<br>All distances: ${travelDistances.join(', ')}<br>`;
@@ -768,7 +768,7 @@
         // Apply to prediction...
         distanceDetailsDiv.innerHTML = distanceDetails;
     } else {
-        distanceDetailsDiv.innerHTML = distanceDetails + "<br>Not enough data";
+        distanceDetailsDiv.innerHTML = distanceDetails + "<br>Not enough data (need at least 5 CCW spins)";
     }
 }
         function updatePredictionDisplay(mainNumber, leftNeighbors, rightNeighbors) {
