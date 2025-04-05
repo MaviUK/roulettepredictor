@@ -7,25 +7,34 @@
   <style>
     body {
       font-family: Arial, sans-serif;
-      padding: 2rem;
-      max-width: 900px;
-      margin: auto;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1rem;
+      padding: 1rem;
     }
     .section {
       background-color: #f3f4f6;
       padding: 1rem;
       border-radius: 8px;
-      margin-bottom: 1rem;
+      width: 100%;
+      max-width: 900px;
+      box-sizing: border-box;
     }
     .input-group {
       display: flex;
       flex-wrap: wrap;
       gap: 1rem;
-      margin-bottom: 1rem;
+      width: 100%;
+      max-width: 900px;
     }
     input, select, button, textarea {
       padding: 0.5rem;
       font-size: 1rem;
+    }
+    input, select, button {
+      flex: 1;
+      min-width: 120px;
     }
     button {
       background-color: #4f46e5;
@@ -36,8 +45,8 @@
     }
     textarea {
       width: 100%;
-      margin-top: 1rem;
-      height: 100px;
+      height: 80px;
+      margin-top: 0.5rem;
     }
     #wheelDisplay span {
       display: inline-block;
@@ -54,6 +63,7 @@
   </style>
 </head>
 <body>
+
   <h1>🎯 Roulette Prediction Tool</h1>
 
   <div class="input-group">
@@ -88,6 +98,10 @@
     <p>Max CW Loss Streak: <strong id="cwStreak">0</strong></p>
     <p>Max CCW Loss Streak: <strong id="ccwStreak">0</strong></p>
     <p>Max Combined Loss Streak: <strong id="totalStreak">0</strong></p>
+  </div>
+
+  <div class="section" style="background: #fff7ed;">
+    <h2>🎯 Last Number Spun: <span id="lastNumber">—</span></h2>
   </div>
 
   <div class="section">
@@ -160,6 +174,11 @@
       });
     }
 
+    function showLastNumber() {
+      const last = spins.at(-1)?.to;
+      document.getElementById('lastNumber').textContent = last !== undefined ? last : '—';
+    }
+
     function updateStats(newSpin, to) {
       const previousPrediction = predictNext(spins);
       const predictionNeighbors = previousPrediction ? getNeighbors(previousPrediction) : [];
@@ -177,13 +196,13 @@
       }
 
       spins.push(newSpin);
-
       const prediction = predictNext(spins);
       const neighborText = prediction ? getNeighbors(prediction).join(", ") : "";
 
       document.getElementById('prediction').innerHTML = `Next predicted number: <strong>${prediction ?? "Not enough data yet"}</strong>`;
       document.getElementById('neighbors').innerHTML = prediction ? `Neighbors (±9): <strong>${neighborText}</strong>` : "";
       renderWheel(prediction, prediction ? getNeighbors(prediction) : []);
+      showLastNumber();
 
       const cwSpins = spins.filter(s => s.direction === "CW").slice(-5).reverse().map(spin =>
         `<p>From: ${spin.from} → To: ${spin.to} | Pockets: ${spin.pockets}</p>`).join('');
@@ -201,7 +220,12 @@
       const toInput = document.getElementById('singleTo');
       const to = Number(toInput.value);
       if (isNaN(to)) return alert("Please enter a valid number.");
-      const direction = document.getElementById('direction').value;
+      let direction;
+      if (spins.length > 0) {
+        direction = spins[spins.length - 1].direction === 'CW' ? 'CCW' : 'CW';
+      } else {
+        direction = document.getElementById('direction').value;
+      }
       const from = spins.length ? spins[spins.length - 1].to : to;
       const pockets = calculatePockets(from, to, direction);
       const newSpin = { from, to, direction, pockets };
@@ -241,6 +265,7 @@
       document.getElementById('batchInput').value = '';
       document.getElementById('singleTo').value = '';
       document.getElementById('wheelDisplay').innerHTML = '';
+      document.getElementById('lastNumber').textContent = '—';
     }
 
     function exportResults() {
