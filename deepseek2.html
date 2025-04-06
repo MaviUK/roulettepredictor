@@ -608,51 +608,60 @@
         }
 
         function addSingleSpin() {
-            const number = parseInt(spinInput.value);
-            if (isNaN(number)) {
-                alert('Please enter a valid number');
-                return;
-            }
-            
-            if (number < 0 || number > 36) {
-                alert('Please enter a number between 0 and 36');
-                return;
-            }
-            
-            recordSpin(number);
-            spinInput.value = '';
-            spinInput.focus();
-        }
+    const number = parseInt(spinInput.value);
+    if (isNaN(number)) {
+        alert('Please enter a valid number');
+        return;
+    }
+    
+    if (number < 0 || number > 36) {
+        alert('Please enter a number between 0 and 36');
+        return;
+    }
+    
+    recordSpin(number);
+    spinInput.value = '';  // This clears the input
+    spinInput.focus();     // This puts focus back on the input for the next number
+}
 
         function addBatchSpins() {
-            const input = batchInput.value.trim();
-            if (!input) {
-                alert('Please enter numbers to add');
-                return;
-            }
-            
-            // Split by commas or whitespace and convert to numbers
-            const numbers = input.split(/[\s,]+/)
-                .map(n => parseInt(n.trim()))
-                .filter(n => !isNaN(n) && n >= 0 && n <= 36);
-            
-            if (numbers.length === 0) {
-                alert('No valid numbers found (must be 0-36)');
-                return;
-            }
-            
-            // Process each number while preserving the direction alternation
-            numbers.forEach((number, index) => {
-                // For batch processing, we need to manually alternate directions
-                if (index > 0) {
-                    currentDirection = currentDirection === 'cw' ? 'ccw' : 'cw';
-                }
-                recordSpin(number, true); // true = skip automatic direction change
-            });
-            
-            batchInput.value = '';
-            batchInput.focus();
+    const input = batchInput.value.trim();
+    if (!input) {
+        alert('Please enter numbers to add');
+        return;
+    }
+    
+    // Split by commas or whitespace and convert to numbers
+    const numbers = input.split(/[\s,]+/)
+        .map(n => parseInt(n.trim()))
+        .filter(n => !isNaN(n) && n >= 0 && n <= 36);
+    
+    if (numbers.length === 0) {
+        alert('No valid numbers found (must be 0-36)');
+        return;
+    }
+    
+    // Store current direction before processing
+    const originalDirection = currentDirection;
+    
+    // Process all numbers
+    numbers.forEach((number, index) => {
+        // For batch processing, we need to manually alternate directions after first spin
+        if (index > 0) {
+            currentDirection = currentDirection === 'cw' ? 'ccw' : 'cw';
         }
+        recordSpin(number, true); // true = skip automatic direction change
+    });
+    
+    // Restore proper direction state after batch
+    currentDirection = numbers.length % 2 === 0 ? 
+        originalDirection : 
+        (originalDirection === 'cw' ? 'ccw' : 'cw');
+    
+    // Clear the batch input field
+    batchInput.value = '';
+    batchInput.focus();
+}
 
         function recordSpin(number, skipDirectionChange = false) {
             const color = getColorForNumber(number);
