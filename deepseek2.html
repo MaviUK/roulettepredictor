@@ -563,10 +563,12 @@
         const betsLostSpan = document.getElementById('betsLost');
         const maxLossesDisplaySpan = document.getElementById('maxLossesDisplay');
 
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
             createWheel();
             setupEventListeners();
             loadFromLocalStorage();
-        
+        });
 
         function setupEventListeners() {
             addSpinBtn.addEventListener('click', addSingleSpin);
@@ -607,8 +609,13 @@
 
         function addSingleSpin() {
             const number = parseInt(spinInput.value);
-            if (isNaN(number) || number < 0 || number > 36) {
-                alert('Please enter a valid number between 0 and 36');
+            if (isNaN(number)) {
+                alert('Please enter a valid number');
+                return;
+            }
+            
+            if (number < 0 || number > 36) {
+                alert('Please enter a number between 0 and 36');
                 return;
             }
             
@@ -619,37 +626,32 @@
 
         function addBatchSpins() {
             const input = batchInput.value.trim();
-            if (!input) return;
-            
-            const numbers = input.split(/[\s,]+/)
-                .map(n => parseInt(n))
-                .filter(n => !isNaN(n) && n >= 0 && n <= 36);
-            
-            if (numbers.length === 0) {
-                alert('No valid numbers found');
+            if (!input) {
+                alert('Please enter numbers to add');
                 return;
             }
             
-            // Store current direction before batch processing
-            const originalDirection = currentDirection;
+            // Split by commas or whitespace and convert to numbers
+            const numbers = input.split(/[\s,]+/)
+                .map(n => parseInt(n.trim()))
+                .filter(n => !isNaN(n) && n >= 0 && n <= 36);
             
-            // Process first number with current direction
-            if (numbers.length > 0) {
-                recordSpin(numbers[0], true);
+            if (numbers.length === 0) {
+                alert('No valid numbers found (must be 0-36)');
+                return;
             }
             
-            // Process remaining numbers with proper alternation
-            for (let i = 1; i < numbers.length; i++) {
-                currentDirection = currentDirection === 'cw' ? 'ccw' : 'cw';
-                recordSpin(numbers[i], true);
-            }
-            
-            // Restore proper direction state after batch
-            currentDirection = numbers.length % 2 === 0 ? 
-                originalDirection : 
-                (originalDirection === 'cw' ? 'ccw' : 'cw');
+            // Process each number while preserving the direction alternation
+            numbers.forEach((number, index) => {
+                // For batch processing, we need to manually alternate directions
+                if (index > 0) {
+                    currentDirection = currentDirection === 'cw' ? 'ccw' : 'cw';
+                }
+                recordSpin(number, true); // true = skip automatic direction change
+            });
             
             batchInput.value = '';
+            batchInput.focus();
         }
 
         function recordSpin(number, skipDirectionChange = false) {
@@ -999,389 +1001,4 @@
             const lastX = 150 + 140 * Math.cos(lastAngle);
             const lastY = 150 + 140 * Math.sin(lastAngle);
             
-            const lastMarker = document.createElement('div');
-            lastMarker.className = 'wheel-marker';
-            lastMarker.style.backgroundColor = 'gold';
-            lastMarker.style.left = `${lastX}px`;
-            lastMarker.style.top = `${lastY}px`;
-            lastMarker.title = `Last: ${lastSpin.number} (${lastSpin.direction.toUpperCase()})`;
-            rouletteWheel.appendChild(lastMarker);
-            
-            // Show prediction if available
-            if (currentPrediction) {
-                const predIndex = wheelLayout.indexOf(currentPrediction);
-                const predAngle = predIndex * angleIncrement - Math.PI / 2;
-                const predX = 150 + 140 * Math.cos(predAngle);
-                const predY = 150 + 140 * Math.sin(predAngle);
-                
-                const predMarker = document.createElement('div');
-                predMarker.className = 'wheel-marker';
-                predMarker.style.backgroundColor = 'red';
-                predMarker.style.left = `${predX}px`;
-                predMarker.style.top = `${predY}px`;
-                predMarker.title = `Predicted: ${currentPrediction}`;
-                rouletteWheel.appendChild(predMarker);
-                
-                // Show prediction range (main + 9 neighbors each side)
-                const leftIndex = (predIndex - 9 + wheelLayout.length) % wheelLayout.length;
-                const rightIndex = (predIndex + 9) % wheelLayout.length;
-                
-                const leftAngle = leftIndex * angleIncrement - Math.PI / 2;
-                const rightAngle = rightIndex * angleIncrement - Math.PI / 2;
-                
-                // Create range indicator
-                const rangeIndicator = document.createElement('div');
-                rangeIndicator.className = 'wheel-prediction-range';
-                
-                // Create SVG arc for the range
-                const svgNS = "http://www.w3.org/2000/svg";
-                const svg = document.createElementNS(svgNS, "svg");
-                svg.setAttribute("width", "100%");
-                svg.setAttribute("height", "100%");
-                svg.setAttribute("viewBox", "0 0 300 300");
-                
-                const path = document.createElementNS(svgNS, "path");
-                const startAngle = rightAngle; // We go CW from right to left
-                const endAngle = leftAngle;
-                
-                // Calculate large arc flag
-                const arcLength = (endAngle - startAngle + 2 * Math.PI) % (2 * Math.PI);
-                const largeArcFlag = arcLength > Math.PI ? 1 : 0;
-                
-                // Create the arc path
-                const startX = 150 + 110 * Math.cos(startAngle);
-                const startY = 150 + 110 * Math.sin(startAngle);
-                const endX = 150 + 110 * Math.cos(endAngle);
-                const endY = 150 + 110 * Math.sin(endAngle);
-                
-                path.setAttribute("d", `M ${startX} ${startY} A 110 110 0 ${largeArcFlag} 0 ${endX} ${endY}`);
-                path.setAttribute("stroke", "rgba(255, 215, 0, 0.5)");
-                path.setAttribute("stroke-width", "20");
-                path.setAttribute("fill", "none");
-                path.setAttribute("stroke-linecap", "round");
-                
-                svg.appendChild(path);
-                rangeIndicator.appendChild(svg);
-                rouletteWheel.appendChild(rangeIndicator);
-            }
-        }
-
-        function updateHistoryDisplay() {
-            historyListDiv.innerHTML = '';
-            // Show history in reverse order (newest first)
-            const reversedHistory = [...spinHistory].reverse();
-            reversedHistory.forEach((spin, index) => {
-                const spinElement = document.createElement('div');
-                spinElement.className = `history-item ${spin.color}`;
-                spinElement.textContent = spin.number;
-                spinElement.title = `Spin ${spinHistory.length - index}: ${spin.number} ${spin.color} (${spin.direction.toUpperCase()})`;
-                historyListDiv.appendChild(spinElement);
-            });
-            
-            historyCountSpan.textContent = `${spinHistory.length} spins recorded`;
-        }
-
-        function resetPrediction() {
-            currentPrediction = null;
-            currentSelection = [];
-            
-            predictedNumberDiv.textContent = '-';
-            leftNeighborsDiv.innerHTML = '';
-            rightNeighborsDiv.innerHTML = '';
-            
-            selectedNumbersDiv.innerHTML = '<div>No active prediction</div>';
-            distanceDetailsDiv.textContent = 'No distance data available';
-        }
-
-        function clearHistory() {
-            if (confirm('Are you sure you want to clear all history?')) {
-                spinHistory = [];
-                currentDirection = 'cw';
-                stats = {
-                    total: 0,
-                    cw: {
-                        wins: 0,
-                        total: 0,
-                        travelDistances: []
-                    },
-                    ccw: {
-                        wins: 0,
-                        total: 0,
-                        travelDistances: []
-                    },
-                    travelPatterns: []
-                };
-                resetMartingale();
-                resetPrediction();
-                updateHistoryDisplay();
-                updateStatsDisplay();
-                updateTravelPatternsDisplay();
-                updateWheelDisplay();
-                saveToLocalStorage();
-            }
-        }
-
-        function exportHistory() {
-            if (spinHistory.length === 0) {
-                alert('No history to export');
-                return;
-            }
-            
-            const csvContent = "data:text/csv;charset=utf-8," +
-                ["Number,Color,Direction,Timestamp"]
-                .concat(spinHistory.map(spin => 
-                    `${spin.number},${spin.color},${spin.direction},${spin.timestamp}`
-                )).join("\n");
-            
-            const encodedUri = encodeURI(csvContent);
-            const link = document.createElement("a");
-            link.setAttribute("href", encodedUri);
-            link.setAttribute("download", "roulette_history.csv");
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        }
-
-        function exportMartingaleData() {
-            if (martingaleTransactions.length === 0) {
-                alert('No Martingale data to export');
-                return;
-            }
-            
-            const headers = [
-                'Timestamp', 'Spin Number', 'Result', 'Landed Number', 
-                'Numbers Bet', 'Bet Per Number', 'Total Bet', 'Payout',
-                'Profit/Loss', 'Streak', 'Bankroll After', 'Direction'
-            ];
-            
-            const csvRows = [
-                headers.join(','), // header row first
-                ...martingaleTransactions.map(t => [
-                    t.timestamp,
-                    t.spinNumber,
-                    t.result,
-                    t.numberLanded,
-                    `"${t.numbersBet}"`, // wrap in quotes in case numbers contain commas
-                    t.betPerNumber.toFixed(2),
-                    t.totalBet.toFixed(2),
-                    t.payout.toFixed(2),
-                    t.profitLoss.toFixed(2),
-                    t.currentStreak,
-                    t.bankrollAfter.toFixed(2),
-                    t.direction.toUpperCase()
-                ].join(','))
-            ];
-            
-            const csvContent = csvRows.join('\n');
-            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.setAttribute('href', url);
-            link.setAttribute('download', `martingale_data_${new Date().toISOString().slice(0,10)}.csv`);
-            link.style.visibility = 'hidden';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        }
-
-        function updateMartingaleStats(number) {
-            const wasWin = currentSelection.includes(number);
-            const numberCount = 19; // Fixed 19-number prediction (main + 9 each side)
-            
-            // Calculate total bet amount (bet per number * number of numbers)
-            const totalBetAmount = martingale.currentBet * numberCount;
-            
-            // Record transaction before updating values
-            const transaction = {
-                timestamp: new Date().toISOString(),
-                spinNumber: spinHistory.length,
-                result: wasWin ? 'WIN' : 'LOSS',
-                numberLanded: number,
-                numbersBet: currentSelection.join(', '),
-                betPerNumber: martingale.currentBet,
-                totalBet: totalBetAmount,
-                payout: wasWin ? (36 * martingale.currentBet) : 0,
-                profitLoss: wasWin ? (36 * martingale.currentBet - totalBetAmount) : -totalBetAmount,
-                currentStreak: martingale.currentStreak + (wasWin ? 0 : 1),
-                bankrollAfter: wasWin ? 
-                    martingale.bankroll + (36 * martingale.currentBet - totalBetAmount) : 
-                    martingale.bankroll - totalBetAmount,
-                direction: currentDirection
-            };
-            
-            if (wasWin) {
-                // Win - we get 36 units for each winning number (minus the bet)
-                const winAmount = 36 * martingale.currentBet - totalBetAmount;
-                martingale.bankroll += winAmount;
-                martingale.totalProfitLoss += winAmount;
-                
-                // Update longest streak before resetting current streak
-                if (martingale.currentStreak > martingale.longestStreak) {
-                    martingale.longestStreak = martingale.currentStreak;
-                }
-                
-                martingale.currentStreak = 0;
-                martingale.currentBet = martingale.baseBet; // Reset to base bet
-                martingale.betsWon++;
-            } else {
-                // Loss - we lose the total bet amount
-                martingale.bankroll -= totalBetAmount;
-                martingale.totalProfitLoss -= totalBetAmount;
-                martingale.currentStreak++;
-                martingale.betsLost++;
-                
-                // Update longest streak if current streak exceeds it
-                if (martingale.currentStreak > martingale.longestStreak) {
-                    martingale.longestStreak = martingale.currentStreak;
-                }
-                
-                // Check if we've hit max losses
-                if (martingale.currentStreak >= martingale.maxLosses) {
-                    alert(`Max losses (${martingale.maxLosses}) reached! Resetting to base bet.`);
-                    martingale.currentBet = martingale.baseBet;
-                    martingale.currentStreak = 0; // Reset current streak but keep longestStreak
-                } else {
-                    martingale.currentBet *= 2; // Double the bet for next time
-                }
-            }
-            
-            // Check if bankroll is insufficient for next bet
-            if (martingale.bankroll < (martingale.currentBet * numberCount)) {
-                alert(`Bankroll insufficient for next bet! Need ${martingale.currentBet * numberCount} but only have ${martingale.bankroll}. Resetting to base bet.`);
-                martingale.currentBet = martingale.baseBet;
-                martingale.currentStreak = 0;
-            }
-            
-            // Add transaction to history after updating all values
-            martingaleTransactions.push(transaction);
-        }
-
-        function updateMartingaleSettings() {
-            martingale.baseBet = parseFloat(baseBetInput.value) || 1;
-            martingale.bankroll = parseFloat(bankrollInput.value) || 100;
-            martingale.maxLosses = parseInt(maxLossesInput.value) || 10;
-            maxLossesDisplaySpan.textContent = martingale.maxLosses;
-            martingale.currentBet = martingale.baseBet;
-            updateMartingaleDisplay();
-            saveToLocalStorage();
-        }
-
-        function resetMartingale() {
-            martingale = {
-                baseBet: parseFloat(baseBetInput.value) || 1,
-                currentBet: parseFloat(baseBetInput.value) || 1,
-                bankroll: parseFloat(bankrollInput.value) || 100,
-                totalProfitLoss: 0,
-                currentStreak: 0,
-                longestStreak: 0,
-                betsWon: 0,
-                betsLost: 0,
-                maxLosses: parseInt(maxLossesInput.value) || 10,
-                active: false
-            };
-            martingaleTransactions = [];
-            updateMartingaleDisplay();
-            saveToLocalStorage();
-        }
-
-        function updateMartingaleDisplay() {
-            currentBetSpan.textContent = martingale.currentBet.toFixed(2);
-            currentBankrollSpan.textContent = martingale.bankroll.toFixed(2);
-            
-            // Style profit/loss
-            totalProfitLossSpan.textContent = Math.abs(martingale.totalProfitLoss).toFixed(2);
-            if (martingale.totalProfitLoss >= 0) {
-                totalProfitLossSpan.className = 'profit';
-                totalProfitLossSpan.textContent = '+' + totalProfitLossSpan.textContent;
-            } else {
-                totalProfitLossSpan.className = 'loss';
-                totalProfitLossSpan.textContent = '-' + totalProfitLossSpan.textContent;
-            }
-            
-            currentStreakSpan.textContent = martingale.currentStreak;
-            longestStreakSpan.textContent = martingale.longestStreak;
-            betsWonSpan.textContent = martingale.betsWon;
-            betsLostSpan.textContent = martingale.betsLost;
-            maxLossesDisplaySpan.textContent = martingale.maxLosses;
-        }
-
-        function getColorForNumber(number) {
-            if (number === 0) return 'green';
-            return redNumbers.includes(number) ? 'red' : 'black';
-        }
-        
-        function saveToLocalStorage() {
-            const data = {
-                spinHistory,
-                stats,
-                martingale,
-                martingaleTransactions,
-                currentDirection,
-                currentPrediction,
-                currentSelection
-            };
-            localStorage.setItem('rouletteAnalystData', JSON.stringify(data));
-        }
-        
-        function loadFromLocalStorage() {
-            const savedData = localStorage.getItem('rouletteAnalystData');
-            if (savedData) {
-                const data = JSON.parse(savedData);
-                spinHistory = data.spinHistory || [];
-                stats = data.stats || {
-                    total: 0,
-                    cw: { wins: 0, total: 0, travelDistances: [] },
-                    ccw: { wins: 0, total: 0, travelDistances: [] },
-                    travelPatterns: []
-                };
-                martingale = data.martingale || {
-                    baseBet: 1,
-                    currentBet: 1,
-                    bankroll: 100,
-                    totalProfitLoss: 0,
-                    currentStreak: 0,
-                    longestStreak: 0,
-                    betsWon: 0,
-                    betsLost: 0,
-                    maxLosses: 10,
-                    active: false
-                };
-                martingaleTransactions = data.martingaleTransactions || [];
-                currentDirection = data.currentDirection || 'cw';
-                currentPrediction = data.currentPrediction || null;
-                currentSelection = data.currentSelection || [];
-                
-                // Update UI
-                updateHistoryDisplay();
-                updateStatsDisplay();
-                updateMartingaleDisplay();
-                updateWheelDisplay();
-                updateTravelPatternsDisplay();
-                
-                if (currentPrediction) {
-                    const mainNumber = currentPrediction;
-                    const mainIndex = wheelLayout.indexOf(mainNumber);
-                    const leftNeighbors = [];
-                    const rightNeighbors = [];
-                    
-                    for (let i = 1; i <= 9; i++) {
-                        leftNeighbors.push(
-                            wheelLayout[(mainIndex - i + wheelLayout.length) % wheelLayout.length]
-                        );
-                        rightNeighbors.push(
-                            wheelLayout[(mainIndex + i) % wheelLayout.length]
-                        );
-                    }
-                    
-                    updatePredictionDisplay(mainNumber, leftNeighbors, rightNeighbors);
-                }
-                
-                // Update inputs to match loaded values
-                baseBetInput.value = martingale.baseBet;
-                bankrollInput.value = martingale.bankroll;
-                maxLossesInput.value = martingale.maxLosses;
-            }
-        }
-    </script>
-</body>
-</html>
+            const lastMarker =
