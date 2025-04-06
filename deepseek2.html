@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Roulette</title>
+    <title>Advanced Roulette Analyst</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -224,11 +224,24 @@
             padding: 10px;
             background: #f9f9f9;
             border-radius: 5px;
+            max-height: 300px;
+            overflow-y: auto;
         }
         .pattern-row {
             display: flex;
             justify-content: space-between;
             margin: 3px 0;
+            padding: 5px;
+            border-bottom: 1px solid #eee;
+        }
+        .pattern-row.header {
+            font-weight: bold;
+            background: #f0f0f0;
+            border-bottom: 2px solid #ddd;
+        }
+        .pattern-row span {
+            flex: 1;
+            text-align: center;
         }
         .neighbor-group {
             display: flex;
@@ -279,6 +292,19 @@
             background: #f0f8ff;
             border-radius: 5px;
         }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 10px 0;
+        }
+        th, td {
+            padding: 8px;
+            text-align: center;
+            border: 1px solid #ddd;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
     </style>
 </head>
 <body>
@@ -310,9 +336,9 @@
                     <input type="number" id="bankroll" min="1" value="100" step="1">
                 </div>
                 <div>
-                    <label for="maxLosses">Max Losses in a Row:</label>
+                    <label for="maxLosses">Max Losses in Row:</label>
                     <input type="number" id="maxLosses" min="1" value="10" step="1">
-                    <span class="warning">(System will reset after this many losses)</span>
+                    <span class="warning">(System resets after this many losses)</span>
                 </div>
                 <button id="resetMartingaleBtn">Reset Martingale</button>
                 <button id="exportMartingaleBtn">Download Martingale Data</button>
@@ -346,10 +372,6 @@
                         <span>Total Bets Lost:</span>
                         <span id="betsLost">0</span>
                     </div>
-                    <div class="stats-row">
-                        <span>Max Losses Setting:</span>
-                        <span id="maxLossesDisplay">10</span>
-                    </div>
                 </div>
             </div>
         </div>
@@ -358,7 +380,7 @@
             <h2>Analysis</h2>
             <div class="wheel-display">
                 <div class="wheel" id="rouletteWheel">
-                    <!-- Wheel numbers will be inserted here by JavaScript -->
+                    <!-- Wheel numbers will be inserted by JavaScript -->
                     <div class="wheel-center">0</div>
                 </div>
             </div>
@@ -434,7 +456,7 @@
                 <div class="travel-pattern">
                     <h4>Recent Travel Patterns</h4>
                     <div id="travelPatterns">
-                        <div class="pattern-row">
+                        <div class="pattern-row header">
                             <span>Direction</span>
                             <span>From</span>
                             <span>To</span>
@@ -465,7 +487,7 @@
         // Red numbers for color assignment
         const redNumbers = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
 
-        // Enhanced application state
+        // Application state
         let spinHistory = [];
         let currentDirection = 'cw'; // cw = clockwise, ccw = counter-clockwise
         let currentPrediction = null;
@@ -544,15 +566,25 @@
         // Initialize
         document.addEventListener('DOMContentLoaded', () => {
             createWheel();
-            updateHistoryDisplay();
-            updateStatsDisplay();
-            updateMartingaleDisplay();
-            
-            // Load from localStorage if available
+            setupEventListeners();
             loadFromLocalStorage();
         });
 
-        // Create the visual roulette wheel
+        function setupEventListeners() {
+            addSpinBtn.addEventListener('click', addSingleSpin);
+            batchAddBtn.addEventListener('click', addBatchSpins);
+            clearHistoryBtn.addEventListener('click', clearHistory);
+            exportHistoryBtn.addEventListener('click', exportHistory);
+            exportMartingaleBtn.addEventListener('click', exportMartingaleData);
+            spinInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') addSingleSpin();
+            });
+            baseBetInput.addEventListener('change', updateMartingaleSettings);
+            bankrollInput.addEventListener('change', updateMartingaleSettings);
+            maxLossesInput.addEventListener('change', updateMartingaleSettings);
+            resetMartingaleBtn.addEventListener('click', resetMartingale);
+        }
+
         function createWheel() {
             const radius = 140;
             const centerX = 150;
@@ -560,7 +592,7 @@
             const angleIncrement = (2 * Math.PI) / wheelLayout.length;
             
             wheelLayout.forEach((number, index) => {
-                const angle = index * angleIncrement - Math.PI / 2; // Offset by 90 degrees to start at top
+                const angle = index * angleIncrement - Math.PI / 2;
                 const x = centerX + radius * Math.cos(angle);
                 const y = centerY + radius * Math.sin(angle);
                 
@@ -575,22 +607,6 @@
             });
         }
 
-        // Event listeners
-        addSpinBtn.addEventListener('click', addSingleSpin);
-        batchAddBtn.addEventListener('click', addBatchSpins);
-        clearHistoryBtn.addEventListener('click', clearHistory);
-        exportHistoryBtn.addEventListener('click', exportHistory);
-        exportMartingaleBtn.addEventListener('click', exportMartingaleData);
-        spinInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') addSingleSpin();
-        });
-        
-        // Martingale controls
-        baseBetInput.addEventListener('change', updateMartingaleSettings);
-        bankrollInput.addEventListener('change', updateMartingaleSettings);
-        resetMartingaleBtn.addEventListener('click', resetMartingale);
-
-        // Core functions
         function addSingleSpin() {
             const number = parseInt(spinInput.value);
             if (isNaN(number) || number < 0 || number > 36) {
@@ -663,7 +679,7 @@
                     distance: travelDistance
                 });
                 
-                if (stats.travelPatterns.length > 5) {
+                if (stats.travelPatterns.length > 10) {
                     stats.travelPatterns.pop();
                 }
             }
@@ -679,10 +695,14 @@
             // Update direction-specific stats
             if (direction === 'cw') {
                 stats.cw.total++;
-                stats.cw.travelDistances.push(travelDistance);
+                if (spinHistory.length > 1) {
+                    stats.cw.travelDistances.push(travelDistance);
+                }
             } else {
                 stats.ccw.total++;
-                stats.ccw.travelDistances.push(travelDistance);
+                if (spinHistory.length > 1) {
+                    stats.ccw.travelDistances.push(travelDistance);
+                }
             }
             
             // Check if this number was in our current selection
@@ -701,197 +721,178 @@
             
             updateHistoryDisplay();
             updateStatsDisplay();
-            updateWheelDisplay();
             updateTravelPatternsDisplay();
+            updateWheelDisplay();
             updateMartingaleDisplay();
             
             // Save to localStorage
             saveToLocalStorage();
         }
 
-       function generatePrediction() {
-    if (spinHistory.length < 2) {
-        resetPrediction();
-        return;
-    }
+        function generatePrediction() {
+            if (spinHistory.length < 2) {
+                resetPrediction();
+                return;
+            }
 
-    // 1. Determine next spin direction (alternates from last spin)
-    const lastSpin = spinHistory[spinHistory.length-1];
-    const nextDirection = lastSpin.direction === 'cw' ? 'ccw' : 'cw';
+            // Determine next spin direction (alternates from last spin)
+            const lastSpin = spinHistory[spinHistory.length-1];
+            const nextDirection = lastSpin.direction === 'cw' ? 'ccw' : 'cw';
 
-    // 2. Get the last 5 actual spins in the NEXT direction
-    const directionSpins = [];
-    for (let i = spinHistory.length-1; i > 0 && directionSpins.length < 5; i--) {
-        if (spinHistory[i].direction === nextDirection) {
-            directionSpins.unshift({ // Add to beginning to maintain order
-                from: spinHistory[i-1].number,
-                to: spinHistory[i].number,
-                direction: nextDirection
+            // Get the last 5 actual spins in the NEXT direction
+            const directionSpins = [];
+            for (let i = spinHistory.length-1; i > 0 && directionSpins.length < 5; i--) {
+                if (spinHistory[i].direction === nextDirection) {
+                    directionSpins.unshift({ // Add to beginning to maintain order
+                        from: spinHistory[i-1].number,
+                        to: spinHistory[i].number,
+                        direction: nextDirection
+                    });
+                }
+            }
+
+            if (directionSpins.length < 2) {
+                distanceDetailsDiv.innerHTML = `Need at least 2 ${nextDirection.toUpperCase()} spins for prediction`;
+                resetPrediction();
+                return;
+            }
+
+            // Calculate distances for these spins
+            let distanceDetails = `<strong>Distance Calculations for Next ${nextDirection.toUpperCase()} Spin:</strong><br><table>`;
+            distanceDetails += "<tr><th>Direction</th><th>From</th><th>To</th><th>Pockets</th></tr>";
+            
+            const distances = [];
+            
+            directionSpins.forEach(spin => {
+                const fromIndex = wheelLayout.indexOf(spin.from);
+                const toIndex = wheelLayout.indexOf(spin.to);
+                
+                const distance = spin.direction === 'cw'
+                    ? (fromIndex - toIndex + wheelLayout.length) % wheelLayout.length
+                    : (toIndex - fromIndex + wheelLayout.length) % wheelLayout.length;
+                
+                distances.push(distance);
+                distanceDetails += `<tr>
+                    <td>${spin.direction.toUpperCase()}</td>
+                    <td>${spin.from}</td>
+                    <td>${spin.to}</td>
+                    <td>${distance}</td>
+                </tr>`;
+            });
+            
+            distanceDetails += "</table>";
+
+            // Process distances (sort, trim min/max, average)
+            const sorted = [...distances].sort((a,b) => a-b);
+            const trimmed = sorted.slice(1, -1);
+            const averageStep = trimmed.length > 0 
+                ? Math.round(trimmed.reduce((s,v) => s+v, 0)/trimmed.length)
+                : sorted[0]; // If only one distance, use that
+            
+            distanceDetails += `<br>All distances: ${distances.join(', ')}<br>`;
+            distanceDetails += `Sorted: ${sorted.join(', ')}<br>`;
+            if (sorted.length > 2) {
+                distanceDetails += `Trimmed: ${trimmed.join(', ')} (removed min ${sorted[0]} and max ${sorted[sorted.length-1]})<br>`;
+            }
+            distanceDetails += `<strong>Average travel: ${averageStep} pockets</strong>`;
+
+            // Calculate prediction
+            const lastIndex = wheelLayout.indexOf(lastSpin.number);
+            let predictedIndex;
+            
+            if (nextDirection === 'cw') {
+                predictedIndex = (lastIndex - averageStep + wheelLayout.length) % wheelLayout.length;
+            } else {
+                predictedIndex = (lastIndex + averageStep) % wheelLayout.length;
+            }
+            
+            const mainPrediction = wheelLayout[predictedIndex];
+            
+            // Get 9 neighbors on each side (total 19 numbers)
+            const leftNeighbors = [];
+            const rightNeighbors = [];
+            for (let i = 1; i <= 9; i++) {
+                leftNeighbors.push(wheelLayout[(predictedIndex - i + wheelLayout.length) % wheelLayout.length]);
+                rightNeighbors.push(wheelLayout[(predictedIndex + i) % wheelLayout.length]);
+            }
+            
+            // Update all displays
+            currentPrediction = mainPrediction;
+            currentSelection = [mainPrediction, ...leftNeighbors, ...rightNeighbors];
+            
+            updatePredictionDisplay(mainPrediction, leftNeighbors, rightNeighbors);
+            distanceDetails += `<br><br><strong>Predicted Landing Zone: ${mainPrediction}</strong>`;
+            distanceDetails += `<br>Neighbors: (${leftNeighbors.join(', ')} | ${mainPrediction} | ${rightNeighbors.join(', ')})`;
+            distanceDetailsDiv.innerHTML = distanceDetails;
+        }
+
+        function updatePredictionDisplay(mainNumber, leftNeighbors, rightNeighbors) {
+            const mainColor = getColorForNumber(mainNumber);
+            
+            predictedNumberDiv.textContent = mainNumber;
+            predictedNumberDiv.style.color = mainColor === 'red' ? '#e74c3c' : 
+                                          mainColor === 'black' ? '#2c3e50' : '#27ae60';
+            
+            // Update left neighbors (counter-clockwise)
+            leftNeighborsDiv.innerHTML = '';
+            const leftGroupLabel = leftNeighborsDiv.parentElement.querySelector('.neighbor-group-label');
+            leftGroupLabel.textContent = `Left 9 (CCW)`;
+            
+            leftNeighbors.forEach(neighbor => {
+                const neighborColor = getColorForNumber(neighbor);
+                const neighborElement = document.createElement('div');
+                neighborElement.className = 'neighbor';
+                neighborElement.textContent = neighbor;
+                neighborElement.style.backgroundColor = neighborColor === 'red' ? '#e74c3c' : 
+                                                      neighborColor === 'black' ? '#2c3e50' : '#27ae60';
+                leftNeighborsDiv.appendChild(neighborElement);
+            });
+            
+            // Update right neighbors (clockwise)
+            rightNeighborsDiv.innerHTML = '';
+            const rightGroupLabel = rightNeighborsDiv.parentElement.querySelector('.neighbor-group-label');
+            rightGroupLabel.textContent = `Right 9 (CW)`;
+            
+            rightNeighbors.forEach(neighbor => {
+                const neighborColor = getColorForNumber(neighbor);
+                const neighborElement = document.createElement('div');
+                neighborElement.className = 'neighbor';
+                neighborElement.textContent = neighbor;
+                neighborElement.style.backgroundColor = neighborColor === 'red' ? '#e74c3c' : 
+                                                      neighborColor === 'black' ? '#2c3e50' : '#27ae60';
+                rightNeighborsDiv.appendChild(neighborElement);
+            });
+            
+            updateSelectedNumbersDisplay();
+        }
+
+        function updateSelectedNumbersDisplay() {
+            selectedNumbersDiv.innerHTML = '';
+            
+            if (currentSelection.length === 0) {
+                selectedNumbersDiv.innerHTML = '<div>No active prediction</div>';
+                return;
+            }
+            
+            // Group numbers by their position relative to prediction
+            const leftNumbers = currentSelection.slice(1, 10).reverse(); // Left neighbors (counter-clockwise)
+            const mainNumber = currentSelection[0];
+            const rightNumbers = currentSelection.slice(10); // Right neighbors (clockwise)
+            
+            // Display left neighbors
+            leftNumbers.forEach(num => {
+                addNumberToSelectionDisplay(num, 'left');
+            });
+            
+            // Display main prediction
+            addNumberToSelectionDisplay(mainNumber, 'main');
+            
+            // Display right neighbors
+            rightNumbers.forEach(num => {
+                addNumberToSelectionDisplay(num, 'right');
             });
         }
-    }
 
-    if (directionSpins.length < 3) {
-        distanceDetailsDiv.innerHTML = `Need at least 3 ${nextDirection.toUpperCase()} spins for prediction`;
-        resetPrediction();
-        return;
-    }
-
-    // 3. Calculate distances for these spins
-    let distanceDetails = `Distance Calculations for Next ${nextDirection.toUpperCase()} Spin:<br><table>`;
-    distanceDetails += "<tr><th>Direction</th><th>From</th><th>To</th><th>Pockets</th></tr>";
-    
-    const distances = [];
-    
-    directionSpins.forEach(spin => {
-        const fromIndex = wheelLayout.indexOf(spin.from);
-        const toIndex = wheelLayout.indexOf(spin.to);
-        
-        const distance = spin.direction === 'cw'
-            ? (fromIndex - toIndex + wheelLayout.length) % wheelLayout.length
-            : (toIndex - fromIndex + wheelLayout.length) % wheelLayout.length;
-        
-        distances.push(distance);
-        distanceDetails += `<tr>
-            <td>${spin.direction.toUpperCase()}</td>
-            <td>${spin.from}</td>
-            <td>${spin.to}</td>
-            <td>${distance}</td>
-        </tr>`;
-    });
-    
-    distanceDetails += "</table>";
-
-    // 4. Process distances (sort, trim min/max, average)
-    const sorted = [...distances].sort((a,b) => a-b);
-    const trimmed = sorted.slice(1, -1);
-    const averageStep = Math.round(trimmed.reduce((s,v) => s+v, 0)/trimmed.length);
-    
-    distanceDetails += `<br>All distances: ${distances.join(', ')}<br>`;
-    distanceDetails += `Sorted: ${sorted.join(', ')}<br>`;
-    distanceDetails += `Trimmed: ${trimmed.join(', ')} (removed min ${sorted[0]} and max ${sorted[sorted.length-1]})<br>`;
-    distanceDetails += `Average travel: ${averageStep} pockets`;
-
-    // 5. Generate the actual prediction
-    const lastIndex = wheelLayout.indexOf(lastSpin.number);
-    let predictedIndex;
-    
-    if (nextDirection === 'cw') {
-        predictedIndex = (lastIndex - averageStep + wheelLayout.length) % wheelLayout.length;
-    } else {
-        predictedIndex = (lastIndex + averageStep) % wheelLayout.length;
-    }
-    
-    const mainPrediction = wheelLayout[predictedIndex];
-    
-    // 6. Get 9 neighbors on each side (total 19 numbers)
-    const leftNeighbors = [];
-    const rightNeighbors = [];
-    for (let i = 1; i <= 9; i++) {
-        leftNeighbors.push(wheelLayout[(predictedIndex - i + wheelLayout.length) % wheelLayout.length]);
-        rightNeighbors.push(wheelLayout[(predictedIndex + i) % wheelLayout.length]);
-    }
-    
-    // 7. Update all displays
-    currentPrediction = mainPrediction;
-    currentSelection = [mainPrediction, ...leftNeighbors, ...rightNeighbors];
-    
-    updatePredictionDisplay(mainPrediction, leftNeighbors, rightNeighbors);
-    distanceDetails += `<br><br><strong>Predicted Landing Zone:</strong> ${mainPrediction}`;
-    distanceDetails += `<br>Neighbors (${leftNeighbors.join(', ')} | ${mainPrediction} | ${rightNeighbors.join(', ')})`;
-    distanceDetailsDiv.innerHTML = distanceDetails;
-}function generatePrediction() {
-    if (spinHistory.length < 2) {
-        resetPrediction();
-        return;
-    }
-
-    // 1. Determine next spin direction (alternates from last spin)
-    const lastSpin = spinHistory[spinHistory.length-1];
-    const nextDirection = lastSpin.direction === 'cw' ? 'ccw' : 'cw';
-
-    // 2. Get the last 5 actual spins in the NEXT direction
-    const directionSpins = [];
-    for (let i = spinHistory.length-1; i > 0 && directionSpins.length < 5; i--) {
-        if (spinHistory[i].direction === nextDirection) {
-            directionSpins.unshift({ // Add to beginning to maintain order
-                from: spinHistory[i-1].number,
-                to: spinHistory[i].number,
-                direction: nextDirection
-            });
-        }
-    }
-
-    if (directionSpins.length < 3) {
-        distanceDetailsDiv.innerHTML = `Need at least 3 ${nextDirection.toUpperCase()} spins for prediction`;
-        resetPrediction();
-        return;
-    }
-
-    // 3. Calculate distances for these spins
-    let distanceDetails = `Distance Calculations for Next ${nextDirection.toUpperCase()} Spin:<br><table>`;
-    distanceDetails += "<tr><th>Direction</th><th>From</th><th>To</th><th>Pockets</th></tr>";
-    
-    const distances = [];
-    
-    directionSpins.forEach(spin => {
-        const fromIndex = wheelLayout.indexOf(spin.from);
-        const toIndex = wheelLayout.indexOf(spin.to);
-        
-        const distance = spin.direction === 'cw'
-            ? (fromIndex - toIndex + wheelLayout.length) % wheelLayout.length
-            : (toIndex - fromIndex + wheelLayout.length) % wheelLayout.length;
-        
-        distances.push(distance);
-        distanceDetails += `<tr>
-            <td>${spin.direction.toUpperCase()}</td>
-            <td>${spin.from}</td>
-            <td>${spin.to}</td>
-            <td>${distance}</td>
-        </tr>`;
-    });
-    
-    distanceDetails += "</table>";
-
-    // 4. Process distances (sort, trim min/max, average)
-    const sorted = [...distances].sort((a,b) => a-b);
-    const trimmed = sorted.slice(1, -1);
-    const averageStep = Math.round(trimmed.reduce((s,v) => s+v, 0)/trimmed.length);
-    
-    distanceDetails += `<br>All distances: ${distances.join(', ')}<br>`;
-    distanceDetails += `Sorted: ${sorted.join(', ')}<br>`;
-    distanceDetails += `Trimmed: ${trimmed.join(', ')} (removed min ${sorted[0]} and max ${sorted[sorted.length-1]})<br>`;
-    distanceDetails += `Average travel: ${averageStep} pockets`;
-
-    // 5. Generate the actual prediction
-    const lastIndex = wheelLayout.indexOf(lastSpin.number);
-    let predictedIndex;
-    
-    if (nextDirection === 'cw') {
-        predictedIndex = (lastIndex - averageStep + wheelLayout.length) % wheelLayout.length;
-    } else {
-        predictedIndex = (lastIndex + averageStep) % wheelLayout.length;
-    }
-    
-    const mainPrediction = wheelLayout[predictedIndex];
-    
-    // 6. Get 9 neighbors on each side (total 19 numbers)
-    const leftNeighbors = [];
-    const rightNeighbors = [];
-    for (let i = 1; i <= 9; i++) {
-        leftNeighbors.push(wheelLayout[(predictedIndex - i + wheelLayout.length) % wheelLayout.length]);
-        rightNeighbors.push(wheelLayout[(predictedIndex + i) % wheelLayout.length]);
-    }
-    
-    // 7. Update all displays
-    currentPrediction = mainPrediction;
-    currentSelection = [mainPrediction, ...leftNeighbors, ...rightNeighbors];
-    
-    updatePredictionDisplay(mainPrediction, leftNeighbors, rightNeighbors);
-    distanceDetails += `<br><br><strong>Predicted Landing Zone:</strong> ${mainPrediction}`;
-    distanceDetails += `<br>Neighbors (${leftNeighbors.join(', ')} | ${mainPrediction} | ${rightNeighbors.join(', ')})`;
-    distanceDetailsDiv.innerHTML = distanceDetails;
-}
         function addNumberToSelectionDisplay(number, position) {
             const numElement = document.createElement('div');
             numElement.className = 'selected-number';
@@ -959,44 +960,30 @@
         }
 
         function updateTravelPatternsDisplay() {
-    travelPatternsDiv.innerHTML = `
-        <div class="pattern-row header">
-            <span>Direction</span>
-            <span>From</span>
-            <span>To</span>
-            <span>Pockets</span>
-        </div>
-    `;
-    
-    // Show last 10 spins (or all if less than 10)
-    const displayCount = Math.min(spinHistory.length, 10);
-    const startIndex = Math.max(spinHistory.length - displayCount, 0);
-    
-    for (let i = startIndex; i < spinHistory.length - 1; i++) {
-        const fromSpin = spinHistory[i];
-        const toSpin = spinHistory[i + 1];
-        
-        const fromIndex = wheelLayout.indexOf(fromSpin.number);
-        const toIndex = wheelLayout.indexOf(toSpin.number);
-        
-        let distance;
-        if (fromSpin.direction === 'cw') {
-            distance = (fromIndex - toIndex + wheelLayout.length) % wheelLayout.length;
-        } else {
-            distance = (toIndex - fromIndex + wheelLayout.length) % wheelLayout.length;
+            travelPatternsDiv.innerHTML = `
+                <div class="pattern-row header">
+                    <span>Direction</span>
+                    <span>From</span>
+                    <span>To</span>
+                    <span>Pockets</span>
+                </div>
+            `;
+            
+            // Show last 10 travel patterns
+            const displayCount = Math.min(stats.travelPatterns.length, 10);
+            for (let i = 0; i < displayCount; i++) {
+                const pattern = stats.travelPatterns[i];
+                const row = document.createElement('div');
+                row.className = 'pattern-row';
+                row.innerHTML = `
+                    <span>${pattern.direction.toUpperCase()}</span>
+                    <span>${pattern.from}</span>
+                    <span>${pattern.to}</span>
+                    <span>${pattern.distance}</span>
+                `;
+                travelPatternsDiv.appendChild(row);
+            }
         }
-        
-        const row = document.createElement('div');
-        row.className = 'pattern-row';
-        row.innerHTML = `
-            <span>${fromSpin.direction.toUpperCase()}</span>
-            <span>${fromSpin.number}</span>
-            <span>${toSpin.number}</span>
-            <span>${distance}</span>
-        `;
-        travelPatternsDiv.appendChild(row);
-    }
-}
 
         function updateWheelDisplay() {
             // Clear previous markers
@@ -1034,7 +1021,7 @@
                 predMarker.style.backgroundColor = 'red';
                 predMarker.style.left = `${predX}px`;
                 predMarker.style.top = `${predY}px`;
-                predMarker.title = `Predicted: ${currentPrediction} (${currentDirection.toUpperCase()})`;
+                predMarker.title = `Predicted: ${currentPrediction}`;
                 rouletteWheel.appendChild(predMarker);
                 
                 // Show prediction range (main + 9 neighbors each side)
@@ -1199,87 +1186,6 @@
             document.body.removeChild(link);
         }
 
-        function getColorForNumber(number) {
-            // 0 is green
-            if (number === 0) return 'green';
-            
-            // Red numbers
-            return redNumbers.includes(number) ? 'red' : 'black';
-        }
-        
-        function saveToLocalStorage() {
-            const data = {
-                spinHistory,
-                stats,
-                martingale,
-                martingaleTransactions,
-                currentDirection,
-                currentPrediction,
-                currentSelection
-            };
-            localStorage.setItem('rouletteAnalystData', JSON.stringify(data));
-        }
-        
-        function loadFromLocalStorage() {
-            const savedData = localStorage.getItem('rouletteAnalystData');
-            if (savedData) {
-                const data = JSON.parse(savedData);
-                spinHistory = data.spinHistory || [];
-                stats = data.stats || {
-                    total: 0,
-                    cw: { wins: 0, total: 0, travelDistances: [] },
-                    ccw: { wins: 0, total: 0, travelDistances: [] },
-                    travelPatterns: []
-                };
-                martingale = data.martingale || {
-                    baseBet: 1,
-                    currentBet: 1,
-                    bankroll: 100,
-                    totalProfitLoss: 0,
-                    currentStreak: 0,
-                    longestStreak: 0,
-                    betsWon: 0,
-                    betsLost: 0,
-                    maxLosses: 10,
-                    active: false
-                };
-                martingaleTransactions = data.martingaleTransactions || [];
-                currentDirection = data.currentDirection || 'cw';
-                currentPrediction = data.currentPrediction || null;
-                currentSelection = data.currentSelection || [];
-                
-                // Update UI
-                updateHistoryDisplay();
-                updateStatsDisplay();
-                updateMartingaleDisplay();
-                updateWheelDisplay();
-                updateTravelPatternsDisplay();
-                
-                if (currentPrediction) {
-                    const mainNumber = currentPrediction;
-                    const mainIndex = wheelLayout.indexOf(mainNumber);
-                    const leftNeighbors = [];
-                    const rightNeighbors = [];
-                    
-                    for (let i = 1; i <= 9; i++) {
-                        leftNeighbors.push(
-                            wheelLayout[(mainIndex - i + wheelLayout.length) % wheelLayout.length]
-                        );
-                        rightNeighbors.push(
-                            wheelLayout[(mainIndex + i) % wheelLayout.length]
-                        );
-                    }
-                    
-                    updatePredictionDisplay(mainNumber, leftNeighbors, rightNeighbors);
-                }
-                
-                // Update inputs to match loaded values
-                baseBetInput.value = martingale.baseBet;
-                bankrollInput.value = martingale.bankroll;
-                maxLossesInput.value = martingale.maxLosses;
-            }
-        }
-
         function updateMartingaleStats(number) {
             const wasWin = currentSelection.includes(number);
             const numberCount = 19; // Fixed 19-number prediction (main + 9 each side)
@@ -1356,6 +1262,7 @@
             martingale.baseBet = parseFloat(baseBetInput.value) || 1;
             martingale.bankroll = parseFloat(bankrollInput.value) || 100;
             martingale.maxLosses = parseInt(maxLossesInput.value) || 10;
+            maxLossesDisplaySpan.textContent = martingale.maxLosses;
             martingale.currentBet = martingale.baseBet;
             updateMartingaleDisplay();
             saveToLocalStorage();
@@ -1382,7 +1289,6 @@
         function updateMartingaleDisplay() {
             currentBetSpan.textContent = martingale.currentBet.toFixed(2);
             currentBankrollSpan.textContent = martingale.bankroll.toFixed(2);
-            maxLossesDisplaySpan.textContent = martingale.maxLosses;
             
             // Style profit/loss
             totalProfitLossSpan.textContent = Math.abs(martingale.totalProfitLoss).toFixed(2);
@@ -1398,6 +1304,85 @@
             longestStreakSpan.textContent = martingale.longestStreak;
             betsWonSpan.textContent = martingale.betsWon;
             betsLostSpan.textContent = martingale.betsLost;
+            maxLossesDisplaySpan.textContent = martingale.maxLosses;
+        }
+
+        function getColorForNumber(number) {
+            if (number === 0) return 'green';
+            return redNumbers.includes(number) ? 'red' : 'black';
+        }
+        
+        function saveToLocalStorage() {
+            const data = {
+                spinHistory,
+                stats,
+                martingale,
+                martingaleTransactions,
+                currentDirection,
+                currentPrediction,
+                currentSelection
+            };
+            localStorage.setItem('rouletteAnalystData', JSON.stringify(data));
+        }
+        
+        function loadFromLocalStorage() {
+            const savedData = localStorage.getItem('rouletteAnalystData');
+            if (savedData) {
+                const data = JSON.parse(savedData);
+                spinHistory = data.spinHistory || [];
+                stats = data.stats || {
+                    total: 0,
+                    cw: { wins: 0, total: 0, travelDistances: [] },
+                    ccw: { wins: 0, total: 0, travelDistances: [] },
+                    travelPatterns: []
+                };
+                martingale = data.martingale || {
+                    baseBet: 1,
+                    currentBet: 1,
+                    bankroll: 100,
+                    totalProfitLoss: 0,
+                    currentStreak: 0,
+                    longestStreak: 0,
+                    betsWon: 0,
+                    betsLost: 0,
+                    maxLosses: 10,
+                    active: false
+                };
+                martingaleTransactions = data.martingaleTransactions || [];
+                currentDirection = data.currentDirection || 'cw';
+                currentPrediction = data.currentPrediction || null;
+                currentSelection = data.currentSelection || [];
+                
+                // Update UI
+                updateHistoryDisplay();
+                updateStatsDisplay();
+                updateMartingaleDisplay();
+                updateWheelDisplay();
+                updateTravelPatternsDisplay();
+                
+                if (currentPrediction) {
+                    const mainNumber = currentPrediction;
+                    const mainIndex = wheelLayout.indexOf(mainNumber);
+                    const leftNeighbors = [];
+                    const rightNeighbors = [];
+                    
+                    for (let i = 1; i <= 9; i++) {
+                        leftNeighbors.push(
+                            wheelLayout[(mainIndex - i + wheelLayout.length) % wheelLayout.length]
+                        );
+                        rightNeighbors.push(
+                            wheelLayout[(mainIndex + i) % wheelLayout.length]
+                        );
+                    }
+                    
+                    updatePredictionDisplay(mainNumber, leftNeighbors, rightNeighbors);
+                }
+                
+                // Update inputs to match loaded values
+                baseBetInput.value = martingale.baseBet;
+                bankrollInput.value = martingale.bankroll;
+                maxLossesInput.value = martingale.maxLosses;
+            }
         }
     </script>
 </body>
