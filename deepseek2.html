@@ -563,12 +563,10 @@
         const betsLostSpan = document.getElementById('betsLost');
         const maxLossesDisplaySpan = document.getElementById('maxLossesDisplay');
 
-        // Initialize
-        document.addEventListener('DOMContentLoaded', () => {
             createWheel();
             setupEventListeners();
             loadFromLocalStorage();
-        });
+        
 
         function setupEventListeners() {
             addSpinBtn.addEventListener('click', addSingleSpin);
