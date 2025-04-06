@@ -633,11 +633,14 @@ let lastSpinNumber = null;
 
 if (spinHistory.length > 0) {
     const lastSpin = spinHistory[spinHistory.length - 1];
-    lastSpinNumber = lastSpin.number;
-    const fromIndex = wheelLayout.indexOf(lastSpin.number);
+    const lastSpinNumber = lastSpin.number;
+    const travelDirection = lastSpin.direction; // ✅ use the actual direction the spin took
+
+    const fromIndex = wheelLayout.indexOf(lastSpinNumber);
     const toIndex = wheelLayout.indexOf(number);
 
-    if (direction === 'cw') {
+    let travelDistance;
+    if (travelDirection === 'cw') {
         travelDistance = (fromIndex - toIndex + wheelLayout.length) % wheelLayout.length;
     } else {
         travelDistance = (toIndex - fromIndex + wheelLayout.length) % wheelLayout.length;
@@ -646,7 +649,7 @@ if (spinHistory.length > 0) {
     stats.travelPatterns.unshift({
         last: lastSpinNumber,
         current: number,
-        direction,
+        direction: travelDirection,
         distance: travelDistance
     });
 
@@ -654,6 +657,7 @@ if (spinHistory.length > 0) {
         stats.travelPatterns.pop();
     }
 }
+
 
             
             // Add to history
