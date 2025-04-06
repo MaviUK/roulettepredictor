@@ -800,6 +800,97 @@
     distanceDetails += `<br><br><strong>Predicted Landing Zone:</strong> ${mainPrediction}`;
     distanceDetails += `<br>Neighbors (${leftNeighbors.join(', ')} | ${mainPrediction} | ${rightNeighbors.join(', ')})`;
     distanceDetailsDiv.innerHTML = distanceDetails;
+}function generatePrediction() {
+    if (spinHistory.length < 2) {
+        resetPrediction();
+        return;
+    }
+
+    // 1. Determine next spin direction (alternates from last spin)
+    const lastSpin = spinHistory[spinHistory.length-1];
+    const nextDirection = lastSpin.direction === 'cw' ? 'ccw' : 'cw';
+
+    // 2. Get the last 5 actual spins in the NEXT direction
+    const directionSpins = [];
+    for (let i = spinHistory.length-1; i > 0 && directionSpins.length < 5; i--) {
+        if (spinHistory[i].direction === nextDirection) {
+            directionSpins.unshift({ // Add to beginning to maintain order
+                from: spinHistory[i-1].number,
+                to: spinHistory[i].number,
+                direction: nextDirection
+            });
+        }
+    }
+
+    if (directionSpins.length < 3) {
+        distanceDetailsDiv.innerHTML = `Need at least 3 ${nextDirection.toUpperCase()} spins for prediction`;
+        resetPrediction();
+        return;
+    }
+
+    // 3. Calculate distances for these spins
+    let distanceDetails = `Distance Calculations for Next ${nextDirection.toUpperCase()} Spin:<br><table>`;
+    distanceDetails += "<tr><th>Direction</th><th>From</th><th>To</th><th>Pockets</th></tr>";
+    
+    const distances = [];
+    
+    directionSpins.forEach(spin => {
+        const fromIndex = wheelLayout.indexOf(spin.from);
+        const toIndex = wheelLayout.indexOf(spin.to);
+        
+        const distance = spin.direction === 'cw'
+            ? (fromIndex - toIndex + wheelLayout.length) % wheelLayout.length
+            : (toIndex - fromIndex + wheelLayout.length) % wheelLayout.length;
+        
+        distances.push(distance);
+        distanceDetails += `<tr>
+            <td>${spin.direction.toUpperCase()}</td>
+            <td>${spin.from}</td>
+            <td>${spin.to}</td>
+            <td>${distance}</td>
+        </tr>`;
+    });
+    
+    distanceDetails += "</table>";
+
+    // 4. Process distances (sort, trim min/max, average)
+    const sorted = [...distances].sort((a,b) => a-b);
+    const trimmed = sorted.slice(1, -1);
+    const averageStep = Math.round(trimmed.reduce((s,v) => s+v, 0)/trimmed.length);
+    
+    distanceDetails += `<br>All distances: ${distances.join(', ')}<br>`;
+    distanceDetails += `Sorted: ${sorted.join(', ')}<br>`;
+    distanceDetails += `Trimmed: ${trimmed.join(', ')} (removed min ${sorted[0]} and max ${sorted[sorted.length-1]})<br>`;
+    distanceDetails += `Average travel: ${averageStep} pockets`;
+
+    // 5. Generate the actual prediction
+    const lastIndex = wheelLayout.indexOf(lastSpin.number);
+    let predictedIndex;
+    
+    if (nextDirection === 'cw') {
+        predictedIndex = (lastIndex - averageStep + wheelLayout.length) % wheelLayout.length;
+    } else {
+        predictedIndex = (lastIndex + averageStep) % wheelLayout.length;
+    }
+    
+    const mainPrediction = wheelLayout[predictedIndex];
+    
+    // 6. Get 9 neighbors on each side (total 19 numbers)
+    const leftNeighbors = [];
+    const rightNeighbors = [];
+    for (let i = 1; i <= 9; i++) {
+        leftNeighbors.push(wheelLayout[(predictedIndex - i + wheelLayout.length) % wheelLayout.length]);
+        rightNeighbors.push(wheelLayout[(predictedIndex + i) % wheelLayout.length]);
+    }
+    
+    // 7. Update all displays
+    currentPrediction = mainPrediction;
+    currentSelection = [mainPrediction, ...leftNeighbors, ...rightNeighbors];
+    
+    updatePredictionDisplay(mainPrediction, leftNeighbors, rightNeighbors);
+    distanceDetails += `<br><br><strong>Predicted Landing Zone:</strong> ${mainPrediction}`;
+    distanceDetails += `<br>Neighbors (${leftNeighbors.join(', ')} | ${mainPrediction} | ${rightNeighbors.join(', ')})`;
+    distanceDetailsDiv.innerHTML = distanceDetails;
 }
         function addNumberToSelectionDisplay(number, position) {
             const numElement = document.createElement('div');
