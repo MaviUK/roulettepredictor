@@ -547,8 +547,6 @@
             updateHistoryDisplay();
             updateStatsDisplay();
             updateMartingaleDisplay();
-            
-            // Load from localStorage if available
             loadFromLocalStorage();
         });
 
@@ -560,7 +558,7 @@
             const angleIncrement = (2 * Math.PI) / wheelLayout.length;
             
             wheelLayout.forEach((number, index) => {
-                const angle = index * angleIncrement - Math.PI / 2; // Offset by 90 degrees to start at top
+                const angle = index * angleIncrement - Math.PI / 2;
                 const x = centerX + radius * Math.cos(angle);
                 const y = centerY + radius * Math.sin(angle);
                 
@@ -692,90 +690,91 @@
             saveToLocalStorage();
         }
 
-       function generatePrediction() {
-    if (spinHistory.length < 2) {
-        resetPrediction();
-        return;
-    }
+        function generatePrediction() {
+            if (spinHistory.length < 2) {
+                resetPrediction();
+                return;
+            }
 
-    // Filter last 5 spins *that happened in the same direction as the NEXT spin*
-    const relevantSpins = spinHistory
-        .slice()
-        .reverse()
-        .filter(spin => spin.direction === currentDirection)
-        .slice(0, 5);
+            // Filter last 5 spins that happened in the same direction as the NEXT spin
+            const relevantSpins = spinHistory
+                .slice()
+                .reverse()
+                .filter(spin => spin.direction === currentDirection)
+                .slice(0, 5);
 
-    if (relevantSpins.length < 2) {
-        resetPrediction();
-        distanceDetailsDiv.textContent = "Not enough data (need at least 2 spins in this direction)";
-        return;
-    }
+            if (relevantSpins.length < 2) {
+                resetPrediction();
+                distanceDetailsDiv.textContent = "Not enough data (need at least 2 spins in this direction)";
+                return;
+            }
 
-    const distances = [];
-    let distanceDetails = "Distance calculations:<br>";
+            const distances = [];
+            let distanceDetails = "Distance calculations:<br>";
 
-    for (let i = 0; i < relevantSpins.length - 1; i++) {
-        const fromSpin = relevantSpins[i + 1];
-        const toSpin = relevantSpins[i];
+            // Calculate distances between consecutive spins in current direction
+            for (let i = 0; i < relevantSpins.length - 1; i++) {
+                const fromSpin = relevantSpins[i + 1];
+                const toSpin = relevantSpins[i];
+                
+                const fromIndex = wheelLayout.indexOf(fromSpin.number);
+                const toIndex = wheelLayout.indexOf(toSpin.number);
 
-        const fromIndex = wheelLayout.indexOf(fromSpin.number);
-        const toIndex = wheelLayout.indexOf(toSpin.number);
+                let distance;
+                if (currentDirection === 'cw') {
+                    distance = (fromIndex - toIndex + wheelLayout.length) % wheelLayout.length;
+                    distanceDetails += `${fromSpin.number} → ${toSpin.number}: ${distance} pockets (CW)<br>`;
+                } else {
+                    distance = (toIndex - fromIndex + wheelLayout.length) % wheelLayout.length;
+                    distanceDetails += `${fromSpin.number} → ${toSpin.number}: ${distance} pockets (CCW)<br>`;
+                }
+                distances.push(distance);
+            }
 
-        let distance;
-        if (currentDirection === 'cw') {
-            distance = (fromIndex - toIndex + wheelLayout.length) % wheelLayout.length;
-        } else {
-            distance = (toIndex - fromIndex + wheelLayout.length) % wheelLayout.length;
+            if (distances.length >= 3) {
+                const sortedDistances = [...distances].sort((a, b) => a - b);
+                const trimmedDistances = sortedDistances.slice(1, -1);
+                const averageStep = Math.round(trimmedDistances.reduce((sum, val) => sum + val, 0) / trimmedDistances.length);
+
+                distanceDetails += `<br>Distances: ${distances.join(', ')}<br>`;
+                distanceDetails += `Sorted: ${sortedDistances.join(', ')}<br>`;
+                distanceDetails += `Trimmed (removed min/max): ${trimmedDistances.join(', ')}<br>`;
+                distanceDetails += `Average step: ${averageStep} pockets`;
+
+                const lastSpin = spinHistory[spinHistory.length - 1];
+                const lastIndex = wheelLayout.indexOf(lastSpin.number);
+
+                let predictedIndex;
+                if (currentDirection === 'cw') {
+                    predictedIndex = (lastIndex - averageStep + wheelLayout.length) % wheelLayout.length;
+                } else {
+                    predictedIndex = (lastIndex + averageStep) % wheelLayout.length;
+                }
+
+                const mainPrediction = wheelLayout[predictedIndex];
+
+                const leftNeighbors = [];
+                const rightNeighbors = [];
+
+                for (let i = 1; i <= 9; i++) {
+                    leftNeighbors.push(
+                        wheelLayout[(predictedIndex - i + wheelLayout.length) % wheelLayout.length]
+                    );
+                    rightNeighbors.push(
+                        wheelLayout[(predictedIndex + i) % wheelLayout.length]
+                    );
+                }
+
+                currentPrediction = mainPrediction;
+                currentSelection = [mainPrediction, ...leftNeighbors, ...rightNeighbors];
+
+                updatePredictionDisplay(mainPrediction, leftNeighbors, rightNeighbors);
+                distanceDetailsDiv.innerHTML = distanceDetails;
+            } else {
+                resetPrediction();
+                distanceDetailsDiv.textContent = "Not enough data (need at least 3 distances)";
+            }
         }
-
-        distances.push(distance);
-        distanceDetails += `${fromSpin.number} → ${toSpin.number} (${currentDirection.toUpperCase()}): ${distance} pockets<br>`;
-    }
-
-    if (distances.length >= 3) {
-        const sortedDistances = [...distances].sort((a, b) => a - b);
-        const trimmedDistances = sortedDistances.slice(1, -1);
-        const averageStep = Math.round(trimmedDistances.reduce((sum, val) => sum + val, 0) / trimmedDistances.length);
-
-        distanceDetails += `<br>Distances: ${distances.join(', ')}<br>`;
-        distanceDetails += `Sorted: ${sortedDistances.join(', ')}<br>`;
-        distanceDetails += `Trimmed (removed min/max): ${trimmedDistances.join(', ')}<br>`;
-        distanceDetails += `Average step: ${averageStep} pockets`;
-
-        const lastSpin = spinHistory[spinHistory.length - 1];
-        const lastIndex = wheelLayout.indexOf(lastSpin.number);
-
-        let predictedIndex;
-        if (currentDirection === 'cw') {
-            predictedIndex = (lastIndex - averageStep + wheelLayout.length) % wheelLayout.length;
-        } else {
-            predictedIndex = (lastIndex + averageStep) % wheelLayout.length;
-        }
-
-        const mainPrediction = wheelLayout[predictedIndex];
-
-        const leftNeighbors = [];
-        const rightNeighbors = [];
-
-        for (let i = 1; i <= 9; i++) {
-            leftNeighbors.push(
-                wheelLayout[(predictedIndex - i + wheelLayout.length) % wheelLayout.length]
-            );
-            rightNeighbors.push(
-                wheelLayout[(predictedIndex + i) % wheelLayout.length]
-            );
-        }
-
-        currentPrediction = mainPrediction;
-        currentSelection = [mainPrediction, ...leftNeighbors, ...rightNeighbors];
-
-        updatePredictionDisplay(mainPrediction, leftNeighbors, rightNeighbors);
-        distanceDetailsDiv.innerHTML = distanceDetails;
-    } else {
-        resetPrediction();
-        distanceDetailsDiv.textContent = "Not enough data (need at least 3 distances)";
-    }
-}
 
         function updatePredictionDisplay(mainNumber, leftNeighbors, rightNeighbors) {
             const mainColor = getColorForNumber(mainNumber);
