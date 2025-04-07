@@ -627,38 +627,31 @@
             const color = getColorForNumber(number);
             const direction = currentDirection;
             
-            // Track last and current spin
-let travelDistance = 0;
-let lastSpinNumber = null;
-
-if (spinHistory.length > 0) {
-    const lastSpin = spinHistory[spinHistory.length - 1];
-    const lastSpinNumber = lastSpin.number;
-    const travelDirection = lastSpin.direction; // ✅ use the actual direction the spin took
-
-    const fromIndex = wheelLayout.indexOf(lastSpinNumber);
-    const toIndex = wheelLayout.indexOf(number);
-
-    let travelDistance;
-    if (travelDirection === 'cw') {
-        travelDistance = (fromIndex - toIndex + wheelLayout.length) % wheelLayout.length;
-    } else {
-        travelDistance = (toIndex - fromIndex + wheelLayout.length) % wheelLayout.length;
-    }
-
-    stats.travelPatterns.unshift({
-        last: lastSpinNumber,
-        current: number,
-        direction: travelDirection,
-        distance: travelDistance
-    });
-
-    if (stats.travelPatterns.length > 5) {
-        stats.travelPatterns.pop();
-    }
-}
-
-
+            // Calculate travel distance if we have previous spins
+            let travelDistance = 0;
+            if (spinHistory.length > 0) {
+                const lastSpin = spinHistory[spinHistory.length - 1];
+                const lastIndex = wheelLayout.indexOf(lastSpin.number);
+                const currentIndex = wheelLayout.indexOf(number);
+                
+                if (lastSpin.direction === 'cw') {
+                    travelDistance = (lastIndex - currentIndex + wheelLayout.length) % wheelLayout.length;
+                } else {
+                    travelDistance = (currentIndex - lastIndex + wheelLayout.length) % wheelLayout.length;
+                }
+                
+                // Record travel pattern
+                stats.travelPatterns.unshift({
+                    from: lastSpin.number,
+                    to: number,
+                    direction: lastSpin.direction,
+                    distance: travelDistance
+                });
+                
+                if (stats.travelPatterns.length > 5) {
+                    stats.travelPatterns.pop();
+                }
+            }
             
             // Add to history
             spinHistory.push({
@@ -927,9 +920,9 @@ if (spinHistory.length > 0) {
                 row.className = 'pattern-row';
                 row.innerHTML = `
                     <span>${pattern.direction.toUpperCase()}</span>
-    <span>${pattern.last}</span>
-    <span>${pattern.current}</span>
-    <span>${pattern.distance}</span>
+                    <span>${pattern.from}</span>
+                    <span>${pattern.to}</span>
+                    <span>${pattern.distance}</span>
                 `;
                 travelPatternsDiv.appendChild(row);
             });
