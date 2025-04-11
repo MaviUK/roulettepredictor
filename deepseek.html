@@ -708,7 +708,7 @@ if (stats.travelPatterns.length > 100) {
             saveToLocalStorage();
         }
 
-        function generatePrediction() {
+      function generatePrediction() {
     if (spinHistory.length < 2) {
         resetPrediction();
         return;
@@ -718,7 +718,7 @@ if (stats.travelPatterns.length > 100) {
     const lastSpin = spinHistory[spinHistory.length - 1];
     const nextDirection = currentDirection; // direction of the upcoming spin
 
-    // Find last 5 travel patterns in the nextDirection
+    // Get the last 5 travel distances in the upcoming direction
     const relevantTravel = stats.travelPatterns
         .filter(p => p.direction === nextDirection)
         .slice(0, 5);
@@ -728,20 +728,22 @@ if (stats.travelPatterns.length > 100) {
         return;
     }
 
-    // Remove highest and lowest
-    const sorted = [...relevantTravel].map(p => p.distance).sort((a, b) => a - b);
+    // Remove highest and lowest distances
+    const sorted = relevantTravel.map(p => p.distance).sort((a, b) => a - b);
     const filtered = sorted.length > 3 ? sorted.slice(1, -1) : sorted;
 
-    // Average distance
+    // Calculate raw average
     const avgTravel = Math.round(filtered.reduce((a, b) => a + b, 0) / filtered.length);
 
-    // Predict from the last spin's number in the upcoming direction
+    // Get last number's index on the wheel
     const lastIndex = wheelLayout.indexOf(lastSpin.number);
+
+    // Move in the direction of the next spin
     let predictedIndex;
     if (nextDirection === 'cw') {
-        predictedIndex = (lastIndex - avgTravel + wheelLayout.length) % wheelLayout.length;
-    } else {
         predictedIndex = (lastIndex + avgTravel) % wheelLayout.length;
+    } else {
+        predictedIndex = (lastIndex - avgTravel + wheelLayout.length) % wheelLayout.length;
     }
 
     const mainPrediction = wheelLayout[predictedIndex];
