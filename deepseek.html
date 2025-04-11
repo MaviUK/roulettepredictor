@@ -472,6 +472,7 @@
         let currentDirection = 'cw'; // cw = clockwise, ccw = counter-clockwise
         let currentPrediction = null;
         let currentSelection = [];
+        let predictionLossStreak = 0;
         let stats = {
             total: 0,
             cw: {
@@ -691,6 +692,14 @@ if (stats.travelPatterns.length > 100) {
                 updateStats(number);
                 updateMartingaleStats(number);
             }
+
+            // Update loss streak based on prediction accuracy
+if (currentSelection.includes(number)) {
+    predictionLossStreak = 0; // reset on win
+} else {
+    predictionLossStreak++;   // increase on loss
+}
+
             
             // Alternate direction for next spin
             currentDirection = currentDirection === 'cw' ? 'ccw' : 'cw';
@@ -746,7 +755,15 @@ if (stats.travelPatterns.length > 100) {
         predictedIndex = (lastIndex - avgTravel + wheelLayout.length) % wheelLayout.length;
     }
 
-    const mainPrediction = wheelLayout[predictedIndex];
+    let mainPrediction = wheelLayout[predictedIndex];
+
+// Override with opposite number if 4+ prediction losses
+if (predictionLossStreak >= 4) {
+    const oppositeIndex = (predictedIndex + Math.floor(wheelLayout.length / 2)) % wheelLayout.length;
+    mainPrediction = wheelLayout[oppositeIndex];
+    console.warn(`Prediction loss streak reached ${predictionLossStreak}. Using opposite number: ${mainPrediction}`);
+}
+
 
     // Get neighbors
     const leftNeighbors = [];
