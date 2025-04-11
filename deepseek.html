@@ -654,16 +654,18 @@
 
                 
                 // Record travel pattern
-                stats.travelPatterns.unshift({
-                    from: lastSpin.number,
-                    to: number,
-                    direction: lastSpin.direction,
-                    distance: travelDistance
-                });
-                
-              if (stats.travelPatterns.length > 100) {
-    stats.travelPatterns.pop();
+stats.travelPatterns.unshift({
+    from: lastSpin.number,
+    to: number,
+    direction: direction, // important: use the current spin's direction
+    distance: travelDistance
+});
+
+// Allow more patterns to accumulate
+if (stats.travelPatterns.length > 100) {
+    stats.travelPatterns.pop(); // only remove if we exceed 100
 }
+
 
             }
             
