@@ -273,11 +273,6 @@
             color: #e67e22;
             font-weight: bold;
         }
-        .calculation-step {
-            margin-left: 15px;
-            color: #555;
-            font-size: 0.9em;
-        }
     </style>
 </head>
 <body>
@@ -840,181 +835,49 @@
         function updateSelectedNumbersDisplay() {
             selectedNumbersDiv.innerHTML = '';
             
-            if (!currentPrediction) {
-                selectedNumbersDiv.innerHTML = '<div>No active prediction</div>';
-                return;
-            }
-
             const neighborCount = parseInt(neighborCountSelect.value) || 9;
-            const lastSpin = spinHistory[spinHistory.length - 1];
-            const lastIndex = wheelLayout.indexOf(lastSpin.number);
-            const predIndex = wheelLayout.indexOf(currentPrediction);
-            
-            // Create calculation display
-            const calcDiv = document.createElement('div');
-            calcDiv.style.marginBottom = '10px';
-            calcDiv.style.fontSize = '0.9em';
-            
-            // Add calculation steps
-            calcDiv.innerHTML = `
-                <div><strong>Prediction Calculation:</strong></div>
-                <div>Last spin: ${lastSpin.number} (${lastSpin.direction.toUpperCase()})</div>
-                <div>Current prediction direction: ${currentDirection.toUpperCase()}</div>
-            `;
-            
-            // Get recent spins in current direction for calculation
-            const recentDirectionSpins = spinHistory
-                .slice().reverse()
-                .filter(spin => spin.direction === currentDirection)
-                .slice(0, 5);
-            
-            if (recentDirectionSpins.length > 0) {
-                calcDiv.innerHTML += `<div>Using ${recentDirectionSpins.length} recent ${currentDirection.toUpperCase()} spins:</div>`;
-                
-                // Calculate travel distances
-                const travelDistances = [];
-                for (let i = 0; i < recentDirectionSpins.length; i++) {
-                    const spin = recentDirectionSpins[i];
-                    const spinIndex = spinHistory.findIndex(s => s.number === spin.number);
-                    
-                    if (spinIndex > 0) {
-                        const prevSpin = spinHistory[spinIndex - 1];
-                        const prevIndex = wheelLayout.indexOf(prevSpin.number);
-                        const currentIndex = wheelLayout.indexOf(spin.number);
-                        
-                        let travel;
-                        if (spin.direction === 'cw') {
-                            travel = (prevIndex - currentIndex + wheelLayout.length) % wheelLayout.length;
-                        } else {
-                            travel = (currentIndex - prevIndex + wheelLayout.length) % wheelLayout.length;
-                        }
-                        
-                        travelDistances.push(travel);
-                        calcDiv.innerHTML += `<div class="calculation-step">- From ${prevSpin.number} to ${spin.number}: ${travel} pockets</div>`;
-                    }
-                }
-                
-                // Show filtered distances if we have enough
-                if (travelDistances.length >= 3) {
-                    const filteredDistances = [...travelDistances].sort((a, b) => a - b).slice(1, -1);
-                    calcDiv.innerHTML += `
-                        <div class="calculation-step">Filtered distances (removed min/max): ${filteredDistances.join(', ')}</div>
-                        <div class="calculation-step">Average travel: ${(filteredDistances.reduce((a, b) => a + b, 0) / filteredDistances.length).toFixed(2)}</div>
-                        <div class="calculation-step">Rounded average: ${Math.round(filteredDistances.reduce((a, b) => a + b, 0) / filteredDistances.length}</div>
-                    `;
-                } else if (travelDistances.length > 0) {
-                    calcDiv.innerHTML += `
-                        <div class="calculation-step">Average travel: ${(travelDistances.reduce((a, b) => a + b, 0) / travelDistances.length).toFixed(2)}</div>
-                        <div class="calculation-step">Rounded average: ${Math.round(travelDistances.reduce((a, b) => a + b, 0) / travelDistances.length}</div>
-                    `;
-                }
-                
-                // Show final prediction calculation
-                const avgTravel = travelDistances.length >= 3 ? 
-                    Math.round(filteredDistances.reduce((a, b) => a + b, 0) / filteredDistances.length) :
-                    Math.round(travelDistances.reduce((a, b) => a + b, 0) / travelDistances.length);
-                
-                calcDiv.innerHTML += `
-                    <div class="calculation-step">Predicted from ${lastSpin.number} (index ${lastIndex}) moving ${currentDirection.toUpperCase()}:</div>
-                    <div class="calculation-step">${lastIndex} ${currentDirection === 'cw' ? '-' : '+'} ${avgTravel} = ${predIndex}</div>
-                    <div class="calculation-step">Which is number ${currentPrediction}</div>
-                `;
-            }
-            
-            selectedNumbersDiv.appendChild(calcDiv);
-            
-            // Add separator
-            const separator = document.createElement('hr');
-            separator.style.margin = '10px 0';
-            separator.style.border = '1px solid #eee';
-            selectedNumbersDiv.appendChild(separator);
-            
-            // Add title for the selected numbers
-            const titleDiv = document.createElement('div');
-            titleDiv.innerHTML = `<strong>Selected Numbers (${1 + neighborCount * 2} total):</strong>`;
-            titleDiv.style.marginBottom = '5px';
-            selectedNumbersDiv.appendChild(titleDiv);
-            
             // Group numbers by their position relative to prediction
-            const leftNumbers = currentSelection.slice(1, 1 + neighborCount).reverse();
+            const leftNumbers = currentSelection.slice(1, 1 + neighborCount).reverse(); // Left neighbors (counter-clockwise)
             const mainNumber = currentSelection[0];
-            const rightNumbers = currentSelection.slice(1 + neighborCount);
+            const rightNumbers = currentSelection.slice(1 + neighborCount); // Right neighbors (clockwise)
             
             // Display left neighbors
-            const leftGroup = document.createElement('div');
-            leftGroup.style.marginBottom = '5px';
-            leftGroup.innerHTML = `<span style="color:#7f8c8d">Left ${neighborCount} (CCW):</span>`;
-            const leftContainer = document.createElement('div');
-            leftContainer.style.display = 'flex';
-            leftContainer.style.flexWrap = 'wrap';
-            leftContainer.style.gap = '3px';
-            leftContainer.style.marginBottom = '10px';
-            
             leftNumbers.forEach(num => {
-                const numElement = document.createElement('div');
-                numElement.className = 'selected-number';
-                numElement.textContent = num;
-                leftContainer.appendChild(numElement);
+                addNumberToSelectionDisplay(num, 'left');
             });
-            
-            leftGroup.appendChild(leftContainer);
-            selectedNumbersDiv.appendChild(leftGroup);
             
             // Display main prediction
-            const mainGroup = document.createElement('div');
-            mainGroup.style.marginBottom = '5px';
-            mainGroup.innerHTML = `<span style="color:#7f8c8d">Main prediction:</span>`;
-            const mainElement = document.createElement('div');
-            mainElement.className = 'selected-number';
-            mainElement.textContent = mainNumber;
-            mainElement.style.backgroundColor = getColorForNumber(mainNumber) === 'red' ? '#e74c3c' : 
-                                              getColorForNumber(mainNumber) === 'black' ? '#2c3e50' : '#27ae60';
-            mainElement.style.color = 'white';
-            mainGroup.appendChild(mainElement);
-            selectedNumbersDiv.appendChild(mainGroup);
+            addNumberToSelectionDisplay(mainNumber, 'main');
             
             // Display right neighbors
-            const rightGroup = document.createElement('div');
-            rightGroup.style.marginBottom = '5px';
-            rightGroup.innerHTML = `<span style="color:#7f8c8d">Right ${neighborCount} (CW):</span>`;
-            const rightContainer = document.createElement('div');
-            rightContainer.style.display = 'flex';
-            rightContainer.style.flexWrap = 'wrap';
-            rightContainer.style.gap = '3px';
-            
             rightNumbers.forEach(num => {
-                const numElement = document.createElement('div');
-                numElement.className = 'selected-number';
-                numElement.textContent = num;
-                rightContainer.appendChild(numElement);
+                addNumberToSelectionDisplay(num, 'right');
             });
+        }
+
+        function addNumberToSelectionDisplay(number, position) {
+            const numElement = document.createElement('div');
+            numElement.className = 'selected-number';
+            numElement.textContent = number;
             
-            rightGroup.appendChild(rightContainer);
-            selectedNumbersDiv.appendChild(rightGroup);
+            // Color based on position
+            if (position === 'main') {
+                numElement.style.backgroundColor = getColorForNumber(number) === 'red' ? '#e74c3c' : 
+                                                  getColorForNumber(number) === 'black' ? '#2c3e50' : '#27ae60';
+                numElement.style.color = 'white';
+            }
             
             // Check if this number was in the last spin
             if (spinHistory.length > 0) {
                 const lastNumber = spinHistory[spinHistory.length - 1].number;
-                const allNumberElements = selectedNumbersDiv.querySelectorAll('.selected-number');
-                
-                allNumberElements.forEach(element => {
-                    const elementNumber = parseInt(element.textContent);
-                    if (elementNumber === lastNumber) {
-                        element.classList.add('win');
-                    } else if (currentSelection.includes(lastNumber)) {
-                        element.classList.add('loss');
-                    }
-                });
-                
-                const resultDiv = document.createElement('div');
-                resultDiv.style.marginTop = '10px';
-                resultDiv.style.fontWeight = 'bold';
-                resultDiv.style.color = currentSelection.includes(lastNumber) ? '#27ae60' : '#e74c3c';
-                resultDiv.textContent = currentSelection.includes(lastNumber) ? 
-                    `✓ HIT! (Landed on ${lastNumber})` : 
-                    `✗ MISS (Landed on ${lastNumber})`;
-                selectedNumbersDiv.appendChild(resultDiv);
+                if (number === lastNumber) {
+                    numElement.classList.add('win');
+                } else if (currentSelection.includes(lastNumber)) {
+                    numElement.classList.add('loss');
+                }
             }
+            
+            selectedNumbersDiv.appendChild(numElement);
         }
 
         function updateStats(number) {
