@@ -273,11 +273,10 @@
             color: #e67e22;
             font-weight: bold;
         }
-        .distance-info {
-            margin-top: 10px;
-            padding: 10px;
-            background: #f0f8ff;
-            border-radius: 5px;
+        .calculation-step {
+            margin-left: 15px;
+            color: #555;
+            font-size: 0.9em;
         }
     </style>
 </head>
@@ -364,6 +363,21 @@
             </div>
             
             <div class="predictions">
+                <h3>Prediction Settings</h3>
+                <div>
+                    <label for="neighborCount">Number of Neighbors (each side):</label>
+                    <select id="neighborCount">
+                        <option value="2">2</option>
+                        <option value="3">3</option>
+                        <option value="4">4</option>
+                        <option value="5">5</option>
+                        <option value="6">6</option>
+                        <option value="7">7</option>
+                        <option value="8">8</option>
+                        <option value="9" selected>9</option>
+                    </select>
+                </div>
+                
                 <h3>Predicted Landing Zone</h3>
                 <div class="predicted-number" id="predictedNumber">-</div>
                 <div class="neighbors">
@@ -374,13 +388,6 @@
                     <div class="neighbor-group">
                         <div class="neighbor-group-label">Right 9 (CW)</div>
                         <div class="neighbor-container" id="rightNeighbors"></div>
-                    </div>
-                </div>
-
-                <div class="distance-info">
-                    <h4>Distance Calculation</h4>
-                    <div id="distanceDetails">
-                        No distance data available
                     </div>
                 </div>
             </div>
@@ -525,7 +532,7 @@
         const ccwAvgTravelSpan = document.getElementById('ccwAvgTravel');
         const travelPatternsDiv = document.getElementById('travelPatterns');
         const rouletteWheel = document.getElementById('rouletteWheel');
-        const distanceDetailsDiv = document.getElementById('distanceDetails');
+        const neighborCountSelect = document.getElementById('neighborCount');
         
         // Martingale elements
         const baseBetInput = document.getElementById('baseBet');
@@ -550,6 +557,16 @@
             
             // Load from localStorage if available
             loadFromLocalStorage();
+            
+            // Add event listener for neighbor count change
+            neighborCountSelect.addEventListener('change', () => {
+                if (spinHistory.length > 0) {
+                    generatePrediction();
+                }
+            });
+            
+            // Add event listener for max losses change
+            maxLossesInput.addEventListener('change', updateMartingaleSettings);
         });
 
         // Create the visual roulette wheel
@@ -692,92 +709,95 @@
             saveToLocalStorage();
         }
 
-       function generatePrediction() {
-    if (spinHistory.length < 2) {
-        resetPrediction();
-        return;
-    }
-
-    // Filter last 5 spins *that happened in the same direction as the NEXT spin*
-    const relevantSpins = spinHistory
-        .slice()
-        .reverse()
-        .filter(spin => spin.direction === currentDirection)
-        .slice(0, 5);
-
-    if (relevantSpins.length < 2) {
-        resetPrediction();
-        distanceDetailsDiv.textContent = "Not enough data (need at least 2 spins in this direction)";
-        return;
-    }
-
-    const distances = [];
-    let distanceDetails = "Distance calculations:<br>";
-
-    for (let i = 0; i < relevantSpins.length - 1; i++) {
-        const fromSpin = relevantSpins[i + 1];
-        const toSpin = relevantSpins[i];
-
-        const fromIndex = wheelLayout.indexOf(fromSpin.number);
-        const toIndex = wheelLayout.indexOf(toSpin.number);
-
-        let distance;
-        if (currentDirection === 'cw') {
-            distance = (fromIndex - toIndex + wheelLayout.length) % wheelLayout.length;
-        } else {
-            distance = (toIndex - fromIndex + wheelLayout.length) % wheelLayout.length;
+        function generatePrediction() {
+            if (spinHistory.length < 2) {
+                resetPrediction();
+                return;
+            }
+            
+            const neighborCount = parseInt(neighborCountSelect.value) || 9;
+            const lastSpin = spinHistory[spinHistory.length - 1];
+            
+            // Get the last 5 spins in the current direction
+            const recentDirectionSpins = spinHistory
+                .slice().reverse() // Start from most recent
+                .filter(spin => spin.direction === currentDirection)
+                .slice(0, 5); // Take exactly 5 most recent
+            
+            // If we don't have enough spins in this direction, use what we have
+            if (recentDirectionSpins.length < 3) {
+                resetPrediction();
+                return;
+            }
+            
+            // Calculate the travel distances for these spins
+            const travelDistances = [];
+            
+            for (let i = 0; i < recentDirectionSpins.length; i++) {
+                const spin = recentDirectionSpins[i];
+                const spinIndex = spinHistory.findIndex(s => s.number === spin.number);
+                
+                if (spinIndex > 0) { // We need the previous spin to calculate travel
+                    const prevSpin = spinHistory[spinIndex - 1];
+                    const prevIndex = wheelLayout.indexOf(prevSpin.number);
+                    const currentIndex = wheelLayout.indexOf(spin.number);
+                    
+                    let travel;
+                    if (spin.direction === 'cw') {
+                        travel = (prevIndex - currentIndex + wheelLayout.length) % wheelLayout.length;
+                    } else {
+                        travel = (currentIndex - prevIndex + wheelLayout.length) % wheelLayout.length;
+                    }
+                    
+                    travelDistances.push(travel);
+                }
+            }
+            
+            // If we have at least 3 travel distances, remove highest and lowest
+            let filteredDistances = travelDistances;
+            if (travelDistances.length >= 3) {
+                filteredDistances = [...travelDistances].sort((a, b) => a - b);
+                filteredDistances = filteredDistances.slice(1, -1); // Remove first (lowest) and last (highest)
+            }
+            
+            // Calculate average travel distance from filtered distances
+            const avgTravel = filteredDistances.reduce((a, b) => a + b, 0) / filteredDistances.length;
+            
+            // Predict landing position based on average travel from last number
+            let predictedIndex;
+            const lastIndex = wheelLayout.indexOf(lastSpin.number);
+            
+            if (currentDirection === 'cw') {
+                predictedIndex = (lastIndex - Math.round(avgTravel) + wheelLayout.length) % wheelLayout.length;
+            } else {
+                predictedIndex = (lastIndex + Math.round(avgTravel)) % wheelLayout.length;
+            }
+            
+            const mainPrediction = wheelLayout[predictedIndex];
+            
+            // Get neighbors on each side based on selected count
+            const leftNeighbors = [];
+            const rightNeighbors = [];
+            
+            for (let i = 1; i <= neighborCount; i++) {
+                leftNeighbors.push(
+                    wheelLayout[(predictedIndex - i + wheelLayout.length) % wheelLayout.length]
+                );
+                rightNeighbors.push(
+                    wheelLayout[(predictedIndex + i) % wheelLayout.length]
+                );
+            }
+            
+            // Update current selection (main + left + right neighbors)
+            currentPrediction = mainPrediction;
+            currentSelection = [mainPrediction, ...leftNeighbors, ...rightNeighbors];
+            
+            // Update display
+            updatePredictionDisplay(mainPrediction, leftNeighbors, rightNeighbors);
         }
-
-        distances.push(distance);
-        distanceDetails += `${fromSpin.number} → ${toSpin.number} (${currentDirection.toUpperCase()}): ${distance} pockets<br>`;
-    }
-
-    if (distances.length >= 3) {
-        const sortedDistances = [...distances].sort((a, b) => a - b);
-        const trimmedDistances = sortedDistances.slice(1, -1);
-        const averageStep = Math.round(trimmedDistances.reduce((sum, val) => sum + val, 0) / trimmedDistances.length);
-
-        distanceDetails += `<br>Distances: ${distances.join(', ')}<br>`;
-        distanceDetails += `Sorted: ${sortedDistances.join(', ')}<br>`;
-        distanceDetails += `Trimmed (removed min/max): ${trimmedDistances.join(', ')}<br>`;
-        distanceDetails += `Average step: ${averageStep} pockets`;
-
-        const lastSpin = spinHistory[spinHistory.length - 1];
-        const lastIndex = wheelLayout.indexOf(lastSpin.number);
-
-        let predictedIndex;
-        if (currentDirection === 'cw') {
-            predictedIndex = (lastIndex - averageStep + wheelLayout.length) % wheelLayout.length;
-        } else {
-            predictedIndex = (lastIndex + averageStep) % wheelLayout.length;
-        }
-
-        const mainPrediction = wheelLayout[predictedIndex];
-
-        const leftNeighbors = [];
-        const rightNeighbors = [];
-
-        for (let i = 1; i <= 9; i++) {
-            leftNeighbors.push(
-                wheelLayout[(predictedIndex - i + wheelLayout.length) % wheelLayout.length]
-            );
-            rightNeighbors.push(
-                wheelLayout[(predictedIndex + i) % wheelLayout.length]
-            );
-        }
-
-        currentPrediction = mainPrediction;
-        currentSelection = [mainPrediction, ...leftNeighbors, ...rightNeighbors];
-
-        updatePredictionDisplay(mainPrediction, leftNeighbors, rightNeighbors);
-        distanceDetailsDiv.innerHTML = distanceDetails;
-    } else {
-        resetPrediction();
-        distanceDetailsDiv.textContent = "Not enough data (need at least 3 distances)";
-    }
-}
 
         function updatePredictionDisplay(mainNumber, leftNeighbors, rightNeighbors) {
+            const neighborCount = parseInt(neighborCountSelect.value) || 9;
             const mainColor = getColorForNumber(mainNumber);
             
             predictedNumberDiv.textContent = mainNumber;
@@ -787,7 +807,7 @@
             // Update left neighbors (counter-clockwise)
             leftNeighborsDiv.innerHTML = '';
             const leftGroupLabel = leftNeighborsDiv.parentElement.querySelector('.neighbor-group-label');
-            leftGroupLabel.textContent = `Left 9 (CCW)`;
+            leftGroupLabel.textContent = `Left ${neighborCount} (CCW)`;
             
             leftNeighbors.forEach(neighbor => {
                 const neighborColor = getColorForNumber(neighbor);
@@ -802,7 +822,7 @@
             // Update right neighbors (clockwise)
             rightNeighborsDiv.innerHTML = '';
             const rightGroupLabel = rightNeighborsDiv.parentElement.querySelector('.neighbor-group-label');
-            rightGroupLabel.textContent = `Right 9 (CW)`;
+            rightGroupLabel.textContent = `Right ${neighborCount} (CW)`;
             
             rightNeighbors.forEach(neighbor => {
                 const neighborColor = getColorForNumber(neighbor);
@@ -820,48 +840,181 @@
         function updateSelectedNumbersDisplay() {
             selectedNumbersDiv.innerHTML = '';
             
+            if (!currentPrediction) {
+                selectedNumbersDiv.innerHTML = '<div>No active prediction</div>';
+                return;
+            }
+
+            const neighborCount = parseInt(neighborCountSelect.value) || 9;
+            const lastSpin = spinHistory[spinHistory.length - 1];
+            const lastIndex = wheelLayout.indexOf(lastSpin.number);
+            const predIndex = wheelLayout.indexOf(currentPrediction);
+            
+            // Create calculation display
+            const calcDiv = document.createElement('div');
+            calcDiv.style.marginBottom = '10px';
+            calcDiv.style.fontSize = '0.9em';
+            
+            // Add calculation steps
+            calcDiv.innerHTML = `
+                <div><strong>Prediction Calculation:</strong></div>
+                <div>Last spin: ${lastSpin.number} (${lastSpin.direction.toUpperCase()})</div>
+                <div>Current prediction direction: ${currentDirection.toUpperCase()}</div>
+            `;
+            
+            // Get recent spins in current direction for calculation
+            const recentDirectionSpins = spinHistory
+                .slice().reverse()
+                .filter(spin => spin.direction === currentDirection)
+                .slice(0, 5);
+            
+            if (recentDirectionSpins.length > 0) {
+                calcDiv.innerHTML += `<div>Using ${recentDirectionSpins.length} recent ${currentDirection.toUpperCase()} spins:</div>`;
+                
+                // Calculate travel distances
+                const travelDistances = [];
+                for (let i = 0; i < recentDirectionSpins.length; i++) {
+                    const spin = recentDirectionSpins[i];
+                    const spinIndex = spinHistory.findIndex(s => s.number === spin.number);
+                    
+                    if (spinIndex > 0) {
+                        const prevSpin = spinHistory[spinIndex - 1];
+                        const prevIndex = wheelLayout.indexOf(prevSpin.number);
+                        const currentIndex = wheelLayout.indexOf(spin.number);
+                        
+                        let travel;
+                        if (spin.direction === 'cw') {
+                            travel = (prevIndex - currentIndex + wheelLayout.length) % wheelLayout.length;
+                        } else {
+                            travel = (currentIndex - prevIndex + wheelLayout.length) % wheelLayout.length;
+                        }
+                        
+                        travelDistances.push(travel);
+                        calcDiv.innerHTML += `<div class="calculation-step">- From ${prevSpin.number} to ${spin.number}: ${travel} pockets</div>`;
+                    }
+                }
+                
+                // Show filtered distances if we have enough
+                if (travelDistances.length >= 3) {
+                    const filteredDistances = [...travelDistances].sort((a, b) => a - b).slice(1, -1);
+                    calcDiv.innerHTML += `
+                        <div class="calculation-step">Filtered distances (removed min/max): ${filteredDistances.join(', ')}</div>
+                        <div class="calculation-step">Average travel: ${(filteredDistances.reduce((a, b) => a + b, 0) / filteredDistances.length).toFixed(2)}</div>
+                        <div class="calculation-step">Rounded average: ${Math.round(filteredDistances.reduce((a, b) => a + b, 0) / filteredDistances.length}</div>
+                    `;
+                } else if (travelDistances.length > 0) {
+                    calcDiv.innerHTML += `
+                        <div class="calculation-step">Average travel: ${(travelDistances.reduce((a, b) => a + b, 0) / travelDistances.length).toFixed(2)}</div>
+                        <div class="calculation-step">Rounded average: ${Math.round(travelDistances.reduce((a, b) => a + b, 0) / travelDistances.length}</div>
+                    `;
+                }
+                
+                // Show final prediction calculation
+                const avgTravel = travelDistances.length >= 3 ? 
+                    Math.round(filteredDistances.reduce((a, b) => a + b, 0) / filteredDistances.length) :
+                    Math.round(travelDistances.reduce((a, b) => a + b, 0) / travelDistances.length);
+                
+                calcDiv.innerHTML += `
+                    <div class="calculation-step">Predicted from ${lastSpin.number} (index ${lastIndex}) moving ${currentDirection.toUpperCase()}:</div>
+                    <div class="calculation-step">${lastIndex} ${currentDirection === 'cw' ? '-' : '+'} ${avgTravel} = ${predIndex}</div>
+                    <div class="calculation-step">Which is number ${currentPrediction}</div>
+                `;
+            }
+            
+            selectedNumbersDiv.appendChild(calcDiv);
+            
+            // Add separator
+            const separator = document.createElement('hr');
+            separator.style.margin = '10px 0';
+            separator.style.border = '1px solid #eee';
+            selectedNumbersDiv.appendChild(separator);
+            
+            // Add title for the selected numbers
+            const titleDiv = document.createElement('div');
+            titleDiv.innerHTML = `<strong>Selected Numbers (${1 + neighborCount * 2} total):</strong>`;
+            titleDiv.style.marginBottom = '5px';
+            selectedNumbersDiv.appendChild(titleDiv);
+            
             // Group numbers by their position relative to prediction
-            const leftNumbers = currentSelection.slice(1, 10).reverse(); // Left neighbors (counter-clockwise)
+            const leftNumbers = currentSelection.slice(1, 1 + neighborCount).reverse();
             const mainNumber = currentSelection[0];
-            const rightNumbers = currentSelection.slice(10); // Right neighbors (clockwise)
+            const rightNumbers = currentSelection.slice(1 + neighborCount);
             
             // Display left neighbors
+            const leftGroup = document.createElement('div');
+            leftGroup.style.marginBottom = '5px';
+            leftGroup.innerHTML = `<span style="color:#7f8c8d">Left ${neighborCount} (CCW):</span>`;
+            const leftContainer = document.createElement('div');
+            leftContainer.style.display = 'flex';
+            leftContainer.style.flexWrap = 'wrap';
+            leftContainer.style.gap = '3px';
+            leftContainer.style.marginBottom = '10px';
+            
             leftNumbers.forEach(num => {
-                addNumberToSelectionDisplay(num, 'left');
+                const numElement = document.createElement('div');
+                numElement.className = 'selected-number';
+                numElement.textContent = num;
+                leftContainer.appendChild(numElement);
             });
+            
+            leftGroup.appendChild(leftContainer);
+            selectedNumbersDiv.appendChild(leftGroup);
             
             // Display main prediction
-            addNumberToSelectionDisplay(mainNumber, 'main');
+            const mainGroup = document.createElement('div');
+            mainGroup.style.marginBottom = '5px';
+            mainGroup.innerHTML = `<span style="color:#7f8c8d">Main prediction:</span>`;
+            const mainElement = document.createElement('div');
+            mainElement.className = 'selected-number';
+            mainElement.textContent = mainNumber;
+            mainElement.style.backgroundColor = getColorForNumber(mainNumber) === 'red' ? '#e74c3c' : 
+                                              getColorForNumber(mainNumber) === 'black' ? '#2c3e50' : '#27ae60';
+            mainElement.style.color = 'white';
+            mainGroup.appendChild(mainElement);
+            selectedNumbersDiv.appendChild(mainGroup);
             
             // Display right neighbors
-            rightNumbers.forEach(num => {
-                addNumberToSelectionDisplay(num, 'right');
-            });
-        }
-
-        function addNumberToSelectionDisplay(number, position) {
-            const numElement = document.createElement('div');
-            numElement.className = 'selected-number';
-            numElement.textContent = number;
+            const rightGroup = document.createElement('div');
+            rightGroup.style.marginBottom = '5px';
+            rightGroup.innerHTML = `<span style="color:#7f8c8d">Right ${neighborCount} (CW):</span>`;
+            const rightContainer = document.createElement('div');
+            rightContainer.style.display = 'flex';
+            rightContainer.style.flexWrap = 'wrap';
+            rightContainer.style.gap = '3px';
             
-            // Color based on position
-            if (position === 'main') {
-                numElement.style.backgroundColor = getColorForNumber(number) === 'red' ? '#e74c3c' : 
-                                                  getColorForNumber(number) === 'black' ? '#2c3e50' : '#27ae60';
-                numElement.style.color = 'white';
-            }
+            rightNumbers.forEach(num => {
+                const numElement = document.createElement('div');
+                numElement.className = 'selected-number';
+                numElement.textContent = num;
+                rightContainer.appendChild(numElement);
+            });
+            
+            rightGroup.appendChild(rightContainer);
+            selectedNumbersDiv.appendChild(rightGroup);
             
             // Check if this number was in the last spin
             if (spinHistory.length > 0) {
                 const lastNumber = spinHistory[spinHistory.length - 1].number;
-                if (number === lastNumber) {
-                    numElement.classList.add('win');
-                } else if (currentSelection.includes(lastNumber)) {
-                    numElement.classList.add('loss');
-                }
+                const allNumberElements = selectedNumbersDiv.querySelectorAll('.selected-number');
+                
+                allNumberElements.forEach(element => {
+                    const elementNumber = parseInt(element.textContent);
+                    if (elementNumber === lastNumber) {
+                        element.classList.add('win');
+                    } else if (currentSelection.includes(lastNumber)) {
+                        element.classList.add('loss');
+                    }
+                });
+                
+                const resultDiv = document.createElement('div');
+                resultDiv.style.marginTop = '10px';
+                resultDiv.style.fontWeight = 'bold';
+                resultDiv.style.color = currentSelection.includes(lastNumber) ? '#27ae60' : '#e74c3c';
+                resultDiv.textContent = currentSelection.includes(lastNumber) ? 
+                    `✓ HIT! (Landed on ${lastNumber})` : 
+                    `✗ MISS (Landed on ${lastNumber})`;
+                selectedNumbersDiv.appendChild(resultDiv);
             }
-            
-            selectedNumbersDiv.appendChild(numElement);
         }
 
         function updateStats(number) {
@@ -954,6 +1107,7 @@
             
             // Show prediction if available
             if (currentPrediction) {
+                const neighborCount = parseInt(neighborCountSelect.value) || 9;
                 const predIndex = wheelLayout.indexOf(currentPrediction);
                 const predAngle = predIndex * angleIncrement - Math.PI / 2;
                 const predX = 150 + 140 * Math.cos(predAngle);
@@ -967,9 +1121,9 @@
                 predMarker.title = `Predicted: ${currentPrediction} (${currentDirection.toUpperCase()})`;
                 rouletteWheel.appendChild(predMarker);
                 
-                // Show prediction range (main + 9 neighbors each side)
-                const leftIndex = (predIndex - 9 + wheelLayout.length) % wheelLayout.length;
-                const rightIndex = (predIndex + 9) % wheelLayout.length;
+                // Show prediction range (main + neighbors)
+                const leftIndex = (predIndex - neighborCount + wheelLayout.length) % wheelLayout.length;
+                const rightIndex = (predIndex + neighborCount) % wheelLayout.length;
                 
                 const leftAngle = leftIndex * angleIncrement - Math.PI / 2;
                 const rightAngle = rightIndex * angleIncrement - Math.PI / 2;
@@ -1035,7 +1189,6 @@
             rightNeighborsDiv.innerHTML = '';
             
             selectedNumbersDiv.innerHTML = '<div>No active prediction</div>';
-            distanceDetailsDiv.textContent = 'No distance data available';
         }
 
         function clearHistory() {
@@ -1145,7 +1298,8 @@
                 martingaleTransactions,
                 currentDirection,
                 currentPrediction,
-                currentSelection
+                currentSelection,
+                neighborCount: parseInt(neighborCountSelect.value) || 9
             };
             localStorage.setItem('rouletteAnalystData', JSON.stringify(data));
         }
@@ -1185,13 +1339,19 @@
                 updateWheelDisplay();
                 updateTravelPatternsDisplay();
                 
+                // Set neighbor count
+                if (data.neighborCount) {
+                    neighborCountSelect.value = data.neighborCount;
+                }
+                
                 if (currentPrediction) {
+                    const neighborCount = parseInt(neighborCountSelect.value) || 9;
                     const mainNumber = currentPrediction;
                     const mainIndex = wheelLayout.indexOf(mainNumber);
                     const leftNeighbors = [];
                     const rightNeighbors = [];
                     
-                    for (let i = 1; i <= 9; i++) {
+                    for (let i = 1; i <= neighborCount; i++) {
                         leftNeighbors.push(
                             wheelLayout[(mainIndex - i + wheelLayout.length) % wheelLayout.length]
                         );
@@ -1212,7 +1372,8 @@
 
         function updateMartingaleStats(number) {
             const wasWin = currentSelection.includes(number);
-            const numberCount = 19; // Fixed 19-number prediction (main + 9 each side)
+            const neighborCount = parseInt(neighborCountSelect.value) || 9;
+            const numberCount = 1 + (neighborCount * 2); // Main + left + right neighbors
             
             // Calculate total bet amount (bet per number * number of numbers)
             const totalBetAmount = martingale.currentBet * numberCount;
