@@ -489,18 +489,43 @@
         };
 
         // Martingale system state
-        let martingale = {
-            baseBet: 1,
-            currentBet: 1,
-            bankroll: 100,
-            totalProfitLoss: 0,
-            currentStreak: 0,
-            longestStreak: 0,
-            betsWon: 0,
-            betsLost: 0,
-            maxLosses: 10,
-            active: false
-        };
+       let martingale = {
+    baseBet: 1,
+    currentBet: 1,
+    bankroll: 100,
+    totalProfitLoss: 0,
+    currentStreak: 0,
+    longestStreak: 0,
+    betsWon: 0,
+    betsLost: 0,
+    maxLosses: 10,
+    active: false,
+
+    // NEW: CW-only Martingale
+    cw: {
+        baseBet: 1,
+        currentBet: 1,
+        bankroll: 100,
+        totalProfitLoss: 0,
+        currentStreak: 0,
+        longestStreak: 0,
+        betsWon: 0,
+        betsLost: 0
+    },
+
+    // NEW: CCW-only Martingale
+    ccw: {
+        baseBet: 1,
+        currentBet: 1,
+        bankroll: 100,
+        totalProfitLoss: 0,
+        currentStreak: 0,
+        longestStreak: 0,
+        betsWon: 0,
+        betsLost: 0
+    }
+};
+
 
         // Martingale transaction history
         let martingaleTransactions = [];
@@ -689,8 +714,18 @@ if (stats.travelPatterns.length > 100) {
             
             // Check if this number was in our current selection
             if (currentSelection.length > 0) {
-                updateStats(number);
-                updateMartingaleStats(number);
+    updateStats(number);
+    updateMartingaleStats(number);
+
+    const lastSpin = spinHistory[spinHistory.length - 1];
+    if (lastSpin.direction === 'cw') {
+        updateDirectionalMartingale('cw', number);
+    } else {
+        updateDirectionalMartingale('ccw', number);
+    }
+}
+
+
             }
 
             // Update loss streak based on prediction accuracy
