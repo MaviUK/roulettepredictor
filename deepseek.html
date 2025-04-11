@@ -752,6 +752,59 @@ if (currentSelection.includes(number)) {
             saveToLocalStorage();
         }
 
+        function updateDirectionalMartingale(direction, number) {
+    const m = martingale[direction]; // either martingale.cw or martingale.ccw
+    const neighborCount = parseInt(neighborCountSelect.value) || 9;
+    const numberCount = 1 + neighborCount * 2;
+    const totalBetAmount = m.currentBet * numberCount;
+    const isWin = currentSelection.includes(number);
+
+    // Calculate profit/loss
+    let profitLoss = 0;
+    if (isWin) {
+        profitLoss = 36 * m.currentBet - totalBetAmount;
+        m.bankroll += profitLoss;
+        m.totalProfitLoss += profitLoss;
+        m.betsWon++;
+
+        // Update streaks
+        if (m.currentStreak > m.longestStreak) {
+            m.longestStreak = m.currentStreak;
+        }
+        m.currentStreak = 0;
+        m.currentBet = m.baseBet;
+    } else {
+        profitLoss = -totalBetAmount;
+        m.bankroll += profitLoss;
+        m.totalProfitLoss += profitLoss;
+        m.betsLost++;
+        m.currentStreak++;
+
+        if (m.currentStreak > m.longestStreak) {
+            m.longestStreak = m.currentStreak;
+        }
+
+        if (m.currentStreak >= martingale.maxLosses) {
+            console.warn(`[${direction.toUpperCase()}] Max loss streak reached. Resetting.`);
+            m.currentBet = m.baseBet;
+            m.currentStreak = 0;
+        } else {
+            m.currentBet *= 2;
+        }
+    }
+
+    // Prevent negative bankroll
+    if (m.bankroll < m.currentBet * numberCount) {
+        console.warn(`[${direction.toUpperCase()}] Bankroll too low. Resetting bet.`);
+        m.currentBet = m.baseBet;
+        m.currentStreak = 0;
+    }
+
+    // (Optional) console log the transaction
+    console.log(`[${direction.toUpperCase()}] ${isWin ? 'WIN' : 'LOSS'} | Landed: ${number} | Bet: ${m.currentBet} | PL: ${profitLoss} | Streak: ${m.currentStreak}`);
+}
+
+
       function generatePrediction() {
     if (spinHistory.length < 2) {
         resetPrediction();
