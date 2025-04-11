@@ -892,28 +892,35 @@
             ccwAvgTravelSpan.textContent = `${ccwAvgTravel}`;
         }
 
-        function updateTravelPatternsDisplay() {
-            travelPatternsDiv.innerHTML = `
-                <div class="pattern-row">
-                    <span>Direction</span>
-                    <span>From</span>
-                    <span>To</span>
-                    <span>Pockets</span>
-                </div>
-            `;
-            
-            stats.travelPatterns.slice(0, 5).forEach(pattern => {
-                const row = document.createElement('div');
-                row.className = 'pattern-row';
-                row.innerHTML = `
-                    <span>${pattern.direction.toUpperCase()}</span>
-                    <span>${pattern.from}</span>
-                    <span>${pattern.to}</span>
-                    <span>${pattern.distance}</span>
-                `;
-                travelPatternsDiv.appendChild(row);
-            });
-        }
+       function updateTravelPatternsDisplay() {
+    travelPatternsDiv.innerHTML = `
+        <div class="pattern-row">
+            <strong>Direction</strong>
+            <strong>From</strong>
+            <strong>To</strong>
+            <strong>Pockets</strong>
+        </div>
+    `;
+
+    // Get the latest 8 of each direction
+    const cwPatterns = stats.travelPatterns.filter(p => p.direction === 'cw').slice(0, 8);
+    const ccwPatterns = stats.travelPatterns.filter(p => p.direction === 'ccw').slice(0, 8);
+
+    const combined = [...cwPatterns, ...ccwPatterns];
+
+    combined.forEach(pattern => {
+        const row = document.createElement('div');
+        row.className = 'pattern-row';
+        row.innerHTML = `
+            <span>${pattern.direction.toUpperCase()}</span>
+            <span>${pattern.from}</span>
+            <span>${pattern.to}</span>
+            <span>${pattern.distance}</span>
+        `;
+        travelPatternsDiv.appendChild(row);
+    });
+}
+
 
         function updateWheelDisplay() {
             // Clear previous markers
