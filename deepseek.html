@@ -892,7 +892,7 @@
             ccwAvgTravelSpan.textContent = `${ccwAvgTravel}`;
         }
 
-       function updateTravelPatternsDisplay() {
+      function updateTravelPatternsDisplay() {
     travelPatternsDiv.innerHTML = `
         <div class="pattern-row">
             <strong>Direction</strong>
@@ -902,13 +902,14 @@
         </div>
     `;
 
-    // Get the latest 8 of each direction
-    const cwPatterns = stats.travelPatterns.filter(p => p.direction === 'cw').slice(0, 8);
-    const ccwPatterns = stats.travelPatterns.filter(p => p.direction === 'ccw').slice(0, 8);
+    let cwCount = 0;
+    let ccwCount = 0;
 
-    const combined = [...cwPatterns, ...ccwPatterns];
+    // We will show patterns in reverse order (newest first), keeping 8 per direction
+    for (const pattern of stats.travelPatterns) {
+        if (pattern.direction === 'cw' && cwCount >= 8) continue;
+        if (pattern.direction === 'ccw' && ccwCount >= 8) continue;
 
-    combined.forEach(pattern => {
         const row = document.createElement('div');
         row.className = 'pattern-row';
         row.innerHTML = `
@@ -918,8 +919,12 @@
             <span>${pattern.distance}</span>
         `;
         travelPatternsDiv.appendChild(row);
-    });
+
+        if (pattern.direction === 'cw') cwCount++;
+        if (pattern.direction === 'ccw') ccwCount++;
+    }
 }
+
 
 
         function updateWheelDisplay() {
