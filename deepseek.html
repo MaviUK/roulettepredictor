@@ -908,7 +908,6 @@ if (stats.travelPatterns.length > 100) {
     let cwCount = 0;
     let ccwCount = 0;
 
-    // We will show patterns in reverse order (newest first), keeping 8 per direction
     for (const pattern of stats.travelPatterns) {
         if (pattern.direction === 'cw' && cwCount >= 8) continue;
         if (pattern.direction === 'ccw' && ccwCount >= 8) continue;
