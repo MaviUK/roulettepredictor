@@ -905,27 +905,37 @@
         }
 
         function updateTravelPatternsDisplay() {
-            travelPatternsDiv.innerHTML = `
-                <div class="pattern-row">
-                    <span>Direction</span>
-                    <span>From</span>
-                    <span>To</span>
-                    <span>Pockets</span>
-                </div>
-            `;
-            
-            stats.travelPatterns.slice(0, 5).forEach(pattern => {
-                const row = document.createElement('div');
-                row.className = 'pattern-row';
-                row.innerHTML = `
-                    <span>${pattern.direction.toUpperCase()}</span>
-                    <span>${pattern.from}</span>
-                    <span>${pattern.to}</span>
-                    <span>${pattern.distance}</span>
-                `;
-                travelPatternsDiv.appendChild(row);
-            });
-        }
+    travelPatternsDiv.innerHTML = `
+        <div class="pattern-row">
+            <strong>Direction</strong>
+            <strong>From</strong>
+            <strong>To</strong>
+            <strong>Pockets</strong>
+        </div>
+    `;
+
+    let cwCount = 0;
+    let ccwCount = 0;
+
+    for (const pattern of stats.travelPatterns) {
+        if (pattern.direction === 'cw' && cwCount >= 8) continue;
+        if (pattern.direction === 'ccw' && ccwCount >= 8) continue;
+
+        const row = document.createElement('div');
+        row.className = 'pattern-row';
+        row.innerHTML = `
+            <span>${pattern.direction.toUpperCase()}</span>
+            <span>${pattern.from}</span>
+            <span>${pattern.to}</span>
+            <span>${pattern.distance}</span>
+        `;
+        travelPatternsDiv.appendChild(row);
+
+        if (pattern.direction === 'cw') cwCount++;
+        if (pattern.direction === 'ccw') ccwCount++;
+    }
+}
+
 
         function updateWheelDisplay() {
             // Clear previous markers
