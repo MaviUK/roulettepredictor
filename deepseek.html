@@ -712,27 +712,46 @@
 
     const neighborCount = parseInt(neighborCountSelect.value) || 9;
     const lastSpin = spinHistory[spinHistory.length - 1];
-    const lastIndex = wheelLayout.indexOf(lastSpin.number);
-    const upcomingDirection = currentDirection;
+    const currentIndex = wheelLayout.indexOf(lastSpin.number);
+    const nextDirection = currentDirection;
 
-    // Get last 5 travel distances for upcoming direction
-    const recentPatterns = stats.travelPatterns.filter(p => p.direction === upcomingDirection);
-    if (recentPatterns.length < 5) {
+    // Gather the last 5 spins in the next direction
+    const recentDirectionSpins = [];
+    for (let i = spinHistory.length - 1; i > 0 && recentDirectionSpins.length < 5; i--) {
+        const spin = spinHistory[i];
+        const prev = spinHistory[i - 1];
+        if (spin.direction === nextDirection) {
+            recentDirectionSpins.push({ from: prev.number, to: spin.number });
+        }
+    }
+
+    if (recentDirectionSpins.length < 5) {
         resetPrediction();
         return;
     }
 
-    const lastFive = recentPatterns.slice(0, 5).map(p => p.distance);
+    // Calculate travel distances
+    const distances = recentDirectionSpins.map(pair => {
+        const fromIndex = wheelLayout.indexOf(pair.from);
+        const toIndex = wheelLayout.indexOf(pair.to);
 
-    const sorted = [...lastFive].sort((a, b) => a - b);
-    const trimmed = sorted.slice(1, 4); // drop lowest and highest
+        if (nextDirection === 'cw') {
+            return (fromIndex - toIndex + wheelLayout.length) % wheelLayout.length;
+        } else {
+            return (toIndex - fromIndex + wheelLayout.length) % wheelLayout.length;
+        }
+    });
+
+    // Sort, remove highest & lowest, and average the middle 3
+    const trimmed = distances.slice().sort((a, b) => a - b).slice(1, 4);
     const avgTravel = Math.round(trimmed.reduce((a, b) => a + b, 0) / trimmed.length);
 
+    // Predict the target index based on avgTravel
     let predictedIndex;
-    if (upcomingDirection === 'cw') {
-        predictedIndex = (lastIndex - avgTravel + wheelLayout.length) % wheelLayout.length;
+    if (nextDirection === 'cw') {
+        predictedIndex = (currentIndex - avgTravel + wheelLayout.length) % wheelLayout.length;
     } else {
-        predictedIndex = (lastIndex + avgTravel) % wheelLayout.length;
+        predictedIndex = (currentIndex + avgTravel) % wheelLayout.length;
     }
 
     const mainPrediction = wheelLayout[predictedIndex];
@@ -742,19 +761,15 @@
     const rightNeighbors = [];
 
     for (let i = 1; i <= neighborCount; i++) {
-        leftNeighbors.push(
-            wheelLayout[(predictedIndex - i + wheelLayout.length) % wheelLayout.length]
-        );
-        rightNeighbors.push(
-            wheelLayout[(predictedIndex + i) % wheelLayout.length]
-        );
+        leftNeighbors.push(wheelLayout[(predictedIndex - i + wheelLayout.length) % wheelLayout.length]);
+        rightNeighbors.push(wheelLayout[(predictedIndex + i) % wheelLayout.length]);
     }
 
     currentPrediction = mainPrediction;
     currentSelection = [mainPrediction, ...leftNeighbors, ...rightNeighbors];
-
     updatePredictionDisplay(mainPrediction, leftNeighbors, rightNeighbors);
 }
+
 
         function updatePredictionDisplay(mainNumber, leftNeighbors, rightNeighbors) {
             const neighborCount = parseInt(neighborCountSelect.value) || 9;
