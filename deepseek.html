@@ -901,7 +901,7 @@
             ccwAvgTravelSpan.textContent = `${ccwAvgTravel}`;
         }
 
-       function updateTravelPatternsDisplay() {
+   function updateTravelPatternsDisplay() {
     travelPatternsDiv.innerHTML = `
         <div class="pattern-row">
             <span>Direction</span>
@@ -911,10 +911,19 @@
         </div>
     `;
 
-    // Take the most recent 8 patterns, in order
-    const latestPatterns = stats.travelPatterns.slice(0, 8);
+    // Get up to 8 from each direction (most recent first)
+    const cwList = stats.travelPatterns.filter(p => p.direction === 'cw').slice(0, 8);
+    const ccwList = stats.travelPatterns.filter(p => p.direction === 'ccw').slice(0, 8);
 
-    latestPatterns.forEach(pattern => {
+    const maxLength = Math.max(cwList.length, ccwList.length);
+    const combinedList = [];
+
+    for (let i = 0; i < maxLength; i++) {
+        if (cwList[i]) combinedList.push(cwList[i]);
+        if (ccwList[i]) combinedList.push(ccwList[i]);
+    }
+
+    combinedList.forEach(pattern => {
         const row = document.createElement('div');
         row.className = 'pattern-row';
         row.innerHTML = `
@@ -926,6 +935,7 @@
         travelPatternsDiv.appendChild(row);
     });
 }
+
 
 
 
