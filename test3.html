@@ -564,6 +564,17 @@
             maxLossesInput.addEventListener('change', updateMartingaleSettings);
         });
 
+
+function getWheelIndexFrom(number, distance, direction) {
+    const startIndex = wheelLayout.indexOf(number);
+    if (direction === 'cw') {
+        return (startIndex + distance) % wheelLayout.length;
+    } else {
+        return (startIndex - distance + wheelLayout.length) % wheelLayout.length;
+    }
+}
+
+
         // Create the visual roulette wheel
         function createWheel() {
             const radius = 140;
@@ -746,13 +757,8 @@
     const trimmed = distances.slice().sort((a, b) => a - b).slice(1, 4);
     const avgTravel = Math.round(trimmed.reduce((a, b) => a + b, 0) / trimmed.length);
 
-    // Predict the target index based on avgTravel
-    let predictedIndex;
-    if (nextDirection === 'cw') {
-        predictedIndex = (currentIndex - avgTravel + wheelLayout.length) % wheelLayout.length;
-    } else {
-        predictedIndex = (currentIndex + avgTravel) % wheelLayout.length;
-    }
+   const predictedIndex = getWheelIndexFrom(lastSpin.number, Math.round(avgTravel), currentDirection);
+
 
     const mainPrediction = wheelLayout[predictedIndex];
 
