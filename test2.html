@@ -643,14 +643,8 @@
             let travelDistance = 0;
             if (spinHistory.length > 0) {
                 const lastSpin = spinHistory[spinHistory.length - 1];
-                const lastIndex = wheelLayout.indexOf(lastSpin.number);
-                const currentIndex = wheelLayout.indexOf(number);
-                
-                if (lastSpin.direction === 'cw') {
-                    travelDistance = (lastIndex - currentIndex + wheelLayout.length) % wheelLayout.length;
-                } else {
-                    travelDistance = (currentIndex - lastIndex + wheelLayout.length) % wheelLayout.length;
-                }
+               travelDistance = getTravelDistance(lastSpin.number, number, lastSpin.direction);
+
                 
                 // Record travel pattern
                 stats.travelPatterns.unshift({
@@ -704,6 +698,20 @@
             saveToLocalStorage();
         }
 
+function getTravelDistance(fromNumber, toNumber, direction) {
+    const fromIndex = wheelLayout.indexOf(fromNumber);
+    const toIndex = wheelLayout.indexOf(toNumber);
+
+    if (direction === 'cw') {
+        // Clockwise = forward through wheelLayout
+        return (toIndex - fromIndex + wheelLayout.length) % wheelLayout.length;
+    } else {
+        // Counter-clockwise = backward through wheelLayout
+        return (fromIndex - toIndex + wheelLayout.length) % wheelLayout.length;
+    }
+}
+
+
        function generatePrediction() {
     if (spinHistory.length < 2) {
         resetPrediction();
@@ -731,16 +739,16 @@
     }
 
     // Calculate travel distances
-    const distances = recentDirectionSpins.map(pair => {
-        const fromIndex = wheelLayout.indexOf(pair.from);
-        const toIndex = wheelLayout.indexOf(pair.to);
+   const distances = recentDirectionSpins.map(pair => {
+    const fromIndex = wheelLayout.indexOf(pair.from);
+    const toIndex = wheelLayout.indexOf(pair.to);
 
-        if (nextDirection === 'cw') {
-            return (fromIndex - toIndex + wheelLayout.length) % wheelLayout.length;
-        } else {
-            return (toIndex - fromIndex + wheelLayout.length) % wheelLayout.length;
-        }
-    });
+    if (nextDirection === 'cw') {
+        return (toIndex - fromIndex + wheelLayout.length) % wheelLayout.length;
+    } else {
+        return (fromIndex - toIndex + wheelLayout.length) % wheelLayout.length;
+    }
+});
 
     // Sort, remove highest & lowest, and average the middle 3
     const trimmed = distances.slice().sort((a, b) => a - b).slice(1, 4);
@@ -748,11 +756,12 @@
 
     // Predict the target index based on avgTravel
     let predictedIndex;
-    if (nextDirection === 'cw') {
-        predictedIndex = (currentIndex - avgTravel + wheelLayout.length) % wheelLayout.length;
-    } else {
-        predictedIndex = (currentIndex + avgTravel) % wheelLayout.length;
-    }
+if (nextDirection === 'cw') {
+    predictedIndex = (currentIndex + avgTravel) % wheelLayout.length;
+} else {
+    predictedIndex = (currentIndex - avgTravel + wheelLayout.length) % wheelLayout.length;
+}
+
 
     const mainPrediction = wheelLayout[predictedIndex];
 
