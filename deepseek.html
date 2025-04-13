@@ -910,34 +910,71 @@
         }
 
         function updateTravelPatternsDisplay() {
-            travelPatternsDiv.innerHTML = `
-                <div class="pattern-row header">
-                    <span>Direction</span>
-                    <span>From</span>
-                    <span>To</span>
-                    <span>Pockets</span>
-                </div>
-            `;
+    travelPatternsDiv.innerHTML = `
+        <div class="pattern-row header">
+            <span>Direction</span>
+            <span>From</span>
+            <span>To</span>
+            <span>Pockets</span>
+        </div>
+    `;
 
-            // Get last 4 CW and 4 CCW patterns
-            const lastCW = stats.travelPatterns.filter(p => p.direction === 'cw').slice(0,4);
-            const lastCCW = stats.travelPatterns.filter(p => p.direction === 'ccw').slice(0,4);
-            const last8 = [...lastCW, ...lastCCW]
-                .sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp))
-                .slice(0,8);
+    // Get all CW and CCW patterns separately
+    const cwPatterns = stats.travelPatterns.filter(p => p.direction === 'cw');
+    const ccwPatterns = stats.travelPatterns.filter(p => p.direction === 'ccw');
 
-            last8.forEach(pattern => {
-                const row = document.createElement('div');
-                row.className = 'pattern-row';
-                row.innerHTML = `
-                    <span>${pattern.direction.toUpperCase()}</span>
-                    <span>${pattern.from}</span>
-                    <span>${pattern.to}</span>
-                    <span>${pattern.distance}</span>
-                `;
-                travelPatternsDiv.appendChild(row);
-            });
+    // Determine how many of each to show (up to 4 each)
+    const cwToShow = Math.min(cwPatterns.length, 4);
+    const ccwToShow = Math.min(ccwPatterns.length, 4);
+
+    // Alternate between CW and CCW patterns
+    let cwIndex = 0;
+    let ccwIndex = 0;
+    let totalShown = 0;
+    const maxToShow = 8;
+
+    while (totalShown < maxToShow && (cwIndex < cwToShow || ccwIndex < ccwToShow)) {
+        // Alternate directions starting with the most recent CW
+        if (cwIndex < cwToShow && (totalShown % 2 === 0 || ccwIndex >= ccwToShow)) {
+            const pattern = cwPatterns[cwIndex];
+            addPatternRow(pattern);
+            cwIndex++;
+            totalShown++;
+        } else if (ccwIndex < ccwToShow) {
+            const pattern = ccwPatterns[ccwIndex];
+            addPatternRow(pattern);
+            ccwIndex++;
+            totalShown++;
         }
+    }
+
+    // If we haven't shown enough, fill with remaining patterns
+    while (totalShown < maxToShow && cwIndex < cwToShow) {
+        const pattern = cwPatterns[cwIndex];
+        addPatternRow(pattern);
+        cwIndex++;
+        totalShown++;
+    }
+
+    while (totalShown < maxToShow && ccwIndex < ccwToShow) {
+        const pattern = ccwPatterns[ccwIndex];
+        addPatternRow(pattern);
+        ccwIndex++;
+        totalShown++;
+    }
+
+    function addPatternRow(pattern) {
+        const row = document.createElement('div');
+        row.className = 'pattern-row';
+        row.innerHTML = `
+            <span>${pattern.direction.toUpperCase()}</span>
+            <span>${pattern.from}</span>
+            <span>${pattern.to}</span>
+            <span>${pattern.distance}</span>
+        `;
+        travelPatternsDiv.appendChild(row);
+    }
+}
 
         function updateWheelDisplay() {
             // Clear previous markers
