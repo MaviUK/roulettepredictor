@@ -739,16 +739,16 @@ function getTravelDistance(fromNumber, toNumber, direction) {
     }
 
     // Calculate travel distances
-    const distances = recentDirectionSpins.map(pair => {
-        const fromIndex = wheelLayout.indexOf(pair.from);
-        const toIndex = wheelLayout.indexOf(pair.to);
+   const distances = recentDirectionSpins.map(pair => {
+    const fromIndex = wheelLayout.indexOf(pair.from);
+    const toIndex = wheelLayout.indexOf(pair.to);
 
-        if (nextDirection === 'cw') {
-            return (fromIndex - toIndex + wheelLayout.length) % wheelLayout.length;
-        } else {
-            return (toIndex - fromIndex + wheelLayout.length) % wheelLayout.length;
-        }
-    });
+    if (nextDirection === 'cw') {
+        return (toIndex - fromIndex + wheelLayout.length) % wheelLayout.length;
+    } else {
+        return (fromIndex - toIndex + wheelLayout.length) % wheelLayout.length;
+    }
+});
 
     // Sort, remove highest & lowest, and average the middle 3
     const trimmed = distances.slice().sort((a, b) => a - b).slice(1, 4);
@@ -757,12 +757,11 @@ function getTravelDistance(fromNumber, toNumber, direction) {
     // Predict the target index based on avgTravel
     let predictedIndex;
 if (nextDirection === 'cw') {
-    // Move FORWARD in wheelLayout for CW
     predictedIndex = (currentIndex + avgTravel) % wheelLayout.length;
 } else {
-    // Move BACKWARD in wheelLayout for CCW
     predictedIndex = (currentIndex - avgTravel + wheelLayout.length) % wheelLayout.length;
 }
+
 
     const mainPrediction = wheelLayout[predictedIndex];
 
