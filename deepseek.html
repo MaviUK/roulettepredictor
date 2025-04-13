@@ -704,7 +704,7 @@
             saveToLocalStorage();
         }
 
-        function generatePrediction() {
+       function generatePrediction() {
     if (spinHistory.length < 2) {
         resetPrediction();
         return;
@@ -715,27 +715,19 @@
     const lastIndex = wheelLayout.indexOf(lastSpin.number);
     const upcomingDirection = currentDirection;
 
-    // Get recent travel distances in upcoming direction
-    const travelDistances = stats.travelPatterns
-        .filter(p => p.direction === upcomingDirection)
-        .map(p => p.distance);
-
-    if (travelDistances.length < 5) {
+    // Get last 5 travel distances for upcoming direction
+    const recentPatterns = stats.travelPatterns.filter(p => p.direction === upcomingDirection);
+    if (recentPatterns.length < 5) {
         resetPrediction();
         return;
     }
 
-    // Use last 5
-    const recentFive = travelDistances.slice(0, 5);
+    const lastFive = recentPatterns.slice(0, 5).map(p => p.distance);
 
-    // Remove highest and lowest
-    const sorted = [...recentFive].sort((a, b) => a - b);
-    const trimmed = sorted.slice(1, 4); // middle 3
-
-    // Average the 3
+    const sorted = [...lastFive].sort((a, b) => a - b);
+    const trimmed = sorted.slice(1, 4); // drop lowest and highest
     const avgTravel = Math.round(trimmed.reduce((a, b) => a + b, 0) / trimmed.length);
 
-    // Determine predicted index based on upcoming direction
     let predictedIndex;
     if (upcomingDirection === 'cw') {
         predictedIndex = (lastIndex - avgTravel + wheelLayout.length) % wheelLayout.length;
@@ -745,7 +737,7 @@
 
     const mainPrediction = wheelLayout[predictedIndex];
 
-    // Get neighbors on each side
+    // Get neighbors
     const leftNeighbors = [];
     const rightNeighbors = [];
 
@@ -758,14 +750,11 @@
         );
     }
 
-    // Save prediction state
     currentPrediction = mainPrediction;
     currentSelection = [mainPrediction, ...leftNeighbors, ...rightNeighbors];
 
-    // Update display
     updatePredictionDisplay(mainPrediction, leftNeighbors, rightNeighbors);
 }
-
 
         function updatePredictionDisplay(mainNumber, leftNeighbors, rightNeighbors) {
             const neighborCount = parseInt(neighborCountSelect.value) || 9;
