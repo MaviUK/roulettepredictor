@@ -705,96 +705,67 @@
         }
 
         function generatePrediction() {
-            if (spinHistory.length < 2) {
-                resetPrediction();
-                return;
-            }
-            
-            const neighborCount = parseInt(neighborCountSelect.value) || 9;
-            const lastSpin = spinHistory[spinHistory.length - 1];
-            const lastIndex = wheelLayout.indexOf(lastSpin.number);
-            
-            // Get the last 20 spins in the current direction
-            const recentDirectionSpins = spinHistory
-                .slice().reverse() // Start from most recent
-                .filter(spin => spin.direction === currentDirection)
-                .slice(0, 20); // Take up to 20 most recent
-            
-            // If we don't have enough spins in this direction, use what we have
-            if (recentDirectionSpins.length < 1) {
-                resetPrediction();
-                return;
-            }
-            
-            // Calculate weights - more recent spins have higher weight
-            // Create weights that decrease linearly from most recent to oldest
-            const weights = [];
-            const totalSpins = recentDirectionSpins.length;
-            for (let i = 0; i < totalSpins; i++) {
-                weights.push((totalSpins - i) / totalSpins);
-            }
-            
-            // Calculate weighted average travel distance for these spins
-            let weightedAvgTravel = 0;
-            let totalWeight = 0;
-            
-            for (let i = 0; i < recentDirectionSpins.length; i++) {
-                const spin = recentDirectionSpins[i];
-                const spinIndex = spinHistory.findIndex(s => s.number === spin.number);
-                
-                if (spinIndex > 0) { // We need the previous spin to calculate travel
-                    const prevSpin = spinHistory[spinIndex - 1];
-                    const prevIndex = wheelLayout.indexOf(prevSpin.number);
-                    const currentIndex = wheelLayout.indexOf(spin.number);
-                    
-                    let travel;
-                    if (spin.direction === 'cw') {
-                        travel = (prevIndex - currentIndex + wheelLayout.length) % wheelLayout.length;
-                    } else {
-                        travel = (currentIndex - prevIndex + wheelLayout.length) % wheelLayout.length;
-                    }
-                    
-                    weightedAvgTravel += travel * weights[i];
-                    totalWeight += weights[i];
-                }
-            }
-            
-            // Calculate average travel distance using only these spins
-            let avgTravel = weightedAvgTravel / totalWeight;
-            
-            // Apply some randomness to simulate real variance (smaller range now)
-            avgTravel = avgTravel * (0.95 + Math.random() * 0.1);
-            
-            // Predict landing position
-            let predictedIndex;
-            if (currentDirection === 'cw') {
-                predictedIndex = (lastIndex - Math.round(avgTravel) + wheelLayout.length) % wheelLayout.length;
-            } else {
-                predictedIndex = (lastIndex + Math.round(avgTravel)) % wheelLayout.length;
-            }
-            
-            const mainPrediction = wheelLayout[predictedIndex];
-            
-            // Get neighbors on each side based on selected count
-            const leftNeighbors = [];
-            const rightNeighbors = [];
-            
-            for (let i = 1; i <= neighborCount; i++) {
-                leftNeighbors.push(
-                    wheelLayout[(predictedIndex - i + wheelLayout.length) % wheelLayout.length]
-                );
-                rightNeighbors.push(
-                    wheelLayout[(predictedIndex + i) % wheelLayout.length]
-                );
-            }
-            
-            // Update current selection (main + left + right neighbors)
-            currentPrediction = mainPrediction;
-            currentSelection = [mainPrediction, ...leftNeighbors, ...rightNeighbors];
-            
-            // Update display
-            updatePredictionDisplay(mainPrediction, leftNeighbors, rightNeighbors);
-        }
+    if (spinHistory.length < 2) {
+        resetPrediction();
+        return;
+    }
+
+    const neighborCount = parseInt(neighborCountSelect.value) || 9;
+    const lastSpin = spinHistory[spinHistory.length - 1];
+    const lastIndex = wheelLayout.indexOf(lastSpin.number);
+    const upcomingDirection = currentDirection;
+
+    // Get recent travel distances in upcoming direction
+    const travelDistances = stats.travelPatterns
+        .filter(p => p.direction === upcomingDirection)
+        .map(p => p.distance);
+
+    if (travelDistances.length < 5) {
+        resetPrediction();
+        return;
+    }
+
+    // Use last 5
+    const recentFive = travelDistances.slice(0, 5);
+
+    // Remove highest and lowest
+    const sorted = [...recentFive].sort((a, b) => a - b);
+    const trimmed = sorted.slice(1, 4); // middle 3
+
+    // Average the 3
+    const avgTravel = Math.round(trimmed.reduce((a, b) => a + b, 0) / trimmed.length);
+
+    // Determine predicted index based on upcoming direction
+    let predictedIndex;
+    if (upcomingDirection === 'cw') {
+        predictedIndex = (lastIndex - avgTravel + wheelLayout.length) % wheelLayout.length;
+    } else {
+        predictedIndex = (lastIndex + avgTravel) % wheelLayout.length;
+    }
+
+    const mainPrediction = wheelLayout[predictedIndex];
+
+    // Get neighbors on each side
+    const leftNeighbors = [];
+    const rightNeighbors = [];
+
+    for (let i = 1; i <= neighborCount; i++) {
+        leftNeighbors.push(
+            wheelLayout[(predictedIndex - i + wheelLayout.length) % wheelLayout.length]
+        );
+        rightNeighbors.push(
+            wheelLayout[(predictedIndex + i) % wheelLayout.length]
+        );
+    }
+
+    // Save prediction state
+    currentPrediction = mainPrediction;
+    currentSelection = [mainPrediction, ...leftNeighbors, ...rightNeighbors];
+
+    // Update display
+    updatePredictionDisplay(mainPrediction, leftNeighbors, rightNeighbors);
+}
+
 
         function updatePredictionDisplay(mainNumber, leftNeighbors, rightNeighbors) {
             const neighborCount = parseInt(neighborCountSelect.value) || 9;
