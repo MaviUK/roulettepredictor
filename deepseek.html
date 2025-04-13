@@ -901,28 +901,33 @@
             ccwAvgTravelSpan.textContent = `${ccwAvgTravel}`;
         }
 
-        function updateTravelPatternsDisplay() {
-            travelPatternsDiv.innerHTML = `
-                <div class="pattern-row">
-                    <span>Direction</span>
-                    <span>From</span>
-                    <span>To</span>
-                    <span>Pockets</span>
-                </div>
-            `;
-            
-            stats.travelPatterns.slice(0, 5).forEach(pattern => {
-                const row = document.createElement('div');
-                row.className = 'pattern-row';
-                row.innerHTML = `
-                    <span>${pattern.direction.toUpperCase()}</span>
-                    <span>${pattern.from}</span>
-                    <span>${pattern.to}</span>
-                    <span>${pattern.distance}</span>
-                `;
-                travelPatternsDiv.appendChild(row);
-            });
-        }
+       function updateTravelPatternsDisplay() {
+    travelPatternsDiv.innerHTML = `
+        <div class="pattern-row">
+            <span>Direction</span>
+            <span>From</span>
+            <span>To</span>
+            <span>Pockets</span>
+        </div>
+    `;
+
+    // Filter and limit to 8 per direction
+    const cwPatterns = stats.travelPatterns.filter(p => p.direction === 'cw').slice(0, 8);
+    const ccwPatterns = stats.travelPatterns.filter(p => p.direction === 'ccw').slice(0, 8);
+
+    [...cwPatterns, ...ccwPatterns].forEach(pattern => {
+        const row = document.createElement('div');
+        row.className = 'pattern-row';
+        row.innerHTML = `
+            <span>${pattern.direction.toUpperCase()}</span>
+            <span>${pattern.from}</span>
+            <span>${pattern.to}</span>
+            <span>${pattern.distance}</span>
+        `;
+        travelPatternsDiv.appendChild(row);
+    });
+}
+
 
         function updateWheelDisplay() {
             // Clear previous markers
