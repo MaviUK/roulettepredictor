@@ -564,31 +564,6 @@
             maxLossesInput.addEventListener('change', updateMartingaleSettings);
         });
 
-function getTravelDistance(fromNumber, toNumber, direction) {
-    const fromIndex = wheelLayout.indexOf(fromNumber);
-    const toIndex = wheelLayout.indexOf(toNumber);
-
-    if (direction === 'cw') {
-        // CW = move forward in wheel layout
-        return (toIndex - fromIndex + wheelLayout.length) % wheelLayout.length;
-    } else {
-        // CCW = move backward in wheel layout
-        return (fromIndex - toIndex + wheelLayout.length) % wheelLayout.length;
-    }
-}
-
-
-
-function getWheelIndexFrom(number, distance, direction) {
-    const startIndex = wheelLayout.indexOf(number);
-    if (direction === 'cw') {
-        return (startIndex + distance) % wheelLayout.length;
-    } else {
-        return (startIndex - distance + wheelLayout.length) % wheelLayout.length;
-    }
-}
-
-
         // Create the visual roulette wheel
         function createWheel() {
             const radius = 140;
@@ -665,24 +640,26 @@ function getWheelIndexFrom(number, distance, direction) {
             const direction = currentDirection;
             
             // Calculate travel distance if we have previous spins
-let travelDistance = 0;
-if (spinHistory.length > 0) {
-    const lastSpin = spinHistory[spinHistory.length - 1];
-
-    travelDistance = getTravelDistance(
-        lastSpin.number,
-        number,
-        lastSpin.direction
-    );
-
-    stats.travelPatterns.unshift({
-        from: lastSpin.number,
-        to: number,
-        direction: lastSpin.direction,
-        distance: travelDistance
-    });
-}
-
+            let travelDistance = 0;
+            if (spinHistory.length > 0) {
+                const lastSpin = spinHistory[spinHistory.length - 1];
+                const lastIndex = wheelLayout.indexOf(lastSpin.number);
+                const currentIndex = wheelLayout.indexOf(number);
+                
+                if (lastSpin.direction === 'cw') {
+                    travelDistance = (lastIndex - currentIndex + wheelLayout.length) % wheelLayout.length;
+                } else {
+                    travelDistance = (currentIndex - lastIndex + wheelLayout.length) % wheelLayout.length;
+                }
+                
+                // Record travel pattern
+                stats.travelPatterns.unshift({
+                    from: lastSpin.number,
+                    to: number,
+                    direction: lastSpin.direction,
+                    distance: travelDistance
+                });
+                
                 if (stats.travelPatterns.length > 100) {
                     stats.travelPatterns.pop();
                 }
@@ -769,8 +746,13 @@ if (spinHistory.length > 0) {
     const trimmed = distances.slice().sort((a, b) => a - b).slice(1, 4);
     const avgTravel = Math.round(trimmed.reduce((a, b) => a + b, 0) / trimmed.length);
 
-   const predictedIndex = getWheelIndexFrom(lastSpin.number, Math.round(avgTravel), currentDirection);
-
+    // Predict the target index based on avgTravel
+    let predictedIndex;
+    if (nextDirection === 'cw') {
+        predictedIndex = (currentIndex - avgTravel + wheelLayout.length) % wheelLayout.length;
+    } else {
+        predictedIndex = (currentIndex + avgTravel) % wheelLayout.length;
+    }
 
     const mainPrediction = wheelLayout[predictedIndex];
 
