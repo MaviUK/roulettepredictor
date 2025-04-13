@@ -1,449 +1,1366 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Roulette Predictor</title>
-  <style>
-    body {
-      margin: 0;
-      font-family: Arial, sans-serif;
-      background-color: #f9fafb;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-    }
-    h1 {
-      margin: 1rem 0;
-    }
-    .container {
-      display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
-      gap: 1rem;
-      width: 100%;
-      max-width: 1400px;
-      padding: 1rem;
-      box-sizing: border-box;
-    }
-    .card {
-      background: white;
-      border-radius: 8px;
-      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
-      padding: 1rem;
-      box-sizing: border-box;
-    }
-    .analysis-card {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: flex-start;
-    }
-    .input-group, textarea, button, select, input {
-      font-size: 1rem;
-      margin: 0.25rem 0;
-      padding: 0.5rem;
-      width: 100%;
-      box-sizing: border-box;
-    }
-    button {
-      background-color: #2563eb;
-      color: white;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-    }
-    #wheelDisplay {
-      position: relative;
-      width: 250px;
-      height: 250px;
-      border-radius: 50%;
-      margin: 1rem auto;
-      border: 2px solid #999;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      overflow: visible;
-    }
-    .wheel-number {
-      position: absolute;
-      width: 36px;
-      height: 36px;
-      line-height: 36px;
-      text-align: center;
-      border-radius: 50%;
-      font-size: 0.9rem;
-      font-weight: bold;
-      transform-origin: 50% 125px;
-    }
-    .red { background: red; color: white; }
-    .black { background: black; color: white; }
-    .green { background: green; color: white; }
-    .yellow { background: yellow; color: black; }
-    .highlight { outline: 3px solid red; }
-    .number-block {
-      display: inline-block;
-      width: 28px;
-      height: 28px;
-      line-height: 28px;
-      text-align: center;
-      border-radius: 4px;
-      margin: 2px;
-      font-weight: bold;
-    }
-    .history-grid {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 2px;
-      max-height: 300px;
-      overflow-y: auto;
-    }
-    .neighbor-zones {
-      text-align: center;
-      margin-top: 1rem;
-    }
-    .neighbor-zones h4 {
-      margin: 0.25rem 0;
-    }
-    .martingale-summary p {
-      margin: 0.25rem 0;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Roulette</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+        .panel {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            flex: 1;
+            min-width: 300px;
+        }
+        h1, h2, h3 {
+            color: #2c3e50;
+        }
+        button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px 0;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        #exportMartingaleBtn {
+            background-color: #27ae60;
+            margin-top: 10px;
+        }
+        #exportMartingaleBtn:hover {
+            background-color: #219653;
+        }
+        input[type="number"], input[type="text"], select {
+            padding: 8px;
+            margin: 5px 0;
+            width: 100%;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        textarea {
+            width: 100%;
+            min-height: 100px;
+            padding: 8px;
+            margin: 10px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .history-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            margin-top: 10px;
+        }
+        .history-item {
+            background: #e74c3c;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .history-item.red {
+            background: #e74c3c;
+        }
+        .history-item.black {
+            background: #2c3e50;
+        }
+        .history-item.green {
+            background: #27ae60;
+        }
+        .predictions {
+            text-align: center;
+            margin: 20px 0;
+        }
+        .predicted-number {
+            font-size: 2em;
+            font-weight: bold;
+            color: #e74c3c;
+            margin: 10px 0;
+        }
+        .neighbors {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 20px;
+            margin: 10px 0;
+        }
+        .neighbor {
+            padding: 3px 8px;
+            background: #3498db;
+            color: white;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+        .wheel-display {
+            text-align: center;
+            margin: 20px 0;
+        }
+        .wheel {
+            width: 300px;
+            height: 300px;
+            border-radius: 50%;
+            background: #005a00;
+            margin: 0 auto;
+            position: relative;
+            border: 5px solid #2c3e50;
+            box-shadow: 0 0 20px rgba(0,0,0,0.3);
+        }
+        .wheel-number {
+            position: absolute;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 12px;
+            color: white;
+            transform-origin: center;
+        }
+        .wheel-number.green {
+            background: #008000;
+        }
+        .wheel-number.red {
+            background: #e74c3c;
+        }
+        .wheel-number.black {
+            background: #2c3e50;
+        }
+        .wheel-center {
+            position: absolute;
+            width: 60px;
+            height: 60px;
+            background: #f5f5f5;
+            border-radius: 50%;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            border: 3px solid #2c3e50;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+        }
+        .wheel-marker {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background: gold;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 10;
+        }
+        .wheel-prediction-range {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            border-radius: 50%;
+            pointer-events: none;
+        }
+        .stats {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 5px;
+        }
+        .stats-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 5px 0;
+        }
+        .selected-numbers {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            margin: 10px 0;
+        }
+        .selected-number {
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: 0.9em;
+        }
+        .win {
+            background-color: rgba(46, 204, 113, 0.2);
+            border: 1px solid #2ecc71;
+        }
+        .loss {
+            background-color: rgba(231, 76, 60, 0.2);
+            border: 1px solid #e74c3c;
+        }
+        .direction-stats {
+            display: flex;
+            gap: 20px;
+            margin-top: 15px;
+        }
+        .direction-stat {
+            flex: 1;
+            padding: 10px;
+            background: #ecf0f1;
+            border-radius: 5px;
+        }
+        .travel-pattern {
+            margin-top: 10px;
+            padding: 10px;
+            background: #f9f9f9;
+            border-radius: 5px;
+        }
+        .pattern-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 3px 0;
+        }
+        .neighbor-group {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 5px;
+        }
+        .neighbor-group-label {
+            font-size: 0.8em;
+            margin-bottom: 3px;
+            color: #7f8c8d;
+        }
+        .neighbor-container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 3px;
+            max-width: 200px;
+        }
+        .martingale-panel {
+            background: #fff8e1;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 15px;
+        }
+        .martingale-stats {
+            margin-top: 10px;
+        }
+        .profit {
+            color: #27ae60;
+            font-weight: bold;
+        }
+        .loss {
+            color: #e74c3c;
+            font-weight: bold;
+        }
+        .current-bet {
+            font-weight: bold;
+            color: #3498db;
+        }
+        .warning {
+            color: #e67e22;
+            font-weight: bold;
+        }
+    </style>
 </head>
 <body>
-  <h1>🎯 Roulette Predictor</h1>
-  <div class="container">
-    <!-- Left Panel -->
-    <div class="card">
-      <h2>Data Input</h2>
-      <label>Single Spin Entry</label>
-      <input type="number" id="singleTo" placeholder="Enter number (0-36)" />
-      <button onclick="addSimpleSpin()">Add Spin</button>
-
-      <label style="margin-top: 1rem;">Batch Input</label>
-      <textarea id="batchInput" placeholder="Enter numbers separated by commas or spaces (oldest first)"></textarea>
-      <button onclick="addBatchSpins()">Add Multiple Spins</button>
-
-      <div style="margin-top: 2rem;">
-        <h3>Martingale Betting System</h3>
-        <label>Base Bet per Number:</label>
-        <input type="number" id="baseBet" value="1" />
-        <label>Starting Bankroll:</label>
-        <input type="number" id="bankrollStart" value="1000" />
-        <button onclick="resetMartingale()">Reset Martingale</button>
-        <div class="martingale-summary">
-          <p>Current Bet: <span id="currentBet">1</span></p>
-          <p>Bankroll: <span id="bankroll">1000</span></p>
-          <p>Total Profit/Loss: <span id="profit">0</span></p>
-          <p>Loss Streak: <span id="lossStreak">0</span></p>
+    <h1>Advanced Roulette Analyst</h1>
+    <p>19-Number Prediction with Directional Learning & Martingale System</p>
+    
+    <div class="container">
+        <div class="panel">
+            <h2>Data Input</h2>
+            
+            <h3>Single Spin Entry</h3>
+            <div>
+                <input type="number" id="spinInput" placeholder="Enter number (0-36)" min="0" max="36">
+                <button id="addSpinBtn">Add Spin</button>
+            </div>
+            
+            <h3>Batch Input</h3>
+            <textarea id="batchInput" placeholder="Enter numbers separated by commas or spaces (oldest first)"></textarea>
+            <button id="batchAddBtn">Add Multiple Spins</button>
+            
+            <div class="martingale-panel">
+                <h3>Martingale Betting System</h3>
+                <div>
+                    <label for="baseBet">Base Bet per Number:</label>
+                    <input type="number" id="baseBet" min="1" value="1" step="0.5">
+                </div>
+                <div>
+                    <label for="bankroll">Starting Bankroll:</label>
+                    <input type="number" id="bankroll" min="1" value="100" step="1">
+                </div>
+                <div>
+                    <label for="maxLosses">Max Losses in a Row:</label>
+                    <input type="number" id="maxLosses" min="1" value="10" step="1">
+                    <span class="warning">(System will reset after this many losses)</span>
+                </div>
+                <button id="resetMartingaleBtn">Reset Martingale</button>
+                <button id="exportMartingaleBtn">Download Martingale Data</button>
+                
+                <div class="martingale-stats">
+                    <div class="stats-row">
+                        <span>Current Bet per Number:</span>
+                        <span id="currentBet" class="current-bet">1</span>
+                    </div>
+                    <div class="stats-row">
+                        <span>Current Bankroll:</span>
+                        <span id="currentBankroll">100</span>
+                    </div>
+                    <div class="stats-row">
+                        <span>Total Profit/Loss:</span>
+                        <span id="totalProfitLoss">0</span>
+                    </div>
+                    <div class="stats-row">
+                        <span>Current Streak:</span>
+                        <span id="currentStreak">0</span>
+                    </div>
+                    <div class="stats-row">
+                        <span>Longest Losing Streak:</span>
+                        <span id="longestStreak">0</span>
+                    </div>
+                    <div class="stats-row">
+                        <span>Total Bets Won:</span>
+                        <span id="betsWon">0</span>
+                    </div>
+                    <div class="stats-row">
+                        <span>Total Bets Lost:</span>
+                        <span id="betsLost">0</span>
+                    </div>
+                    <div class="stats-row">
+                        <span>Max Losses Setting:</span>
+                        <span id="maxLossesDisplay">10</span>
+                    </div>
+                </div>
+            </div>
         </div>
-      <p>Max CW Loss Streak: <strong id="maxCWStreak">0</strong></p>
-<p>Max CCW Loss Streak: <strong id="maxCCWStreak">0</strong></p>
-<p>Max Total Loss Streak: <strong id="maxTotalStreak">0</strong></p>
-</div>
-</div>
-<!-- Center Panel -->
-    <div class="card analysis-card">
-      <h2>Analysis</h2>
-      <div id="wheelDisplay"></div>
-      <div class="neighbor-zones">
-        <h4>Predicted Number: <span id="prediction">—</span></h4>
-        <div><strong>Left 9 (CCW):</strong> <div id="leftNeighbors"></div></div>
-        <div><strong>Right 9 (CW):</strong> <div id="rightNeighbors"></div></div>
-        <p style="margin-top: 0.5rem;">Last Number: <strong id="lastNumber">—</strong></p>
-      </div>
+        
+        <div class="panel">
+            <h2>Analysis</h2>
+            <div class="wheel-display">
+                <div class="wheel" id="rouletteWheel">
+                    <!-- Wheel numbers will be inserted here by JavaScript -->
+                    <div class="wheel-center">0</div>
+                </div>
+            </div>
+            
+            <div class="predictions">
+                <h3>Prediction Settings</h3>
+                <div>
+                    <label for="neighborCount">Number of Neighbors (each side):</label>
+                    <select id="neighborCount">
+                        <option value="2">2</option>
+                        <option value="3">3</option>
+                        <option value="4">4</option>
+                        <option value="5">5</option>
+                        <option value="6">6</option>
+                        <option value="7">7</option>
+                        <option value="8">8</option>
+                        <option value="9" selected>9</option>
+                    </select>
+                </div>
+                
+                <h3>Predicted Landing Zone</h3>
+                <div class="predicted-number" id="predictedNumber">-</div>
+                <div class="neighbors">
+                    <div class="neighbor-group">
+                        <div class="neighbor-group-label">Left 9 (CCW)</div>
+                        <div class="neighbor-container" id="leftNeighbors"></div>
+                    </div>
+                    <div class="neighbor-group">
+                        <div class="neighbor-group-label">Right 9 (CW)</div>
+                        <div class="neighbor-container" id="rightNeighbors"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="stats">
+                <h3>Current Selection</h3>
+                <div class="selected-numbers" id="selectedNumbers">
+                    <div>No active prediction</div>
+                </div>
+                
+                <h3>Performance Tracking</h3>
+                <div class="stats-row">
+                    <span>Total Spins:</span>
+                    <span id="totalSpins">0</span>
+                </div>
+                
+                <div class="direction-stats">
+                    <div class="direction-stat">
+                        <h4>Clockwise (CW)</h4>
+                        <div class="stats-row">
+                            <span>Wins:</span>
+                            <span id="cwWins">0</span>
+                        </div>
+                        <div class="stats-row">
+                            <span>Win %:</span>
+                            <span id="cwWinPct">0%</span>
+                        </div>
+                        <div class="stats-row">
+                            <span>Avg Travel:</span>
+                            <span id="cwAvgTravel">0</span>
+                        </div>
+                    </div>
+                    
+                    <div class="direction-stat">
+                        <h4>Counter-Clockwise (CCW)</h4>
+                        <div class="stats-row">
+                            <span>Wins:</span>
+                            <span id="ccwWins">0</span>
+                        </div>
+                        <div class="stats-row">
+                            <span>Win %:</span>
+                            <span id="ccwWinPct">0%</span>
+                        </div>
+                        <div class="stats-row">
+                            <span>Avg Travel:</span>
+                            <span id="ccwAvgTravel">0</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="travel-pattern">
+                    <h4>Recent Travel Patterns</h4>
+                    <div id="travelPatterns">
+                        <div class="pattern-row">
+                            <span>Direction</span>
+                            <span>From</span>
+                            <span>To</span>
+                            <span>Pockets</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="panel">
+            <h2>Spin History</h2>
+            <div class="history-controls">
+                <button id="clearHistoryBtn">Clear History</button>
+                <button id="exportHistoryBtn">Export Data</button>
+                <span id="historyCount">0 spins recorded</span>
+            </div>
+            <div id="historyList" class="history-list"></div>
+        </div>
     </div>
 
-    <!-- Right Panel -->
-    <div class="card">
-      <h2>Spin History</h2>
-      <button onclick="resetAll()">Clear History</button>
-      <button onclick="exportResults()">Export Data</button>
-      <div class="history-grid" id="cwHistory"></div>
-    </div>
-  </div>
+    <script>
+        // European wheel layout (single zero)
+        const wheelLayout = [
+            0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10, 5, 24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26
+        ];
 
-  <script>
-    const europeanWheel = [0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10, 5, 24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26];
-    const redNumbers = [32, 19, 21, 25, 27, 36, 30, 23, 5, 16, 1, 14, 9, 18, 7, 12, 3];
-    const blackNumbers = [15, 4, 2, 17, 6, 13, 11, 8, 10, 24, 33, 20, 31, 22, 29, 28, 35, 26];
+        // Red numbers for color assignment
+        const redNumbers = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
 
-    let spins = [];
-    let bankroll = 1000;
-    let baseBet = 1;
-    let currentLossStreak = 0;
-let maxCWStreak = 0;
-let maxCCWStreak = 0;
-let maxTotalStreak = 0;
-let currentCWStreak = 0;
-let currentCCWStreak = 0;
+        // Enhanced application state
+        let spinHistory = [];
+        let currentDirection = 'cw'; // cw = clockwise, ccw = counter-clockwise
+        let currentPrediction = null;
+        let currentSelection = [];
+        let stats = {
+            total: 0,
+            cw: {
+                wins: 0,
+                total: 0,
+                travelDistances: []
+            },
+            ccw: {
+                wins: 0,
+                total: 0,
+                travelDistances: []
+            },
+            travelPatterns: []
+        };
 
-    function getIndex(n) {
-      return europeanWheel.indexOf(n);
-    }
+        // Martingale system state
+        let martingale = {
+            baseBet: 1,
+            currentBet: 1,
+            bankroll: 100,
+            totalProfitLoss: 0,
+            currentStreak: 0,
+            longestStreak: 0,
+            betsWon: 0,
+            betsLost: 0,
+            maxLosses: 10,
+            active: false
+        };
 
-    function getNeighbors(num) {
-      const idx = getIndex(num);
-      let neighbors = [];
-      for (let i = -9; i <= 9; i++) {
-        neighbors.push(europeanWheel[(idx + i + europeanWheel.length) % europeanWheel.length]);
-      }
-      return neighbors;
-    }
+        // Martingale transaction history
+        let martingaleTransactions = [];
 
-    function renderBlock(n) {
-      let color = redNumbers.includes(n) ? 'red' : blackNumbers.includes(n) ? 'black' : n === 0 ? 'green' : 'gray';
-      return `<span class="number-block ${color}">${n}</span>`;
-    }
+        // DOM elements
+        const spinInput = document.getElementById('spinInput');
+        const addSpinBtn = document.getElementById('addSpinBtn');
+        const batchInput = document.getElementById('batchInput');
+        const batchAddBtn = document.getElementById('batchAddBtn');
+        const clearHistoryBtn = document.getElementById('clearHistoryBtn');
+        const exportHistoryBtn = document.getElementById('exportHistoryBtn');
+        const exportMartingaleBtn = document.getElementById('exportMartingaleBtn');
+        const historyCountSpan = document.getElementById('historyCount');
+        const historyListDiv = document.getElementById('historyList');
+        const predictedNumberDiv = document.getElementById('predictedNumber');
+        const leftNeighborsDiv = document.getElementById('leftNeighbors');
+        const rightNeighborsDiv = document.getElementById('rightNeighbors');
+        const selectedNumbersDiv = document.getElementById('selectedNumbers');
+        const totalSpinsSpan = document.getElementById('totalSpins');
+        const cwWinsSpan = document.getElementById('cwWins');
+        const cwWinPctSpan = document.getElementById('cwWinPct');
+        const cwAvgTravelSpan = document.getElementById('cwAvgTravel');
+        const ccwWinsSpan = document.getElementById('ccwWins');
+        const ccwWinPctSpan = document.getElementById('ccwWinPct');
+        const ccwAvgTravelSpan = document.getElementById('ccwAvgTravel');
+        const travelPatternsDiv = document.getElementById('travelPatterns');
+        const rouletteWheel = document.getElementById('rouletteWheel');
+        const neighborCountSelect = document.getElementById('neighborCount');
+        
+        // Martingale elements
+        const baseBetInput = document.getElementById('baseBet');
+        const bankrollInput = document.getElementById('bankroll');
+        const maxLossesInput = document.getElementById('maxLosses');
+        const resetMartingaleBtn = document.getElementById('resetMartingaleBtn');
+        const currentBetSpan = document.getElementById('currentBet');
+        const currentBankrollSpan = document.getElementById('currentBankroll');
+        const totalProfitLossSpan = document.getElementById('totalProfitLoss');
+        const currentStreakSpan = document.getElementById('currentStreak');
+        const longestStreakSpan = document.getElementById('longestStreak');
+        const betsWonSpan = document.getElementById('betsWon');
+        const betsLostSpan = document.getElementById('betsLost');
+        const maxLossesDisplaySpan = document.getElementById('maxLossesDisplay');
 
-    function renderWheel(predicted, neighbors) {
-      const wheel = document.getElementById("wheelDisplay");
-      wheel.innerHTML = "";
-      const angleStep = 360 / europeanWheel.length;
-      europeanWheel.forEach((n, i) => {
-        const angle = i * angleStep;
-        const el = document.createElement("div");
-        el.className = "wheel-number";
-        el.style.transform = `rotate(${angle}deg) translate(0, -125px) rotate(-${angle}deg)`;
-        if (n === 0) el.classList.add("green");
-        else if (redNumbers.includes(n)) el.classList.add("red");
-        else if (blackNumbers.includes(n)) el.classList.add("black");
-        if (n === predicted) el.classList.add("highlight");
-        else if (neighbors.includes(n)) el.classList.add("yellow");
-        el.textContent = n;
-        wheel.appendChild(el);
-      });
-    }
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            createWheel();
+            updateHistoryDisplay();
+            updateStatsDisplay();
+            updateMartingaleDisplay();
+            
+            // Load from localStorage if available
+            loadFromLocalStorage();
+            
+            // Add event listener for neighbor count change
+            neighborCountSelect.addEventListener('change', () => {
+                if (spinHistory.length > 0) {
+                    generatePrediction();
+                }
+            });
+            
+            // Add event listener for max losses change
+            maxLossesInput.addEventListener('change', updateMartingaleSettings);
+        });
 
-    function displayNeighbors(predicted) {
-      const neighbors = getNeighbors(predicted);
-      const left = neighbors.slice(0, 9);
-      const right = neighbors.slice(10);
-      document.getElementById("prediction").textContent = predicted;
-      document.getElementById("leftNeighbors").innerHTML = left.map(renderBlock).join('');
-      document.getElementById("rightNeighbors").innerHTML = right.map(renderBlock).join('');
-    }
+        // Create the visual roulette wheel
+        function createWheel() {
+            const radius = 140;
+            const centerX = 150;
+            const centerY = 150;
+            const angleIncrement = (2 * Math.PI) / wheelLayout.length;
+            
+            wheelLayout.forEach((number, index) => {
+                const angle = index * angleIncrement - Math.PI / 2; // Offset by 90 degrees to start at top
+                const x = centerX + radius * Math.cos(angle);
+                const y = centerY + radius * Math.sin(angle);
+                
+                const numberElement = document.createElement('div');
+                numberElement.className = `wheel-number ${getColorForNumber(number)}`;
+                numberElement.textContent = number;
+                numberElement.style.left = `${x - 15}px`;
+                numberElement.style.top = `${y - 15}px`;
+                numberElement.style.transform = `rotate(${angle + Math.PI/2}rad)`;
+                
+                rouletteWheel.appendChild(numberElement);
+            });
+        }
 
-    function updateStats(predicted, result, direction) {
-  baseBet = parseFloat(document.getElementById("baseBet").value);
-  let totalBet = baseBet * 19;
+        // Event listeners
+        addSpinBtn.addEventListener('click', addSingleSpin);
+        batchAddBtn.addEventListener('click', addBatchSpins);
+        clearHistoryBtn.addEventListener('click', clearHistory);
+        exportHistoryBtn.addEventListener('click', exportHistory);
+        exportMartingaleBtn.addEventListener('click', exportMartingaleData);
+        spinInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') addSingleSpin();
+        });
+        
+        // Martingale controls
+        baseBetInput.addEventListener('change', updateMartingaleSettings);
+        bankrollInput.addEventListener('change', updateMartingaleSettings);
+        resetMartingaleBtn.addEventListener('click', resetMartingale);
 
-  if (result) {
-    bankroll += baseBet * 36; // win returns 36x base bet on one number
-    currentLossStreak = 0;
-    if (direction === 'CW') currentCWStreak = 0;
-    if (direction === 'CCW') currentCCWStreak = 0;
-  } else {
-    bankroll -= totalBet; // lose deducts total bet across 19 numbers
-    currentLossStreak++;
-    if (direction === 'CW') {
-      currentCWStreak++;
-      maxCWStreak = Math.max(maxCWStreak, currentCWStreak);
-    } else {
-      currentCCWStreak++;
-      maxCCWStreak = Math.max(maxCCWStreak, currentCCWStreak);
-    }
-    maxTotalStreak = Math.max(maxTotalStreak, currentLossStreak);
-  }
+        // Core functions
+        function addSingleSpin() {
+            const number = parseInt(spinInput.value);
+            if (isNaN(number) || number < 0 || number > 36) {
+                alert('Please enter a valid number between 0 and 36');
+                return;
+            }
+            
+            recordSpin(number);
+            spinInput.value = '';
+            spinInput.focus();
+        }
 
-  document.getElementById("bankroll").textContent = bankroll.toFixed(2);
-  document.getElementById("profit").textContent = (bankroll - parseFloat(document.getElementById("bankrollStart").value)).toFixed(2);
-  document.getElementById("lossStreak").textContent = currentLossStreak;
-  document.getElementById("currentBet").textContent = baseBet.toFixed(2);
-  document.getElementById("maxCWStreak").textContent = maxCWStreak;
-  document.getElementById("maxCCWStreak").textContent = maxCCWStreak;
-  document.getElementById("maxTotalStreak").textContent = maxTotalStreak;
-} else {
-    bankroll -= baseBet * 19;
-    currentLossStreak++;
-    if (direction === 'CW') {
-      currentCWStreak++;
-      maxCWStreak = Math.max(maxCWStreak, currentCWStreak);
-    } else {
-      currentCCWStreak++;
-      maxCCWStreak = Math.max(maxCCWStreak, currentCCWStreak);
-    }
-    maxTotalStreak = Math.max(maxTotalStreak, currentLossStreak);
-  }
-  
-  document.getElementById("maxCWStreak").textContent = maxCWStreak;
-  document.getElementById("maxCCWStreak").textContent = maxCCWStreak;
-  document.getElementById("maxTotalStreak").textContent = maxTotalStreak;
+        function addBatchSpins() {
+            const input = batchInput.value.trim();
+            if (!input) return;
+            
+            const numbers = input.split(/[\s,]+/)
+                .map(n => parseInt(n))
+                .filter(n => !isNaN(n) && n >= 0 && n <= 36);
+            
+            if (numbers.length === 0) {
+                alert('No valid numbers found');
+                return;
+            }
+            
+            numbers.forEach(number => {
+                recordSpin(number);
+            });
+            
+            batchInput.value = '';
+        }
 
-      document.getElementById("bankroll").textContent = bankroll.toFixed(2);
-      document.getElementById("profit").textContent = (bankroll - parseFloat(document.getElementById("bankrollStart").value)).toFixed(2);
-      document.getElementById("lossStreak").textContent = currentLossStreak;
-      document.getElementById("currentBet").textContent = baseBet.toFixed(2);
-    }
+        function recordSpin(number) {
+            const color = getColorForNumber(number);
+            const direction = currentDirection;
+            
+            // Calculate travel distance if we have previous spins
+            let travelDistance = 0;
+            if (spinHistory.length > 0) {
+                const lastSpin = spinHistory[spinHistory.length - 1];
+                const lastIndex = wheelLayout.indexOf(lastSpin.number);
+                const currentIndex = wheelLayout.indexOf(number);
+                
+                if (lastSpin.direction === 'cw') {
+                    travelDistance = (lastIndex - currentIndex + wheelLayout.length) % wheelLayout.length;
+                } else {
+                    travelDistance = (currentIndex - lastIndex + wheelLayout.length) % wheelLayout.length;
+                }
+                
+                // Record travel pattern
+                stats.travelPatterns.unshift({
+                    from: lastSpin.number,
+                    to: number,
+                    direction: lastSpin.direction,
+                    distance: travelDistance
+                });
+                
+                if (stats.travelPatterns.length > 100) {
+                    stats.travelPatterns.pop();
+                }
+            }
+            
+            // Add to history
+            spinHistory.push({
+                number,
+                color,
+                direction,
+                timestamp: new Date().toISOString()
+            });
+            
+            // Update direction-specific stats
+            if (direction === 'cw') {
+                stats.cw.total++;
+                stats.cw.travelDistances.push(travelDistance);
+            } else {
+                stats.ccw.total++;
+                stats.ccw.travelDistances.push(travelDistance);
+            }
+            
+            // Check if this number was in our current selection
+            if (currentSelection.length > 0) {
+                updateStats(number);
+                updateMartingaleStats(number);
+            }
+            
+            // Alternate direction for next spin
+            currentDirection = currentDirection === 'cw' ? 'ccw' : 'cw';
+            
+            // Generate new prediction
+            generatePrediction();
+            
+            updateHistoryDisplay();
+            updateStatsDisplay();
+            updateWheelDisplay();
+            updateTravelPatternsDisplay();
+            updateMartingaleDisplay();
+            
+            // Save to localStorage
+            saveToLocalStorage();
+        }
 
-    function predictNext() {
-      if (spins.length < 5) return null;
-      const last = spins.at(-1);
-      const dir = last.direction === "CW" ? "CCW" : "CW";
-      const relevant = spins.filter(s => s.direction === dir).slice(-5);
-      if (relevant.length < 5) return null;
-      const avg = Math.round(relevant.map(s => s.pockets).sort((a,b)=>a-b).slice(1,4).reduce((a,b)=>a+b)/3);
-      const idx = getIndex(last.to);
-      const newIdx = dir === "CW" ? (idx + avg) % europeanWheel.length : (idx - avg + europeanWheel.length) % europeanWheel.length;
-      return europeanWheel[newIdx];
-    }
-
-    function handleSpin(to) {
-  const toIdx = getIndex(to);
-  if (toIdx === -1) {
-    alert("Invalid number: " + to);
-    return;
-  }
-  const direction = spins.length && spins.at(-1).direction === "CW" ? "CCW" : "CW";
-      const from = spins.length ? spins.at(-1).to : to;
-      const fromIdx = getIndex(from);
-  if (fromIdx === -1) {
-    alert("Invalid 'from' number: " + from);
-    return;
-  }
-  const pockets = Math.abs(toIdx - fromIdx);
-      spins.push({ from, to, direction, pockets });
-      const predicted = predictNext();
-      if (!predicted) {
-        renderWheel(null, []);
-        document.getElementById("prediction").textContent = '—';
-        document.getElementById("leftNeighbors").innerHTML = '';
-        document.getElementById("rightNeighbors").innerHTML = '';
-        document.getElementById("lastNumber").textContent = to;
-        document.getElementById("cwHistory").innerHTML = spins.slice(-40).map(s => renderBlock(s.to)).join('');
+       function generatePrediction() {
+    if (spinHistory.length < 2) {
+        resetPrediction();
         return;
-      }
-      const neighbors = getNeighbors(predicted);
-      const result = neighbors.includes(to);
-      updateStats(predicted, result, direction);
-      document.getElementById("lastNumber").textContent = to;
-      renderWheel(predicted, neighbors);
-      displayNeighbors(predicted);
-      document.getElementById("cwHistory").innerHTML = spins.slice(-40).map(s => renderBlock(s.to)).join('');
     }
 
-    function addSimpleSpin() {
-  const input = document.getElementById("singleTo");
-  const to = Number(input.value);
-  if (!isNaN(to) && europeanWheel.includes(to)) {
-    console.log("Adding spin:", to);
-    handleSpin(to);
-  } else {
-    alert("Invalid number. Please enter a value from 0 to 36.");
-  }
-      input.value = '';
+    const neighborCount = parseInt(neighborCountSelect.value) || 9;
+    const lastSpin = spinHistory[spinHistory.length - 1];
+    const currentIndex = wheelLayout.indexOf(lastSpin.number);
+    const nextDirection = currentDirection;
+
+    // Gather the last 5 spins in the next direction
+    const recentDirectionSpins = [];
+    for (let i = spinHistory.length - 1; i > 0 && recentDirectionSpins.length < 5; i--) {
+        const spin = spinHistory[i];
+        const prev = spinHistory[i - 1];
+        if (spin.direction === nextDirection) {
+            recentDirectionSpins.push({ from: prev.number, to: spin.number });
+        }
     }
 
-    function addBatchSpins() {
-  const input = document.getElementById("batchInput").value;
-  const numbers = input.split(/[^0-9]+/).map(Number).filter(n => !isNaN(n) && europeanWheel.includes(n));
-  if (numbers.length === 0) {
-    alert("No valid numbers found in batch. Use numbers between 0 and 36.");
-    return;
-  }
-  numbers.forEach(n => handleSpin(n));
-  document.getElementById("batchInput").value = '';
+    if (recentDirectionSpins.length < 5) {
+        resetPrediction();
+        return;
     }
 
-    function resetMartingale() {
-  bankroll = parseFloat(document.getElementById("bankrollStart").value);
-  currentLossStreak = 0;
-  currentCWStreak = 0;
-  currentCCWStreak = 0;
-  maxCWStreak = 0;
-  maxCCWStreak = 0;
-  maxTotalStreak = 0;
-  document.getElementById("bankroll").textContent = bankroll.toFixed(2);
-  document.getElementById("profit").textContent = '0';
-  document.getElementById("lossStreak").textContent = '0';
-  document.getElementById("maxCWStreak").textContent = '0';
-  document.getElementById("maxCCWStreak").textContent = '0';
-  document.getElementById("maxTotalStreak").textContent = '0';
-}
+    // Calculate travel distances
+    const distances = recentDirectionSpins.map(pair => {
+        const fromIndex = wheelLayout.indexOf(pair.from);
+        const toIndex = wheelLayout.indexOf(pair.to);
 
-    function resetAll() {
-      spins = [];
-      document.getElementById("cwHistory").innerHTML = '';
-      document.getElementById("lastNumber").textContent = '—';
-      document.getElementById("wheelDisplay").innerHTML = '';
-      document.getElementById("prediction").textContent = '—';
-      document.getElementById("leftNeighbors").innerHTML = '';
-      document.getElementById("rightNeighbors").innerHTML = '';
-      resetMartingale();
-    }
+        if (nextDirection === 'cw') {
+            return (fromIndex - toIndex + wheelLayout.length) % wheelLayout.length;
+        } else {
+            return (toIndex - fromIndex + wheelLayout.length) % wheelLayout.length;
+        }
+    });
 
-    function exportResults() {
-  if (spins.length === 0) return;
+    // Sort, remove highest & lowest, and average the middle 3
+    const trimmed = distances.slice().sort((a, b) => a - b).slice(1, 4);
+    const avgTravel = Math.round(trimmed.reduce((a, b) => a + b, 0) / trimmed.length);
 
-  const rows = [[
-    "Predicted Number",
-    "Neighbors",
-    "Landed Number",
-    "From",
-    "Pockets",
-    "Result",
-    "Direction",
-    "Losing Streak",
-    "CW Streak",
-    "CCW Streak",
-    "Bet This Round",
-    "Temp Bankroll",
-    "Running Profit"
-  ]];
-
-  let tempBankroll = parseFloat(document.getElementById("bankrollStart").value);
-  let baseBet = parseFloat(document.getElementById("baseBet").value);
-  let lossStreak = 0;
-  let cwStreak = 0;
-  let ccwStreak = 0;
-
-  for (let i = 1; i < spins.length; i++) {
-    const history = spins.slice(0, i);
-    const predicted = predictNext(history);
-    const neighbors = predicted ? getNeighbors(predicted) : [];
-    const to = spins[i].to;
-    const from = spins[i].from;
-    const pockets = spins[i].pockets;
-    const direction = spins[i].direction;
-    const result = neighbors.includes(to) ? "Win" : "Lose";
-
-    if (result === "Win") {
-      lossStreak = 0;
-      if (direction === "CW") cwStreak = 0;
-      else ccwStreak = 0;
-      tempBankroll += baseBet * 18;
+    // Predict the target index based on avgTravel
+    let predictedIndex;
+    if (nextDirection === 'cw') {
+        predictedIndex = (currentIndex - avgTravel + wheelLayout.length) % wheelLayout.length;
     } else {
-      lossStreak++;
-      if (direction === "CW") cwStreak++;
-      else ccwStreak++;
-      tempBankroll -= baseBet * 19;
+        predictedIndex = (currentIndex + avgTravel) % wheelLayout.length;
     }
 
-    rows.push([
-      predicted ?? "N/A",
-      neighbors.join(" "),
-      to,
-      from,
-      pockets,
-      result,
-      direction,
-      lossStreak,
-      cwStreak,
-      ccwStreak,
-      (baseBet * 19).toFixed(2),
-      tempBankroll.toFixed(2),
-      (tempBankroll - parseFloat(document.getElementById("bankrollStart").value)).toFixed(2)
-    ]);
-  }
+    const mainPrediction = wheelLayout[predictedIndex];
 
-  const csv = "data:text/csv;charset=utf-8," + rows.map(r => r.join(",")).join("
-");
-  const link = document.createElement("a");
-  link.href = encodeURI(csv);
-  link.download = "roulette_results.csv";
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
+    // Get neighbors
+    const leftNeighbors = [];
+    const rightNeighbors = [];
+
+    for (let i = 1; i <= neighborCount; i++) {
+        leftNeighbors.push(wheelLayout[(predictedIndex - i + wheelLayout.length) % wheelLayout.length]);
+        rightNeighbors.push(wheelLayout[(predictedIndex + i) % wheelLayout.length]);
+    }
+
+    currentPrediction = mainPrediction;
+    currentSelection = [mainPrediction, ...leftNeighbors, ...rightNeighbors];
+    updatePredictionDisplay(mainPrediction, leftNeighbors, rightNeighbors);
 }
-  </script>
+
+
+        function updatePredictionDisplay(mainNumber, leftNeighbors, rightNeighbors) {
+            const neighborCount = parseInt(neighborCountSelect.value) || 9;
+            const mainColor = getColorForNumber(mainNumber);
+            
+            predictedNumberDiv.textContent = mainNumber;
+            predictedNumberDiv.style.color = mainColor === 'red' ? '#e74c3c' : 
+                                          mainColor === 'black' ? '#2c3e50' : '#27ae60';
+            
+            // Update left neighbors (counter-clockwise)
+            leftNeighborsDiv.innerHTML = '';
+            const leftGroupLabel = leftNeighborsDiv.parentElement.querySelector('.neighbor-group-label');
+            leftGroupLabel.textContent = `Left ${neighborCount} (CCW)`;
+            
+            leftNeighbors.forEach(neighbor => {
+                const neighborColor = getColorForNumber(neighbor);
+                const neighborElement = document.createElement('div');
+                neighborElement.className = 'neighbor';
+                neighborElement.textContent = neighbor;
+                neighborElement.style.backgroundColor = neighborColor === 'red' ? '#e74c3c' : 
+                                                      neighborColor === 'black' ? '#2c3e50' : '#27ae60';
+                leftNeighborsDiv.appendChild(neighborElement);
+            });
+            
+            // Update right neighbors (clockwise)
+            rightNeighborsDiv.innerHTML = '';
+            const rightGroupLabel = rightNeighborsDiv.parentElement.querySelector('.neighbor-group-label');
+            rightGroupLabel.textContent = `Right ${neighborCount} (CW)`;
+            
+            rightNeighbors.forEach(neighbor => {
+                const neighborColor = getColorForNumber(neighbor);
+                const neighborElement = document.createElement('div');
+                neighborElement.className = 'neighbor';
+                neighborElement.textContent = neighbor;
+                neighborElement.style.backgroundColor = neighborColor === 'red' ? '#e74c3c' : 
+                                                      neighborColor === 'black' ? '#2c3e50' : '#27ae60';
+                rightNeighborsDiv.appendChild(neighborElement);
+            });
+            
+            updateSelectedNumbersDisplay();
+        }
+
+        function updateSelectedNumbersDisplay() {
+            selectedNumbersDiv.innerHTML = '';
+            
+            const neighborCount = parseInt(neighborCountSelect.value) || 9;
+            // Group numbers by their position relative to prediction
+            const leftNumbers = currentSelection.slice(1, 1 + neighborCount).reverse(); // Left neighbors (counter-clockwise)
+            const mainNumber = currentSelection[0];
+            const rightNumbers = currentSelection.slice(1 + neighborCount); // Right neighbors (clockwise)
+            
+            // Display left neighbors
+            leftNumbers.forEach(num => {
+                addNumberToSelectionDisplay(num, 'left');
+            });
+            
+            // Display main prediction
+            addNumberToSelectionDisplay(mainNumber, 'main');
+            
+            // Display right neighbors
+            rightNumbers.forEach(num => {
+                addNumberToSelectionDisplay(num, 'right');
+            });
+        }
+
+        function addNumberToSelectionDisplay(number, position) {
+            const numElement = document.createElement('div');
+            numElement.className = 'selected-number';
+            numElement.textContent = number;
+            
+            // Color based on position
+            if (position === 'main') {
+                numElement.style.backgroundColor = getColorForNumber(number) === 'red' ? '#e74c3c' : 
+                                                  getColorForNumber(number) === 'black' ? '#2c3e50' : '#27ae60';
+                numElement.style.color = 'white';
+            }
+            
+            // Check if this number was in the last spin
+            if (spinHistory.length > 0) {
+                const lastNumber = spinHistory[spinHistory.length - 1].number;
+                if (number === lastNumber) {
+                    numElement.classList.add('win');
+                } else if (currentSelection.includes(lastNumber)) {
+                    numElement.classList.add('loss');
+                }
+            }
+            
+            selectedNumbersDiv.appendChild(numElement);
+        }
+
+        function updateStats(number) {
+            stats.total++;
+            
+            const wasWin = currentSelection.includes(number);
+            const lastSpin = spinHistory[spinHistory.length - 1];
+            
+            if (wasWin) {
+                if (lastSpin.direction === 'cw') {
+                    stats.cw.wins++;
+                } else {
+                    stats.ccw.wins++;
+                }
+            }
+        }
+
+        function updateStatsDisplay() {
+            totalSpinsSpan.textContent = stats.total;
+            
+            // CW stats
+            cwWinsSpan.textContent = stats.cw.wins;
+            const cwWinPct = stats.cw.total > 0 ? 
+                Math.round((stats.cw.wins / stats.cw.total) * 100) : 0;
+            cwWinPctSpan.textContent = `${cwWinPct}%`;
+            
+            const cwAvgTravel = stats.cw.travelDistances.length > 0 ?
+                Math.round(stats.cw.travelDistances.reduce((a, b) => a + b, 0) / 
+                          stats.cw.travelDistances.length) : 0;
+            cwAvgTravelSpan.textContent = `${cwAvgTravel}`;
+            
+            // CCW stats
+            ccwWinsSpan.textContent = stats.ccw.wins;
+            const ccwWinPct = stats.ccw.total > 0 ? 
+                Math.round((stats.ccw.wins / stats.ccw.total) * 100) : 0;
+            ccwWinPctSpan.textContent = `${ccwWinPct}%`;
+            
+            const ccwAvgTravel = stats.ccw.travelDistances.length > 0 ?
+                Math.round(stats.ccw.travelDistances.reduce((a, b) => a + b, 0) / 
+                          stats.ccw.travelDistances.length) : 0;
+            ccwAvgTravelSpan.textContent = `${ccwAvgTravel}`;
+        }
+
+  function updateTravelPatternsDisplay() {
+    travelPatternsDiv.innerHTML = `
+        <div class="pattern-row">
+            <span>Direction</span>
+            <span>From</span>
+            <span>To</span>
+            <span>Pockets</span>
+        </div>
+    `;
+
+    const maxCW = 8;
+    const maxCCW = 8;
+    let cwCount = 0;
+    let ccwCount = 0;
+
+    const selectedPatterns = [];
+
+    // Loop through the full list in order (most recent first)
+    for (let i = 0; i < stats.travelPatterns.length; i++) {
+        const pattern = stats.travelPatterns[i];
+
+        if (pattern.direction === 'cw' && cwCount < maxCW) {
+            selectedPatterns.push({ ...pattern, originalIndex: i });
+            cwCount++;
+        } else if (pattern.direction === 'ccw' && ccwCount < maxCCW) {
+            selectedPatterns.push({ ...pattern, originalIndex: i });
+            ccwCount++;
+        }
+
+        if (cwCount >= maxCW && ccwCount >= maxCCW) {
+            break;
+        }
+    }
+
+    // Sort the selected patterns to match their original order
+    selectedPatterns.sort((a, b) => a.originalIndex - b.originalIndex);
+
+    // Render
+    selectedPatterns.forEach(pattern => {
+        const row = document.createElement('div');
+        row.className = 'pattern-row';
+        row.innerHTML = `
+            <span>${pattern.direction.toUpperCase()}</span>
+            <span>${pattern.from}</span>
+            <span>${pattern.to}</span>
+            <span>${pattern.distance}</span>
+        `;
+        travelPatternsDiv.appendChild(row);
+    });
+}
+
+        function updateWheelDisplay() {
+            // Clear previous markers
+            const oldMarkers = document.querySelectorAll('.wheel-marker, .wheel-prediction-range');
+            oldMarkers.forEach(marker => marker.remove());
+            
+            if (spinHistory.length === 0) return;
+            
+            // Show last spin
+            const lastSpin = spinHistory[spinHistory.length - 1];
+            const lastIndex = wheelLayout.indexOf(lastSpin.number);
+            const angleIncrement = (2 * Math.PI) / wheelLayout.length;
+            const lastAngle = lastIndex * angleIncrement - Math.PI / 2;
+            
+            const lastX = 150 + 140 * Math.cos(lastAngle);
+            const lastY = 150 + 140 * Math.sin(lastAngle);
+            
+            const lastMarker = document.createElement('div');
+            lastMarker.className = 'wheel-marker';
+            lastMarker.style.backgroundColor = 'gold';
+            lastMarker.style.left = `${lastX}px`;
+            lastMarker.style.top = `${lastY}px`;
+            lastMarker.title = `Last: ${lastSpin.number} (${lastSpin.direction.toUpperCase()})`;
+            rouletteWheel.appendChild(lastMarker);
+            
+            // Show prediction if available
+            if (currentPrediction) {
+                const neighborCount = parseInt(neighborCountSelect.value) || 9;
+                const predIndex = wheelLayout.indexOf(currentPrediction);
+                const predAngle = predIndex * angleIncrement - Math.PI / 2;
+                const predX = 150 + 140 * Math.cos(predAngle);
+                const predY = 150 + 140 * Math.sin(predAngle);
+                
+                const predMarker = document.createElement('div');
+                predMarker.className = 'wheel-marker';
+                predMarker.style.backgroundColor = 'red';
+                predMarker.style.left = `${predX}px`;
+                predMarker.style.top = `${predY}px`;
+                predMarker.title = `Predicted: ${currentPrediction} (${currentDirection.toUpperCase()})`;
+                rouletteWheel.appendChild(predMarker);
+                
+                // Show prediction range (main + neighbors)
+                const leftIndex = (predIndex - neighborCount + wheelLayout.length) % wheelLayout.length;
+                const rightIndex = (predIndex + neighborCount) % wheelLayout.length;
+                
+                const leftAngle = leftIndex * angleIncrement - Math.PI / 2;
+                const rightAngle = rightIndex * angleIncrement - Math.PI / 2;
+                
+                // Create range indicator
+                const rangeIndicator = document.createElement('div');
+                rangeIndicator.className = 'wheel-prediction-range';
+                
+                // Create SVG arc for the range
+                const svgNS = "http://www.w3.org/2000/svg";
+                const svg = document.createElementNS(svgNS, "svg");
+                svg.setAttribute("width", "100%");
+                svg.setAttribute("height", "100%");
+                svg.setAttribute("viewBox", "0 0 300 300");
+                
+                const path = document.createElementNS(svgNS, "path");
+                const startAngle = rightAngle; // We go CW from right to left
+                const endAngle = leftAngle;
+                
+                // Calculate large arc flag
+                const arcLength = (endAngle - startAngle + 2 * Math.PI) % (2 * Math.PI);
+                const largeArcFlag = arcLength > Math.PI ? 1 : 0;
+                
+                // Create the arc path
+                const startX = 150 + 110 * Math.cos(startAngle);
+                const startY = 150 + 110 * Math.sin(startAngle);
+                const endX = 150 + 110 * Math.cos(endAngle);
+                const endY = 150 + 110 * Math.sin(endAngle);
+                
+                path.setAttribute("d", `M ${startX} ${startY} A 110 110 0 ${largeArcFlag} 0 ${endX} ${endY}`);
+                path.setAttribute("stroke", "rgba(255, 215, 0, 0.5)");
+                path.setAttribute("stroke-width", "20");
+                path.setAttribute("fill", "none");
+                path.setAttribute("stroke-linecap", "round");
+                
+                svg.appendChild(path);
+                rangeIndicator.appendChild(svg);
+                rouletteWheel.appendChild(rangeIndicator);
+            }
+        }
+
+        function updateHistoryDisplay() {
+            historyListDiv.innerHTML = '';
+            // Show history in reverse order (newest first)
+            const reversedHistory = [...spinHistory].reverse();
+            reversedHistory.forEach((spin, index) => {
+                const spinElement = document.createElement('div');
+                spinElement.className = `history-item ${spin.color}`;
+                spinElement.textContent = spin.number;
+                spinElement.title = `Spin ${spinHistory.length - index}: ${spin.number} ${spin.color} (${spin.direction.toUpperCase()})`;
+                historyListDiv.appendChild(spinElement);
+            });
+            
+            historyCountSpan.textContent = `${spinHistory.length} spins recorded`;
+        }
+
+        function resetPrediction() {
+            currentPrediction = null;
+            currentSelection = [];
+            
+            predictedNumberDiv.textContent = '-';
+            leftNeighborsDiv.innerHTML = '';
+            rightNeighborsDiv.innerHTML = '';
+            
+            selectedNumbersDiv.innerHTML = '<div>No active prediction</div>';
+        }
+
+        function clearHistory() {
+            if (confirm('Are you sure you want to clear all history?')) {
+                spinHistory = [];
+                currentDirection = 'cw';
+                stats = {
+                    total: 0,
+                    cw: {
+                        wins: 0,
+                        total: 0,
+                        travelDistances: []
+                    },
+                    ccw: {
+                        wins: 0,
+                        total: 0,
+                        travelDistances: []
+                    },
+                    travelPatterns: []
+                };
+                resetMartingale();
+                resetPrediction();
+                updateHistoryDisplay();
+                updateStatsDisplay();
+                updateTravelPatternsDisplay();
+                updateWheelDisplay();
+                saveToLocalStorage();
+            }
+        }
+
+        function exportHistory() {
+            if (spinHistory.length === 0) {
+                alert('No history to export');
+                return;
+            }
+            
+            const csvContent = "data:text/csv;charset=utf-8," +
+                ["Number,Color,Direction,Timestamp"]
+                .concat(spinHistory.map(spin => 
+                    `${spin.number},${spin.color},${spin.direction},${spin.timestamp}`
+                )).join("\n");
+            
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", "roulette_history.csv");
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        function exportMartingaleData() {
+            if (martingaleTransactions.length === 0) {
+                alert('No Martingale data to export');
+                return;
+            }
+            
+            const headers = [
+                'Timestamp', 'Spin Number', 'Result', 'Landed Number', 
+                'Numbers Bet', 'Bet Per Number', 'Total Bet', 'Payout',
+                'Profit/Loss', 'Streak', 'Bankroll After', 'Direction'
+            ];
+            
+            const csvRows = [
+                headers.join(','), // header row first
+                ...martingaleTransactions.map(t => [
+                    t.timestamp,
+                    t.spinNumber,
+                    t.result,
+                    t.numberLanded,
+                    `"${t.numbersBet}"`, // wrap in quotes in case numbers contain commas
+                    t.betPerNumber.toFixed(2),
+                    t.totalBet.toFixed(2),
+                    t.payout.toFixed(2),
+                    t.profitLoss.toFixed(2),
+                    t.currentStreak,
+                    t.bankrollAfter.toFixed(2),
+                    t.direction.toUpperCase()
+                ].join(','))
+            ];
+            
+            const csvContent = csvRows.join('\n');
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.setAttribute('href', url);
+            link.setAttribute('download', `martingale_data_${new Date().toISOString().slice(0,10)}.csv`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        function getColorForNumber(number) {
+            // 0 is green
+            if (number === 0) return 'green';
+            
+            // Red numbers
+            return redNumbers.includes(number) ? 'red' : 'black';
+        }
+        
+        function saveToLocalStorage() {
+            const data = {
+                spinHistory,
+                stats,
+                martingale,
+                martingaleTransactions,
+                currentDirection,
+                currentPrediction,
+                currentSelection,
+                neighborCount: parseInt(neighborCountSelect.value) || 9
+            };
+            localStorage.setItem('rouletteAnalystData', JSON.stringify(data));
+        }
+        
+        function loadFromLocalStorage() {
+            const savedData = localStorage.getItem('rouletteAnalystData');
+            if (savedData) {
+                const data = JSON.parse(savedData);
+                spinHistory = data.spinHistory || [];
+                stats = data.stats || {
+                    total: 0,
+                    cw: { wins: 0, total: 0, travelDistances: [] },
+                    ccw: { wins: 0, total: 0, travelDistances: [] },
+                    travelPatterns: []
+                };
+                martingale = data.martingale || {
+                    baseBet: 1,
+                    currentBet: 1,
+                    bankroll: 100,
+                    totalProfitLoss: 0,
+                    currentStreak: 0,
+                    longestStreak: 0,
+                    betsWon: 0,
+                    betsLost: 0,
+                    maxLosses: 10,
+                    active: false
+                };
+                martingaleTransactions = data.martingaleTransactions || [];
+                currentDirection = data.currentDirection || 'cw';
+                currentPrediction = data.currentPrediction || null;
+                currentSelection = data.currentSelection || [];
+                
+                // Update UI
+                updateHistoryDisplay();
+                updateStatsDisplay();
+                updateMartingaleDisplay();
+                updateWheelDisplay();
+                updateTravelPatternsDisplay();
+                
+                // Set neighbor count
+                if (data.neighborCount) {
+                    neighborCountSelect.value = data.neighborCount;
+                }
+                
+                if (currentPrediction) {
+                    const neighborCount = parseInt(neighborCountSelect.value) || 9;
+                    const mainNumber = currentPrediction;
+                    const mainIndex = wheelLayout.indexOf(mainNumber);
+                    const leftNeighbors = [];
+                    const rightNeighbors = [];
+                    
+                    for (let i = 1; i <= neighborCount; i++) {
+                        leftNeighbors.push(
+                            wheelLayout[(mainIndex - i + wheelLayout.length) % wheelLayout.length]
+                        );
+                        rightNeighbors.push(
+                            wheelLayout[(mainIndex + i) % wheelLayout.length]
+                        );
+                    }
+                    
+                    updatePredictionDisplay(mainNumber, leftNeighbors, rightNeighbors);
+                }
+                
+                // Update inputs to match loaded values
+                baseBetInput.value = martingale.baseBet;
+                bankrollInput.value = martingale.bankroll;
+                maxLossesInput.value = martingale.maxLosses;
+            }
+        }
+
+        function updateMartingaleStats(number) {
+            const wasWin = currentSelection.includes(number);
+            const neighborCount = parseInt(neighborCountSelect.value) || 9;
+            const numberCount = 1 + (neighborCount * 2); // Main + left + right neighbors
+            
+            // Calculate total bet amount (bet per number * number of numbers)
+            const totalBetAmount = martingale.currentBet * numberCount;
+            
+            // Record transaction before updating values
+            const transaction = {
+                timestamp: new Date().toISOString(),
+                spinNumber: spinHistory.length,
+                result: wasWin ? 'WIN' : 'LOSS',
+                numberLanded: number,
+                numbersBet: currentSelection.join(', '),
+                betPerNumber: martingale.currentBet,
+                totalBet: totalBetAmount,
+                payout: wasWin ? (36 * martingale.currentBet) : 0,
+                profitLoss: wasWin ? (36 * martingale.currentBet - totalBetAmount) : -totalBetAmount,
+                currentStreak: martingale.currentStreak + (wasWin ? 0 : 1),
+                bankrollAfter: wasWin ? 
+                    martingale.bankroll + (36 * martingale.currentBet - totalBetAmount) : 
+                    martingale.bankroll - totalBetAmount,
+                direction: currentDirection
+            };
+            
+            if (wasWin) {
+                // Win - we get 36 units for each winning number (minus the bet)
+                const winAmount = 36 * martingale.currentBet - totalBetAmount;
+                martingale.bankroll += winAmount;
+                martingale.totalProfitLoss += winAmount;
+                
+                // Update longest streak before resetting current streak
+                if (martingale.currentStreak > martingale.longestStreak) {
+                    martingale.longestStreak = martingale.currentStreak;
+                }
+                
+                martingale.currentStreak = 0;
+                martingale.currentBet = martingale.baseBet; // Reset to base bet
+                martingale.betsWon++;
+            } else {
+                // Loss - we lose the total bet amount
+                martingale.bankroll -= totalBetAmount;
+                martingale.totalProfitLoss -= totalBetAmount;
+                martingale.currentStreak++;
+                martingale.betsLost++;
+                
+                // Update longest streak if current streak exceeds it
+                if (martingale.currentStreak > martingale.longestStreak) {
+                    martingale.longestStreak = martingale.currentStreak;
+                }
+                
+                // Check if we've hit max losses
+                if (martingale.currentStreak >= martingale.maxLosses) {
+                    alert(`Max losses (${martingale.maxLosses}) reached! Resetting to base bet.`);
+                    martingale.currentBet = martingale.baseBet;
+                    martingale.currentStreak = 0; // Reset current streak but keep longestStreak
+                } else {
+                    martingale.currentBet *= 2; // Double the bet for next time
+                }
+            }
+            
+            // Check if bankroll is insufficient for next bet
+            if (martingale.bankroll < (martingale.currentBet * numberCount)) {
+                alert(`Bankroll insufficient for next bet! Need ${martingale.currentBet * numberCount} but only have ${martingale.bankroll}. Resetting to base bet.`);
+                martingale.currentBet = martingale.baseBet;
+                martingale.currentStreak = 0;
+            }
+            
+            // Add transaction to history after updating all values
+            martingaleTransactions.push(transaction);
+        }
+
+        function updateMartingaleSettings() {
+            martingale.baseBet = parseFloat(baseBetInput.value) || 1;
+            martingale.bankroll = parseFloat(bankrollInput.value) || 100;
+            martingale.maxLosses = parseInt(maxLossesInput.value) || 10;
+            martingale.currentBet = martingale.baseBet;
+            updateMartingaleDisplay();
+            saveToLocalStorage();
+        }
+
+        function resetMartingale() {
+            martingale = {
+                baseBet: parseFloat(baseBetInput.value) || 1,
+                currentBet: parseFloat(baseBetInput.value) || 1,
+                bankroll: parseFloat(bankrollInput.value) || 100,
+                totalProfitLoss: 0,
+                currentStreak: 0,
+                longestStreak: 0,
+                betsWon: 0,
+                betsLost: 0,
+                maxLosses: parseInt(maxLossesInput.value) || 10,
+                active: false
+            };
+            martingaleTransactions = [];
+            updateMartingaleDisplay();
+            saveToLocalStorage();
+        }
+
+        function updateMartingaleDisplay() {
+            currentBetSpan.textContent = martingale.currentBet.toFixed(2);
+            currentBankrollSpan.textContent = martingale.bankroll.toFixed(2);
+            maxLossesDisplaySpan.textContent = martingale.maxLosses;
+            
+            // Style profit/loss
+            totalProfitLossSpan.textContent = Math.abs(martingale.totalProfitLoss).toFixed(2);
+            if (martingale.totalProfitLoss >= 0) {
+                totalProfitLossSpan.className = 'profit';
+                totalProfitLossSpan.textContent = '+' + totalProfitLossSpan.textContent;
+            } else {
+                totalProfitLossSpan.className = 'loss';
+                totalProfitLossSpan.textContent = '-' + totalProfitLossSpan.textContent;
+            }
+            
+            currentStreakSpan.textContent = martingale.currentStreak;
+            longestStreakSpan.textContent = martingale.longestStreak;
+            betsWonSpan.textContent = martingale.betsWon;
+            betsLostSpan.textContent = martingale.betsLost;
+        }
+    </script>
 </body>
 </html>
