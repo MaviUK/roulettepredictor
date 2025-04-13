@@ -746,14 +746,14 @@
     const trimmed = distances.slice().sort((a, b) => a - b).slice(1, 4);
     const avgTravel = Math.round(trimmed.reduce((a, b) => a + b, 0) / trimmed.length);
 
- let predictedIndex;
+// Predict landing position
+let predictedIndex;
 if (currentDirection === 'cw') {
-    // Clockwise = move FORWARD in array (index + avg)
-    predictedIndex = (lastIndex + Math.round(avgTravel)) % wheelLayout.length;
-} else {
-    // Counter-Clockwise = move BACKWARD in array (index - avg)
     predictedIndex = (lastIndex - Math.round(avgTravel) + wheelLayout.length) % wheelLayout.length;
+} else {
+    predictedIndex = (lastIndex + Math.round(avgTravel)) % wheelLayout.length;
 }
+
 
     const mainPrediction = wheelLayout[predictedIndex];
 
