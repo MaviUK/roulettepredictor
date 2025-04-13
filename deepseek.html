@@ -916,26 +916,27 @@
     let cwCount = 0;
     let ccwCount = 0;
 
-    const cwPatterns = [];
-    const ccwPatterns = [];
+    const selectedPatterns = [];
 
-    // First pass: gather up to 8 of each
-    for (const pattern of stats.travelPatterns) {
+    // Loop through the full list in order (most recent first)
+    for (let i = 0; i < stats.travelPatterns.length; i++) {
+        const pattern = stats.travelPatterns[i];
+
         if (pattern.direction === 'cw' && cwCount < maxCW) {
-            cwPatterns.push(pattern);
+            selectedPatterns.push({ ...pattern, originalIndex: i });
             cwCount++;
         } else if (pattern.direction === 'ccw' && ccwCount < maxCCW) {
-            ccwPatterns.push(pattern);
+            selectedPatterns.push({ ...pattern, originalIndex: i });
             ccwCount++;
         }
 
-        if (cwCount >= maxCW && ccwCount >= maxCCW) break;
+        if (cwCount >= maxCW && ccwCount >= maxCCW) {
+            break;
+        }
     }
 
-    // Combine and re-sort to maintain the original chronological order
-    const selectedPatterns = stats.travelPatterns.filter(p =>
-        cwPatterns.includes(p) || ccwPatterns.includes(p)
-    );
+    // Sort the selected patterns to match their original order
+    selectedPatterns.sort((a, b) => a.originalIndex - b.originalIndex);
 
     // Render
     selectedPatterns.forEach(pattern => {
@@ -950,7 +951,6 @@
         travelPatternsDiv.appendChild(row);
     });
 }
-
 
         function updateWheelDisplay() {
             // Clear previous markers
