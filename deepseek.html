@@ -911,11 +911,10 @@
         </div>
     `;
 
-    // Filter and limit to 8 per direction
-    const cwPatterns = stats.travelPatterns.filter(p => p.direction === 'cw').slice(0, 8);
-    const ccwPatterns = stats.travelPatterns.filter(p => p.direction === 'ccw').slice(0, 8);
+    // Take the most recent 8 patterns, in order
+    const latestPatterns = stats.travelPatterns.slice(0, 8);
 
-    [...cwPatterns, ...ccwPatterns].forEach(pattern => {
+    latestPatterns.forEach(pattern => {
         const row = document.createElement('div');
         row.className = 'pattern-row';
         row.innerHTML = `
@@ -927,6 +926,7 @@
         travelPatternsDiv.appendChild(row);
     });
 }
+
 
 
         function updateWheelDisplay() {
