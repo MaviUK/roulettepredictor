@@ -911,33 +911,27 @@
         </div>
     `;
 
-    const cwList = stats.travelPatterns.filter(p => p.direction === 'cw').slice(0, 8);
-    const ccwList = stats.travelPatterns.filter(p => p.direction === 'ccw').slice(0, 8);
+    const maxCW = 8;
+    const maxCCW = 8;
+    let cwCount = 0;
+    let ccwCount = 0;
 
-    const result = [];
-    let cwIndex = 0;
-    let ccwIndex = 0;
+    const filteredPatterns = [];
 
-    // Alternate CW and CCW until we reach 16 rows or run out
-    for (let i = 0; i < 16; i++) {
-        if (i % 2 === 0 && cwIndex < cwList.length) {
-            result.push(cwList[cwIndex++]);
-        } else if (i % 2 !== 0 && ccwIndex < ccwList.length) {
-            result.push(ccwList[ccwIndex++]);
+    for (const pattern of stats.travelPatterns) {
+        if (pattern.direction === 'cw' && cwCount < maxCW) {
+            filteredPatterns.push(pattern);
+            cwCount++;
+        } else if (pattern.direction === 'ccw' && ccwCount < maxCCW) {
+            filteredPatterns.push(pattern);
+            ccwCount++;
         }
 
-        // If one side is exhausted, continue filling from the other
-        else if (cwIndex < cwList.length) {
-            result.push(cwList[cwIndex++]);
-        } else if (ccwIndex < ccwList.length) {
-            result.push(ccwList[ccwIndex++]);
-        } else {
-            break;
-        }
+        if (cwCount >= maxCW && ccwCount >= maxCCW) break;
     }
 
-    // Render to DOM
-    result.forEach(pattern => {
+    // Render
+    filteredPatterns.forEach(pattern => {
         const row = document.createElement('div');
         row.className = 'pattern-row';
         row.innerHTML = `
@@ -949,10 +943,6 @@
         travelPatternsDiv.appendChild(row);
     });
 }
-
-
-
-
 
         function updateWheelDisplay() {
             // Clear previous markers
