@@ -901,7 +901,7 @@
             ccwAvgTravelSpan.textContent = `${ccwAvgTravel}`;
         }
 
-   function updateTravelPatternsDisplay() {
+  function updateTravelPatternsDisplay() {
     travelPatternsDiv.innerHTML = `
         <div class="pattern-row">
             <span>Direction</span>
@@ -911,19 +911,33 @@
         </div>
     `;
 
-    // Get up to 8 from each direction (most recent first)
     const cwList = stats.travelPatterns.filter(p => p.direction === 'cw').slice(0, 8);
     const ccwList = stats.travelPatterns.filter(p => p.direction === 'ccw').slice(0, 8);
 
-    const maxLength = Math.max(cwList.length, ccwList.length);
-    const combinedList = [];
+    const result = [];
+    let cwIndex = 0;
+    let ccwIndex = 0;
 
-    for (let i = 0; i < maxLength; i++) {
-        if (cwList[i]) combinedList.push(cwList[i]);
-        if (ccwList[i]) combinedList.push(ccwList[i]);
+    // Alternate CW and CCW until we reach 16 rows or run out
+    for (let i = 0; i < 16; i++) {
+        if (i % 2 === 0 && cwIndex < cwList.length) {
+            result.push(cwList[cwIndex++]);
+        } else if (i % 2 !== 0 && ccwIndex < ccwList.length) {
+            result.push(ccwList[ccwIndex++]);
+        }
+
+        // If one side is exhausted, continue filling from the other
+        else if (cwIndex < cwList.length) {
+            result.push(cwList[cwIndex++]);
+        } else if (ccwIndex < ccwList.length) {
+            result.push(ccwList[ccwIndex++]);
+        } else {
+            break;
+        }
     }
 
-    combinedList.forEach(pattern => {
+    // Render to DOM
+    result.forEach(pattern => {
         const row = document.createElement('div');
         row.className = 'pattern-row';
         row.innerHTML = `
@@ -935,6 +949,7 @@
         travelPatternsDiv.appendChild(row);
     });
 }
+
 
 
 
