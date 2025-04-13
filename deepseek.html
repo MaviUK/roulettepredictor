@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Advanced Roulette Analyst</title>
+    <title>Roulette</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -230,11 +230,6 @@
             justify-content: space-between;
             margin: 3px 0;
         }
-        .pattern-row.header {
-            font-weight: bold;
-            border-bottom: 1px solid #ddd;
-            padding-bottom: 5px;
-        }
         .neighbor-group {
             display: flex;
             flex-direction: column;
@@ -439,9 +434,9 @@
                 </div>
                 
                 <div class="travel-pattern">
-                    <h4>Recent Travel Patterns (Last 8)</h4>
+                    <h4>Recent Travel Patterns</h4>
                     <div id="travelPatterns">
-                        <div class="pattern-row header">
+                        <div class="pattern-row">
                             <span>Direction</span>
                             <span>From</span>
                             <span>To</span>
@@ -464,14 +459,9 @@
     </div>
 
     <script>
-        // European wheel layout (single zero) - CLOCKWISE ORDER
+        // European wheel layout (single zero)
         const wheelLayout = [
             0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10, 5, 24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26
-        ];
-
-        // EMPIRICAL CCW MOVEMENT SEQUENCE (your observed pattern)
-        const ccwMovementSequence = [
-            0, 26, 3, 35, 12, 28, 7, 29, 18, 22, 9, 31, 14, 20, 1, 33, 16, 24, 5, 10, 23, 8, 30, 11, 36, 13, 27, 6, 34, 17, 25, 2, 21, 4, 19, 15, 32
         ];
 
         // Red numbers for color assignment
@@ -479,13 +469,21 @@
 
         // Enhanced application state
         let spinHistory = [];
-        let currentDirection = 'cw';
+        let currentDirection = 'cw'; // cw = clockwise, ccw = counter-clockwise
         let currentPrediction = null;
         let currentSelection = [];
         let stats = {
             total: 0,
-            cw: { wins: 0, total: 0, travelDistances: [] },
-            ccw: { wins: 0, total: 0, travelDistances: [] },
+            cw: {
+                wins: 0,
+                total: 0,
+                travelDistances: []
+            },
+            ccw: {
+                wins: 0,
+                total: 0,
+                travelDistances: []
+            },
             travelPatterns: []
         };
 
@@ -499,7 +497,8 @@
             longestStreak: 0,
             betsWon: 0,
             betsLost: 0,
-            maxLosses: 10
+            maxLosses: 10,
+            active: false
         };
 
         // Martingale transaction history
@@ -547,15 +546,21 @@
         // Initialize
         document.addEventListener('DOMContentLoaded', () => {
             createWheel();
-            loadFromLocalStorage();
             updateHistoryDisplay();
             updateStatsDisplay();
             updateMartingaleDisplay();
             
+            // Load from localStorage if available
+            loadFromLocalStorage();
+            
+            // Add event listener for neighbor count change
             neighborCountSelect.addEventListener('change', () => {
-                if (spinHistory.length > 0) generatePrediction();
+                if (spinHistory.length > 0) {
+                    generatePrediction();
+                }
             });
             
+            // Add event listener for max losses change
             maxLossesInput.addEventListener('change', updateMartingaleSettings);
         });
 
@@ -567,7 +572,7 @@
             const angleIncrement = (2 * Math.PI) / wheelLayout.length;
             
             wheelLayout.forEach((number, index) => {
-                const angle = index * angleIncrement - Math.PI / 2;
+                const angle = index * angleIncrement - Math.PI / 2; // Offset by 90 degrees to start at top
                 const x = centerX + radius * Math.cos(angle);
                 const y = centerY + radius * Math.sin(angle);
                 
@@ -580,31 +585,6 @@
                 
                 rouletteWheel.appendChild(numberElement);
             });
-        }
-
-        // Get number by CW movement
-        function getNumberByCWMovement(startNumber, pockets) {
-            const startIdx = wheelLayout.indexOf(startNumber);
-            return wheelLayout[(startIdx - pockets + 37) % 37];
-        }
-
-        // Get number by CCW movement (using empirical sequence)
-        function getNumberByCCWMovement(startNumber, pockets) {
-            const startIdx = ccwMovementSequence.indexOf(startNumber);
-            return ccwMovementSequence[(startIdx + pockets) % 37];
-        }
-
-        // Calculate travel distance between numbers
-        function calculateTravelDistance(fromNum, toNum, direction) {
-            if (direction === 'cw') {
-                const fromIdx = wheelLayout.indexOf(fromNum);
-                const toIdx = wheelLayout.indexOf(toNum);
-                return (fromIdx - toIdx + 37) % 37;
-            } else {
-                const fromIdx = ccwMovementSequence.indexOf(fromNum);
-                const toIdx = ccwMovementSequence.indexOf(toNum);
-                return (toIdx - fromIdx + 37) % 37;
-            }
         }
 
         // Event listeners
@@ -663,19 +643,24 @@
             let travelDistance = 0;
             if (spinHistory.length > 0) {
                 const lastSpin = spinHistory[spinHistory.length - 1];
-                travelDistance = calculateTravelDistance(lastSpin.number, number, lastSpin.direction);
+                const lastIndex = wheelLayout.indexOf(lastSpin.number);
+                const currentIndex = wheelLayout.indexOf(number);
+                
+                if (lastSpin.direction === 'cw') {
+                    travelDistance = (lastIndex - currentIndex + wheelLayout.length) % wheelLayout.length;
+                } else {
+                    travelDistance = (currentIndex - lastIndex + wheelLayout.length) % wheelLayout.length;
+                }
                 
                 // Record travel pattern
                 stats.travelPatterns.unshift({
                     from: lastSpin.number,
                     to: number,
                     direction: lastSpin.direction,
-                    distance: travelDistance,
-                    timestamp: new Date().toISOString()
+                    distance: travelDistance
                 });
                 
-                // Keep only last 20 patterns
-                if (stats.travelPatterns.length > 20) {
+                if (stats.travelPatterns.length > 5) {
                     stats.travelPatterns.pop();
                 }
             }
@@ -724,59 +709,91 @@
                 resetPrediction();
                 return;
             }
-
+            
             const neighborCount = parseInt(neighborCountSelect.value) || 9;
             const lastSpin = spinHistory[spinHistory.length - 1];
+            const lastIndex = wheelLayout.indexOf(lastSpin.number);
             
-            // Get last 5 spins in current direction
+            // Get the last 20 spins in the current direction
             const recentDirectionSpins = spinHistory
-                .slice().reverse()
+                .slice().reverse() // Start from most recent
                 .filter(spin => spin.direction === currentDirection)
-                .slice(0, 5);
-
-            // Calculate travel distances
-            const travelDistances = recentDirectionSpins.map(spin => {
-                const spinIdx = spinHistory.findIndex(s => s.number === spin.number);
-                if (spinIdx > 0) {
-                    const prevSpin = spinHistory[spinIdx - 1];
-                    return calculateTravelDistance(prevSpin.number, spin.number, spin.direction);
-                }
-                return null;
-            }).filter(d => d !== null);
-
-            // Remove highest/lowest and average remaining
-            if (travelDistances.length >= 3) {
-                const sorted = [...travelDistances].sort((a,b) => a-b);
-                const trimmed = sorted.slice(1, -1); // Remove first (lowest) and last (highest)
-                const avgTravel = Math.round(trimmed.reduce((a,b) => a + b, 0) / trimmed.length);
-                
-                // Predict next number
-                const lastNumber = lastSpin.number;
-                currentPrediction = currentDirection === 'cw' 
-                    ? getNumberByCWMovement(lastNumber, avgTravel)
-                    : getNumberByCCWMovement(lastNumber, avgTravel);
-
-                // Get neighbors
-                const leftNeighbors = [];
-                const rightNeighbors = [];
-                for (let i = 1; i <= neighborCount; i++) {
-                    leftNeighbors.push(
-                        currentDirection === 'cw' 
-                            ? getNumberByCWMovement(currentPrediction, i)
-                            : getNumberByCCWMovement(currentPrediction, i)
-                    );
-                    rightNeighbors.push(
-                        currentDirection === 'cw' 
-                            ? getNumberByCCWMovement(currentPrediction, i)
-                            : getNumberByCWMovement(currentPrediction, i)
-                    );
-                }
-
-                currentSelection = [currentPrediction, ...leftNeighbors, ...rightNeighbors];
-                updatePredictionDisplay(currentPrediction, leftNeighbors, rightNeighbors);
-            } else {
+                .slice(0, 20); // Take up to 20 most recent
+            
+            // If we don't have enough spins in this direction, use what we have
+            if (recentDirectionSpins.length < 1) {
                 resetPrediction();
+                return;
             }
+            
+            // Calculate weights - more recent spins have higher weight
+            // Create weights that decrease linearly from most recent to oldest
+            const weights = [];
+            const totalSpins = recentDirectionSpins.length;
+            for (let i = 0; i < totalSpins; i++) {
+                weights.push((totalSpins - i) / totalSpins);
+            }
+            
+            // Calculate weighted average travel distance for these spins
+            let weightedAvgTravel = 0;
+            let totalWeight = 0;
+            
+            for (let i = 0; i < recentDirectionSpins.length; i++) {
+                const spin = recentDirectionSpins[i];
+                const spinIndex = spinHistory.findIndex(s => s.number === spin.number);
+                
+                if (spinIndex > 0) { // We need the previous spin to calculate travel
+                    const prevSpin = spinHistory[spinIndex - 1];
+                    const prevIndex = wheelLayout.indexOf(prevSpin.number);
+                    const currentIndex = wheelLayout.indexOf(spin.number);
+                    
+                    let travel;
+                    if (spin.direction === 'cw') {
+                        travel = (prevIndex - currentIndex + wheelLayout.length) % wheelLayout.length;
+                    } else {
+                        travel = (currentIndex - prevIndex + wheelLayout.length) % wheelLayout.length;
+                    }
+                    
+                    weightedAvgTravel += travel * weights[i];
+                    totalWeight += weights[i];
+                }
+            }
+            
+            // Calculate average travel distance using only these spins
+            let avgTravel = weightedAvgTravel / totalWeight;
+            
+            // Apply some randomness to simulate real variance (smaller range now)
+            avgTravel = avgTravel * (0.95 + Math.random() * 0.1);
+            
+            // Predict landing position
+            let predictedIndex;
+            if (currentDirection === 'cw') {
+                predictedIndex = (lastIndex - Math.round(avgTravel) + wheelLayout.length) % wheelLayout.length;
+            } else {
+                predictedIndex = (lastIndex + Math.round(avgTravel)) % wheelLayout.length;
+            }
+            
+            const mainPrediction = wheelLayout[predictedIndex];
+            
+            // Get neighbors on each side based on selected count
+            const leftNeighbors = [];
+            const rightNeighbors = [];
+            
+            for (let i = 1; i <= neighborCount; i++) {
+                leftNeighbors.push(
+                    wheelLayout[(predictedIndex - i + wheelLayout.length) % wheelLayout.length]
+                );
+                rightNeighbors.push(
+                    wheelLayout[(predictedIndex + i) % wheelLayout.length]
+                );
+            }
+            
+            // Update current selection (main + left + right neighbors)
+            currentPrediction = mainPrediction;
+            currentSelection = [mainPrediction, ...leftNeighbors, ...rightNeighbors];
+            
+            // Update display
+            updatePredictionDisplay(mainPrediction, leftNeighbors, rightNeighbors);
         }
 
         function updatePredictionDisplay(mainNumber, leftNeighbors, rightNeighbors) {
@@ -911,22 +928,15 @@
 
         function updateTravelPatternsDisplay() {
             travelPatternsDiv.innerHTML = `
-                <div class="pattern-row header">
+                <div class="pattern-row">
                     <span>Direction</span>
                     <span>From</span>
                     <span>To</span>
                     <span>Pockets</span>
                 </div>
             `;
-
-            // Get last 4 CW and 4 CCW patterns
-            const lastCW = stats.travelPatterns.filter(p => p.direction === 'cw').slice(0,4);
-            const lastCCW = stats.travelPatterns.filter(p => p.direction === 'ccw').slice(0,4);
-            const last8 = [...lastCW, ...lastCCW]
-                .sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp))
-                .slice(0,8);
-
-            last8.forEach(pattern => {
+            
+            stats.travelPatterns.slice(0, 5).forEach(pattern => {
                 const row = document.createElement('div');
                 row.className = 'pattern-row';
                 row.innerHTML = `
@@ -1055,8 +1065,16 @@
                 currentDirection = 'cw';
                 stats = {
                     total: 0,
-                    cw: { wins: 0, total: 0, travelDistances: [] },
-                    ccw: { wins: 0, total: 0, travelDistances: [] },
+                    cw: {
+                        wins: 0,
+                        total: 0,
+                        travelDistances: []
+                    },
+                    ccw: {
+                        wins: 0,
+                        total: 0,
+                        travelDistances: []
+                    },
                     travelPatterns: []
                 };
                 resetMartingale();
@@ -1133,7 +1151,10 @@
         }
 
         function getColorForNumber(number) {
+            // 0 is green
             if (number === 0) return 'green';
+            
+            // Red numbers
             return redNumbers.includes(number) ? 'red' : 'black';
         }
         
@@ -1171,7 +1192,8 @@
                     longestStreak: 0,
                     betsWon: 0,
                     betsLost: 0,
-                    maxLosses: 10
+                    maxLosses: 10,
+                    active: false
                 };
                 martingaleTransactions = data.martingaleTransactions || [];
                 currentDirection = data.currentDirection || 'cw';
@@ -1199,14 +1221,10 @@
                     
                     for (let i = 1; i <= neighborCount; i++) {
                         leftNeighbors.push(
-                            currentDirection === 'cw' 
-                                ? getNumberByCWMovement(mainNumber, i)
-                                : getNumberByCCWMovement(mainNumber, i)
+                            wheelLayout[(mainIndex - i + wheelLayout.length) % wheelLayout.length]
                         );
                         rightNeighbors.push(
-                            currentDirection === 'cw' 
-                                ? getNumberByCCWMovement(mainNumber, i)
-                                : getNumberByCWMovement(mainNumber, i)
+                            wheelLayout[(mainIndex + i) % wheelLayout.length]
                         );
                     }
                     
@@ -1312,7 +1330,8 @@
                 longestStreak: 0,
                 betsWon: 0,
                 betsLost: 0,
-                maxLosses: parseInt(maxLossesInput.value) || 10
+                maxLosses: parseInt(maxLossesInput.value) || 10,
+                active: false
             };
             martingaleTransactions = [];
             updateMartingaleDisplay();
