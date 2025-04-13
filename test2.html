@@ -25,7 +25,7 @@
             flex: 1;
             min-width: 300px;
         }
-        h1, h2, h3, h4, h5 {
+        h1, h2, h3 {
             color: #2c3e50;
         }
         button {
@@ -225,19 +225,10 @@
             background: #f9f9f9;
             border-radius: 5px;
         }
-        .travel-pattern h5 {
-            margin-bottom: 5px;
-            color: #3498db;
-        }
         .pattern-row {
             display: flex;
             justify-content: space-between;
             margin: 3px 0;
-            padding: 3px 0;
-            border-bottom: 1px solid #eee;
-        }
-        .pattern-row:last-child {
-            border-bottom: none;
         }
         .neighbor-group {
             display: flex;
@@ -444,24 +435,12 @@
                 
                 <div class="travel-pattern">
                     <h4>Recent Travel Patterns</h4>
-                    <div>
-                        <h5>Clockwise (CW)</h5>
-                        <div id="cwTravelPatterns">
-                            <div class="pattern-row">
-                                <span>From</span>
-                                <span>To</span>
-                                <span>Pockets</span>
-                            </div>
-                        </div>
-                    </div>
-                    <div>
-                        <h5>Counter-Clockwise (CCW)</h5>
-                        <div id="ccwTravelPatterns">
-                            <div class="pattern-row">
-                                <span>From</span>
-                                <span>To</span>
-                                <span>Pockets</span>
-                            </div>
+                    <div id="travelPatterns">
+                        <div class="pattern-row">
+                            <span>Direction</span>
+                            <span>From</span>
+                            <span>To</span>
+                            <span>Pockets</span>
                         </div>
                     </div>
                 </div>
@@ -546,8 +525,7 @@
         const ccwWinsSpan = document.getElementById('ccwWins');
         const ccwWinPctSpan = document.getElementById('ccwWinPct');
         const ccwAvgTravelSpan = document.getElementById('ccwAvgTravel');
-        const cwTravelPatternsDiv = document.getElementById('cwTravelPatterns');
-        const ccwTravelPatternsDiv = document.getElementById('ccwTravelPatterns');
+        const travelPatternsDiv = document.getElementById('travelPatterns');
         const rouletteWheel = document.getElementById('rouletteWheel');
         const neighborCountSelect = document.getElementById('neighborCount');
         
@@ -682,7 +660,7 @@
                     distance: travelDistance
                 });
                 
-                if (stats.travelPatterns.length > 10) {
+                if (stats.travelPatterns.length > 100) {
                     stats.travelPatterns.pop();
                 }
             }
@@ -726,92 +704,72 @@
             saveToLocalStorage();
         }
 
-        function generatePrediction() {
-            if (spinHistory.length < 2) {
-                resetPrediction();
-                return;
-            }
-            
-            const neighborCount = parseInt(neighborCountSelect.value) || 9;
-            const lastSpin = spinHistory[spinHistory.length - 1];
-            
-            // Get the last 5 spins in the current direction
-            const recentDirectionSpins = spinHistory
-                .slice().reverse() // Start from most recent
-                .filter(spin => spin.direction === currentDirection)
-                .slice(0, 5); // Take exactly 5 most recent
-            
-            // If we don't have enough spins in this direction, use what we have
-            if (recentDirectionSpins.length < 3) {
-                resetPrediction();
-                return;
-            }
-            
-            // Calculate the travel distances for these spins
-            const travelDistances = [];
-            
-            for (let i = 0; i < recentDirectionSpins.length; i++) {
-                const spin = recentDirectionSpins[i];
-                const spinIndex = spinHistory.findIndex(s => s.number === spin.number);
-                
-                if (spinIndex > 0) { // We need the previous spin to calculate travel
-                    const prevSpin = spinHistory[spinIndex - 1];
-                    const prevIndex = wheelLayout.indexOf(prevSpin.number);
-                    const currentIndex = wheelLayout.indexOf(spin.number);
-                    
-                    let travel;
-                    if (spin.direction === 'cw') {
-                        travel = (prevIndex - currentIndex + wheelLayout.length) % wheelLayout.length;
-                    } else {
-                        travel = (currentIndex - prevIndex + wheelLayout.length) % wheelLayout.length;
-                    }
-                    
-                    travelDistances.push(travel);
-                }
-            }
-            
-            // If we have at least 3 travel distances, remove highest and lowest
-            let filteredDistances = travelDistances;
-            if (travelDistances.length >= 3) {
-                filteredDistances = [...travelDistances].sort((a, b) => a - b);
-                filteredDistances = filteredDistances.slice(1, -1); // Remove first (lowest) and last (highest)
-            }
-            
-            // Calculate average travel distance from filtered distances
-            const avgTravel = filteredDistances.reduce((a, b) => a + b, 0) / filteredDistances.length;
-            
-            // Predict landing position based on average travel from last number
-            let predictedIndex;
-            const lastIndex = wheelLayout.indexOf(lastSpin.number);
-            
-            if (currentDirection === 'cw') {
-                predictedIndex = (lastIndex - Math.round(avgTravel) + wheelLayout.length) % wheelLayout.length;
-            } else {
-                predictedIndex = (lastIndex + Math.round(avgTravel)) % wheelLayout.length;
-            }
-            
-            const mainPrediction = wheelLayout[predictedIndex];
-            
-            // Get neighbors on each side based on selected count
-            const leftNeighbors = [];
-            const rightNeighbors = [];
-            
-            for (let i = 1; i <= neighborCount; i++) {
-                leftNeighbors.push(
-                    wheelLayout[(predictedIndex - i + wheelLayout.length) % wheelLayout.length]
-                );
-                rightNeighbors.push(
-                    wheelLayout[(predictedIndex + i) % wheelLayout.length]
-                );
-            }
-            
-            // Update current selection (main + left + right neighbors)
-            currentPrediction = mainPrediction;
-            currentSelection = [mainPrediction, ...leftNeighbors, ...rightNeighbors];
-            
-            // Update display
-            updatePredictionDisplay(mainPrediction, leftNeighbors, rightNeighbors);
+       function generatePrediction() {
+    if (spinHistory.length < 2) {
+        resetPrediction();
+        return;
+    }
+
+    const neighborCount = parseInt(neighborCountSelect.value) || 9;
+    const lastSpin = spinHistory[spinHistory.length - 1];
+    const currentIndex = wheelLayout.indexOf(lastSpin.number);
+    const nextDirection = currentDirection;
+
+    // Gather the last 5 spins in the next direction
+    const recentDirectionSpins = [];
+    for (let i = spinHistory.length - 1; i > 0 && recentDirectionSpins.length < 5; i--) {
+        const spin = spinHistory[i];
+        const prev = spinHistory[i - 1];
+        if (spin.direction === nextDirection) {
+            recentDirectionSpins.push({ from: prev.number, to: spin.number });
         }
+    }
+
+    if (recentDirectionSpins.length < 5) {
+        resetPrediction();
+        return;
+    }
+
+    // Calculate travel distances
+    const distances = recentDirectionSpins.map(pair => {
+        const fromIndex = wheelLayout.indexOf(pair.from);
+        const toIndex = wheelLayout.indexOf(pair.to);
+
+        if (nextDirection === 'cw') {
+            return (fromIndex - toIndex + wheelLayout.length) % wheelLayout.length;
+        } else {
+            return (toIndex - fromIndex + wheelLayout.length) % wheelLayout.length;
+        }
+    });
+
+    // Sort, remove highest & lowest, and average the middle 3
+    const trimmed = distances.slice().sort((a, b) => a - b).slice(1, 4);
+    const avgTravel = Math.round(trimmed.reduce((a, b) => a + b, 0) / trimmed.length);
+
+    // Predict the target index based on avgTravel
+    let predictedIndex;
+    if (nextDirection === 'cw') {
+        predictedIndex = (currentIndex - avgTravel + wheelLayout.length) % wheelLayout.length;
+    } else {
+        predictedIndex = (currentIndex + avgTravel) % wheelLayout.length;
+    }
+
+    const mainPrediction = wheelLayout[predictedIndex];
+
+    // Get neighbors
+    const leftNeighbors = [];
+    const rightNeighbors = [];
+
+    for (let i = 1; i <= neighborCount; i++) {
+        leftNeighbors.push(wheelLayout[(predictedIndex - i + wheelLayout.length) % wheelLayout.length]);
+        rightNeighbors.push(wheelLayout[(predictedIndex + i) % wheelLayout.length]);
+    }
+
+    currentPrediction = mainPrediction;
+    currentSelection = [mainPrediction, ...leftNeighbors, ...rightNeighbors];
+    updatePredictionDisplay(mainPrediction, leftNeighbors, rightNeighbors);
+}
+
 
         function updatePredictionDisplay(mainNumber, leftNeighbors, rightNeighbors) {
             const neighborCount = parseInt(neighborCountSelect.value) || 9;
@@ -943,58 +901,56 @@
             ccwAvgTravelSpan.textContent = `${ccwAvgTravel}`;
         }
 
-        function updateTravelPatternsDisplay() {
-            // Clear existing patterns
-            cwTravelPatternsDiv.innerHTML = `
-                <div class="pattern-row">
-                    <span>From</span>
-                    <span>To</span>
-                    <span>Pockets</span>
-                </div>
-            `;
-            
-            ccwTravelPatternsDiv.innerHTML = `
-                <div class="pattern-row">
-                    <span>From</span>
-                    <span>To</span>
-                    <span>Pockets</span>
-                </div>
-            `;
-            
-            // Get last 5 CW patterns
-            const cwPatterns = stats.travelPatterns
-                .filter(p => p.direction === 'cw')
-                .slice(0, 5);
-            
-            // Get last 5 CCW patterns
-            const ccwPatterns = stats.travelPatterns
-                .filter(p => p.direction === 'ccw')
-                .slice(0, 5);
-            
-            // Display CW patterns
-            cwPatterns.forEach(pattern => {
-                const row = document.createElement('div');
-                row.className = 'pattern-row';
-                row.innerHTML = `
-                    <span>${pattern.from}</span>
-                    <span>${pattern.to}</span>
-                    <span>${pattern.distance}</span>
-                `;
-                cwTravelPatternsDiv.appendChild(row);
-            });
-            
-            // Display CCW patterns
-            ccwPatterns.forEach(pattern => {
-                const row = document.createElement('div');
-                row.className = 'pattern-row';
-                row.innerHTML = `
-                    <span>${pattern.from}</span>
-                    <span>${pattern.to}</span>
-                    <span>${pattern.distance}</span>
-                `;
-                ccwTravelPatternsDiv.appendChild(row);
-            });
+  function updateTravelPatternsDisplay() {
+    travelPatternsDiv.innerHTML = `
+        <div class="pattern-row">
+            <span>Direction</span>
+            <span>From</span>
+            <span>To</span>
+            <span>Pockets</span>
+        </div>
+    `;
+
+    const maxCW = 8;
+    const maxCCW = 8;
+    let cwCount = 0;
+    let ccwCount = 0;
+
+    const selectedPatterns = [];
+
+    // Loop through the full list in order (most recent first)
+    for (let i = 0; i < stats.travelPatterns.length; i++) {
+        const pattern = stats.travelPatterns[i];
+
+        if (pattern.direction === 'cw' && cwCount < maxCW) {
+            selectedPatterns.push({ ...pattern, originalIndex: i });
+            cwCount++;
+        } else if (pattern.direction === 'ccw' && ccwCount < maxCCW) {
+            selectedPatterns.push({ ...pattern, originalIndex: i });
+            ccwCount++;
         }
+
+        if (cwCount >= maxCW && ccwCount >= maxCCW) {
+            break;
+        }
+    }
+
+    // Sort the selected patterns to match their original order
+    selectedPatterns.sort((a, b) => a.originalIndex - b.originalIndex);
+
+    // Render
+    selectedPatterns.forEach(pattern => {
+        const row = document.createElement('div');
+        row.className = 'pattern-row';
+        row.innerHTML = `
+            <span>${pattern.direction.toUpperCase()}</span>
+            <span>${pattern.from}</span>
+            <span>${pattern.to}</span>
+            <span>${pattern.distance}</span>
+        `;
+        travelPatternsDiv.appendChild(row);
+    });
+}
 
         function updateWheelDisplay() {
             // Clear previous markers
