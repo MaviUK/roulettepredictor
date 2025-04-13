@@ -756,11 +756,12 @@ function getTravelDistance(fromNumber, toNumber, direction) {
 
     // Predict the target index based on avgTravel
     let predictedIndex;
-    if (nextDirection === 'cw') {
-        predictedIndex = (currentIndex - avgTravel + wheelLayout.length) % wheelLayout.length;
-    } else {
-        predictedIndex = (currentIndex + avgTravel) % wheelLayout.length;
-    }
+   if (nextDirection === 'cw') {
+    predictedIndex = (currentIndex + avgTravel) % wheelLayout.length;
+} else {
+    predictedIndex = (currentIndex - avgTravel + wheelLayout.length) % wheelLayout.length;
+}
+
 
     const mainPrediction = wheelLayout[predictedIndex];
 
