@@ -916,22 +916,29 @@
     let cwCount = 0;
     let ccwCount = 0;
 
-    const filteredPatterns = [];
+    const cwPatterns = [];
+    const ccwPatterns = [];
 
+    // First pass: gather up to 8 of each
     for (const pattern of stats.travelPatterns) {
         if (pattern.direction === 'cw' && cwCount < maxCW) {
-            filteredPatterns.push(pattern);
+            cwPatterns.push(pattern);
             cwCount++;
         } else if (pattern.direction === 'ccw' && ccwCount < maxCCW) {
-            filteredPatterns.push(pattern);
+            ccwPatterns.push(pattern);
             ccwCount++;
         }
 
         if (cwCount >= maxCW && ccwCount >= maxCCW) break;
     }
 
+    // Combine and re-sort to maintain the original chronological order
+    const selectedPatterns = stats.travelPatterns.filter(p =>
+        cwPatterns.includes(p) || ccwPatterns.includes(p)
+    );
+
     // Render
-    filteredPatterns.forEach(pattern => {
+    selectedPatterns.forEach(pattern => {
         const row = document.createElement('div');
         row.className = 'pattern-row';
         row.innerHTML = `
@@ -943,6 +950,7 @@
         travelPatternsDiv.appendChild(row);
     });
 }
+
 
         function updateWheelDisplay() {
             // Clear previous markers
