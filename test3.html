@@ -294,7 +294,7 @@
             <button id="batchAddBtn">Add Multiple Spins</button>
             
             <div class="martingale-panel">
-                <h3>Martingale Betting System</h3>
+                <h3>Main Martingale Betting System</h3>
                 <div>
                     <label for="baseBet">Base Bet per Number:</label>
                     <input type="number" id="baseBet" min="1" value="1" step="0.5">
@@ -343,6 +343,66 @@
                     <div class="stats-row">
                         <span>Max Losses Setting:</span>
                         <span id="maxLossesDisplay">10</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="martingale-panel" style="background: #e8f4f8;">
+                <h3>CW Martingale System</h3>
+                <div class="martingale-stats">
+                    <div class="stats-row">
+                        <span>Current Bet per Number:</span>
+                        <span id="cwCurrentBet" class="current-bet">1</span>
+                    </div>
+                    <div class="stats-row">
+                        <span>Total Profit/Loss:</span>
+                        <span id="cwTotalProfitLoss">0</span>
+                    </div>
+                    <div class="stats-row">
+                        <span>Current Streak:</span>
+                        <span id="cwCurrentStreak">0</span>
+                    </div>
+                    <div class="stats-row">
+                        <span>Longest Losing Streak:</span>
+                        <span id="cwLongestStreak">0</span>
+                    </div>
+                    <div class="stats-row">
+                        <span>Total Bets Won:</span>
+                        <span id="cwBetsWon">0</span>
+                    </div>
+                    <div class="stats-row">
+                        <span>Total Bets Lost:</span>
+                        <span id="cwBetsLost">0</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="martingale-panel" style="background: #f8e8f0;">
+                <h3>CCW Martingale System</h3>
+                <div class="martingale-stats">
+                    <div class="stats-row">
+                        <span>Current Bet per Number:</span>
+                        <span id="ccwCurrentBet" class="current-bet">1</span>
+                    </div>
+                    <div class="stats-row">
+                        <span>Total Profit/Loss:</span>
+                        <span id="ccwTotalProfitLoss">0</span>
+                    </div>
+                    <div class="stats-row">
+                        <span>Current Streak:</span>
+                        <span id="ccwCurrentStreak">0</span>
+                    </div>
+                    <div class="stats-row">
+                        <span>Longest Losing Streak:</span>
+                        <span id="ccwLongestStreak">0</span>
+                    </div>
+                    <div class="stats-row">
+                        <span>Total Bets Won:</span>
+                        <span id="ccwBetsWon">0</span>
+                    </div>
+                    <div class="stats-row">
+                        <span>Total Bets Lost:</span>
+                        <span id="ccwBetsLost">0</span>
                     </div>
                 </div>
             </div>
@@ -498,7 +558,23 @@
             betsWon: 0,
             betsLost: 0,
             maxLosses: 10,
-            active: false
+            active: false,
+            cwSystem: {
+                currentBet: 1,
+                totalProfitLoss: 0,
+                currentStreak: 0,
+                longestStreak: 0,
+                betsWon: 0,
+                betsLost: 0
+            },
+            ccwSystem: {
+                currentBet: 1,
+                totalProfitLoss: 0,
+                currentStreak: 0,
+                longestStreak: 0,
+                betsWon: 0,
+                betsLost: 0
+            }
         };
 
         // Martingale transaction history
@@ -542,6 +618,22 @@
         const betsWonSpan = document.getElementById('betsWon');
         const betsLostSpan = document.getElementById('betsLost');
         const maxLossesDisplaySpan = document.getElementById('maxLossesDisplay');
+        
+        // CW Martingale elements
+        const cwCurrentBetSpan = document.getElementById('cwCurrentBet');
+        const cwTotalProfitLossSpan = document.getElementById('cwTotalProfitLoss');
+        const cwCurrentStreakSpan = document.getElementById('cwCurrentStreak');
+        const cwLongestStreakSpan = document.getElementById('cwLongestStreak');
+        const cwBetsWonSpan = document.getElementById('cwBetsWon');
+        const cwBetsLostSpan = document.getElementById('cwBetsLost');
+        
+        // CCW Martingale elements
+        const ccwCurrentBetSpan = document.getElementById('ccwCurrentBet');
+        const ccwTotalProfitLossSpan = document.getElementById('ccwTotalProfitLoss');
+        const ccwCurrentStreakSpan = document.getElementById('ccwCurrentStreak');
+        const ccwLongestStreakSpan = document.getElementById('ccwLongestStreak');
+        const ccwBetsWonSpan = document.getElementById('ccwBetsWon');
+        const ccwBetsLostSpan = document.getElementById('ccwBetsLost');
 
         // Initialize
         document.addEventListener('DOMContentLoaded', () => {
@@ -643,7 +735,7 @@
             let travelDistance = 0;
             if (spinHistory.length > 0) {
                 const lastSpin = spinHistory[spinHistory.length - 1];
-               travelDistance = getTravelDistance(lastSpin.number, number, lastSpin.direction);
+                travelDistance = getTravelDistance(lastSpin.number, number, lastSpin.direction);
 
                 
                 // Record travel pattern
@@ -698,87 +790,84 @@
             saveToLocalStorage();
         }
 
-function getTravelDistance(fromNumber, toNumber, direction) {
-    const fromIndex = wheelLayout.indexOf(fromNumber);
-    const toIndex = wheelLayout.indexOf(toNumber);
+        function getTravelDistance(fromNumber, toNumber, direction) {
+            const fromIndex = wheelLayout.indexOf(fromNumber);
+            const toIndex = wheelLayout.indexOf(toNumber);
 
-    if (direction === 'cw') {
-        // Clockwise = forward through wheelLayout
-        return (toIndex - fromIndex + wheelLayout.length) % wheelLayout.length;
-    } else {
-        // Counter-clockwise = backward through wheelLayout
-        return (fromIndex - toIndex + wheelLayout.length) % wheelLayout.length;
-    }
-}
-
-
-       function generatePrediction() {
-    if (spinHistory.length < 2) {
-        resetPrediction();
-        return;
-    }
-
-    const neighborCount = parseInt(neighborCountSelect.value) || 9;
-    const lastSpin = spinHistory[spinHistory.length - 1];
-    const currentIndex = wheelLayout.indexOf(lastSpin.number);
-    const nextDirection = currentDirection;
-
-    // Gather the last 5 spins in the next direction
-    const recentDirectionSpins = [];
-    for (let i = spinHistory.length - 1; i > 0 && recentDirectionSpins.length < 5; i--) {
-        const spin = spinHistory[i];
-        const prev = spinHistory[i - 1];
-        if (spin.direction === nextDirection) {
-            recentDirectionSpins.push({ from: prev.number, to: spin.number });
+            if (direction === 'cw') {
+                // Clockwise = forward through wheelLayout
+                return (toIndex - fromIndex + wheelLayout.length) % wheelLayout.length;
+            } else {
+                // Counter-clockwise = backward through wheelLayout
+                return (fromIndex - toIndex + wheelLayout.length) % wheelLayout.length;
+            }
         }
-    }
 
-    if (recentDirectionSpins.length < 5) {
-        resetPrediction();
-        return;
-    }
+        function generatePrediction() {
+            if (spinHistory.length < 2) {
+                resetPrediction();
+                return;
+            }
 
-    // Calculate travel distances
-   const distances = recentDirectionSpins.map(pair => {
-    const fromIndex = wheelLayout.indexOf(pair.from);
-    const toIndex = wheelLayout.indexOf(pair.to);
+            const neighborCount = parseInt(neighborCountSelect.value) || 9;
+            const lastSpin = spinHistory[spinHistory.length - 1];
+            const currentIndex = wheelLayout.indexOf(lastSpin.number);
+            const nextDirection = currentDirection;
 
-    if (nextDirection === 'cw') {
-        return (toIndex - fromIndex + wheelLayout.length) % wheelLayout.length;
-    } else {
-        return (fromIndex - toIndex + wheelLayout.length) % wheelLayout.length;
-    }
-});
+            // Gather the last 5 spins in the next direction
+            const recentDirectionSpins = [];
+            for (let i = spinHistory.length - 1; i > 0 && recentDirectionSpins.length < 5; i--) {
+                const spin = spinHistory[i];
+                const prev = spinHistory[i - 1];
+                if (spin.direction === nextDirection) {
+                    recentDirectionSpins.push({ from: prev.number, to: spin.number });
+                }
+            }
 
-    // Sort, remove highest & lowest, and average the middle 3
-    const trimmed = distances.slice().sort((a, b) => a - b).slice(1, 4);
-    const avgTravel = Math.round(trimmed.reduce((a, b) => a + b, 0) / trimmed.length);
+            if (recentDirectionSpins.length < 5) {
+                resetPrediction();
+                return;
+            }
 
-    // Predict the target index based on avgTravel
-    let predictedIndex;
-if (nextDirection === 'cw') {
-    predictedIndex = (currentIndex + avgTravel) % wheelLayout.length;
-} else {
-    predictedIndex = (currentIndex - avgTravel + wheelLayout.length) % wheelLayout.length;
-}
+            // Calculate travel distances
+            const distances = recentDirectionSpins.map(pair => {
+                const fromIndex = wheelLayout.indexOf(pair.from);
+                const toIndex = wheelLayout.indexOf(pair.to);
 
+                if (nextDirection === 'cw') {
+                    return (toIndex - fromIndex + wheelLayout.length) % wheelLayout.length;
+                } else {
+                    return (fromIndex - toIndex + wheelLayout.length) % wheelLayout.length;
+                }
+            });
 
-    const mainPrediction = wheelLayout[predictedIndex];
+            // Sort, remove highest & lowest, and average the middle 3
+            const trimmed = distances.slice().sort((a, b) => a - b).slice(1, 4);
+            const avgTravel = Math.round(trimmed.reduce((a, b) => a + b, 0) / trimmed.length);
 
-    // Get neighbors
-    const leftNeighbors = [];
-    const rightNeighbors = [];
+            // Predict the target index based on avgTravel
+            let predictedIndex;
+            if (nextDirection === 'cw') {
+                predictedIndex = (currentIndex + avgTravel) % wheelLayout.length;
+            } else {
+                predictedIndex = (currentIndex - avgTravel + wheelLayout.length) % wheelLayout.length;
+            }
 
-    for (let i = 1; i <= neighborCount; i++) {
-        leftNeighbors.push(wheelLayout[(predictedIndex - i + wheelLayout.length) % wheelLayout.length]);
-        rightNeighbors.push(wheelLayout[(predictedIndex + i) % wheelLayout.length]);
-    }
+            const mainPrediction = wheelLayout[predictedIndex];
 
-    currentPrediction = mainPrediction;
-    currentSelection = [mainPrediction, ...leftNeighbors, ...rightNeighbors];
-    updatePredictionDisplay(mainPrediction, leftNeighbors, rightNeighbors);
-}
+            // Get neighbors
+            const leftNeighbors = [];
+            const rightNeighbors = [];
 
+            for (let i = 1; i <= neighborCount; i++) {
+                leftNeighbors.push(wheelLayout[(predictedIndex - i + wheelLayout.length) % wheelLayout.length]);
+                rightNeighbors.push(wheelLayout[(predictedIndex + i) % wheelLayout.length]);
+            }
+
+            currentPrediction = mainPrediction;
+            currentSelection = [mainPrediction, ...leftNeighbors, ...rightNeighbors];
+            updatePredictionDisplay(mainPrediction, leftNeighbors, rightNeighbors);
+        }
 
         function updatePredictionDisplay(mainNumber, leftNeighbors, rightNeighbors) {
             const neighborCount = parseInt(neighborCountSelect.value) || 9;
@@ -910,56 +999,56 @@ if (nextDirection === 'cw') {
             ccwAvgTravelSpan.textContent = `${ccwAvgTravel}`;
         }
 
-  function updateTravelPatternsDisplay() {
-    travelPatternsDiv.innerHTML = `
-        <div class="pattern-row">
-            <span>Direction</span>
-            <span>From</span>
-            <span>To</span>
-            <span>Pockets</span>
-        </div>
-    `;
+        function updateTravelPatternsDisplay() {
+            travelPatternsDiv.innerHTML = `
+                <div class="pattern-row">
+                    <span>Direction</span>
+                    <span>From</span>
+                    <span>To</span>
+                    <span>Pockets</span>
+                </div>
+            `;
 
-    const maxCW = 8;
-    const maxCCW = 8;
-    let cwCount = 0;
-    let ccwCount = 0;
+            const maxCW = 8;
+            const maxCCW = 8;
+            let cwCount = 0;
+            let ccwCount = 0;
 
-    const selectedPatterns = [];
+            const selectedPatterns = [];
 
-    // Loop through the full list in order (most recent first)
-    for (let i = 0; i < stats.travelPatterns.length; i++) {
-        const pattern = stats.travelPatterns[i];
+            // Loop through the full list in order (most recent first)
+            for (let i = 0; i < stats.travelPatterns.length; i++) {
+                const pattern = stats.travelPatterns[i];
 
-        if (pattern.direction === 'cw' && cwCount < maxCW) {
-            selectedPatterns.push({ ...pattern, originalIndex: i });
-            cwCount++;
-        } else if (pattern.direction === 'ccw' && ccwCount < maxCCW) {
-            selectedPatterns.push({ ...pattern, originalIndex: i });
-            ccwCount++;
+                if (pattern.direction === 'cw' && cwCount < maxCW) {
+                    selectedPatterns.push({ ...pattern, originalIndex: i });
+                    cwCount++;
+                } else if (pattern.direction === 'ccw' && ccwCount < maxCCW) {
+                    selectedPatterns.push({ ...pattern, originalIndex: i });
+                    ccwCount++;
+                }
+
+                if (cwCount >= maxCW && ccwCount >= maxCCW) {
+                    break;
+                }
+            }
+
+            // Sort the selected patterns to match their original order
+            selectedPatterns.sort((a, b) => a.originalIndex - b.originalIndex);
+
+            // Render
+            selectedPatterns.forEach(pattern => {
+                const row = document.createElement('div');
+                row.className = 'pattern-row';
+                row.innerHTML = `
+                    <span>${pattern.direction.toUpperCase()}</span>
+                    <span>${pattern.from}</span>
+                    <span>${pattern.to}</span>
+                    <span>${pattern.distance}</span>
+                `;
+                travelPatternsDiv.appendChild(row);
+            });
         }
-
-        if (cwCount >= maxCW && ccwCount >= maxCCW) {
-            break;
-        }
-    }
-
-    // Sort the selected patterns to match their original order
-    selectedPatterns.sort((a, b) => a.originalIndex - b.originalIndex);
-
-    // Render
-    selectedPatterns.forEach(pattern => {
-        const row = document.createElement('div');
-        row.className = 'pattern-row';
-        row.innerHTML = `
-            <span>${pattern.direction.toUpperCase()}</span>
-            <span>${pattern.from}</span>
-            <span>${pattern.to}</span>
-            <span>${pattern.distance}</span>
-        `;
-        travelPatternsDiv.appendChild(row);
-    });
-}
 
         function updateWheelDisplay() {
             // Clear previous markers
@@ -1205,7 +1294,23 @@ if (nextDirection === 'cw') {
                     betsWon: 0,
                     betsLost: 0,
                     maxLosses: 10,
-                    active: false
+                    active: false,
+                    cwSystem: {
+                        currentBet: 1,
+                        totalProfitLoss: 0,
+                        currentStreak: 0,
+                        longestStreak: 0,
+                        betsWon: 0,
+                        betsLost: 0
+                    },
+                    ccwSystem: {
+                        currentBet: 1,
+                        totalProfitLoss: 0,
+                        currentStreak: 0,
+                        longestStreak: 0,
+                        betsWon: 0,
+                        betsLost: 0
+                    }
                 };
                 martingaleTransactions = data.martingaleTransactions || [];
                 currentDirection = data.currentDirection || 'cw';
@@ -1254,73 +1359,90 @@ if (nextDirection === 'cw') {
             const wasWin = currentSelection.includes(number);
             const neighborCount = parseInt(neighborCountSelect.value) || 9;
             const numberCount = 1 + (neighborCount * 2); // Main + left + right neighbors
+            const direction = currentDirection;
             
-            // Calculate total bet amount (bet per number * number of numbers)
-            const totalBetAmount = martingale.currentBet * numberCount;
+            // Update main system
+            updateSingleMartingaleSystem(
+                martingale, 
+                wasWin, 
+                numberCount,
+                number,
+                direction
+            );
             
-            // Record transaction before updating values
+            // Update CW system if this was a CW spin
+            if (direction === 'cw') {
+                updateSingleMartingaleSystem(
+                    martingale.cwSystem, 
+                    wasWin, 
+                    numberCount,
+                    number,
+                    direction
+                );
+            }
+            
+            // Update CCW system if this was a CCW spin
+            if (direction === 'ccw') {
+                updateSingleMartingaleSystem(
+                    martingale.ccwSystem, 
+                    wasWin, 
+                    numberCount,
+                    number,
+                    direction
+                );
+            }
+        }
+
+        function updateSingleMartingaleSystem(system, wasWin, numberCount, number, direction) {
+            const totalBetAmount = system.currentBet * numberCount;
+            
+            // Record transaction
             const transaction = {
                 timestamp: new Date().toISOString(),
                 spinNumber: spinHistory.length,
                 result: wasWin ? 'WIN' : 'LOSS',
                 numberLanded: number,
                 numbersBet: currentSelection.join(', '),
-                betPerNumber: martingale.currentBet,
+                betPerNumber: system.currentBet,
                 totalBet: totalBetAmount,
-                payout: wasWin ? (36 * martingale.currentBet) : 0,
-                profitLoss: wasWin ? (36 * martingale.currentBet - totalBetAmount) : -totalBetAmount,
-                currentStreak: martingale.currentStreak + (wasWin ? 0 : 1),
+                payout: wasWin ? (36 * system.currentBet) : 0,
+                profitLoss: wasWin ? (36 * system.currentBet - totalBetAmount) : -totalBetAmount,
+                currentStreak: system.currentStreak + (wasWin ? 0 : 1),
                 bankrollAfter: wasWin ? 
-                    martingale.bankroll + (36 * martingale.currentBet - totalBetAmount) : 
-                    martingale.bankroll - totalBetAmount,
-                direction: currentDirection
+                    system.bankroll + (36 * system.currentBet - totalBetAmount) : 
+                    system.bankroll - totalBetAmount,
+                direction: direction
             };
             
-            if (wasWin) {
-                // Win - we get 36 units for each winning number (minus the bet)
-                const winAmount = 36 * martingale.currentBet - totalBetAmount;
-                martingale.bankroll += winAmount;
-                martingale.totalProfitLoss += winAmount;
-                
-                // Update longest streak before resetting current streak
-                if (martingale.currentStreak > martingale.longestStreak) {
-                    martingale.longestStreak = martingale.currentStreak;
-                }
-                
-                martingale.currentStreak = 0;
-                martingale.currentBet = martingale.baseBet; // Reset to base bet
-                martingale.betsWon++;
-            } else {
-                // Loss - we lose the total bet amount
-                martingale.bankroll -= totalBetAmount;
-                martingale.totalProfitLoss -= totalBetAmount;
-                martingale.currentStreak++;
-                martingale.betsLost++;
-                
-                // Update longest streak if current streak exceeds it
-                if (martingale.currentStreak > martingale.longestStreak) {
-                    martingale.longestStreak = martingale.currentStreak;
-                }
-                
-                // Check if we've hit max losses
-                if (martingale.currentStreak >= martingale.maxLosses) {
-                    alert(`Max losses (${martingale.maxLosses}) reached! Resetting to base bet.`);
-                    martingale.currentBet = martingale.baseBet;
-                    martingale.currentStreak = 0; // Reset current streak but keep longestStreak
-                } else {
-                    martingale.currentBet *= 2; // Double the bet for next time
-                }
-            }
-            
-            // Check if bankroll is insufficient for next bet
-            if (martingale.bankroll < (martingale.currentBet * numberCount)) {
-                alert(`Bankroll insufficient for next bet! Need ${martingale.currentBet * numberCount} but only have ${martingale.bankroll}. Resetting to base bet.`);
-                martingale.currentBet = martingale.baseBet;
-                martingale.currentStreak = 0;
-            }
-            
-            // Add transaction to history after updating all values
             martingaleTransactions.push(transaction);
+            
+            if (wasWin) {
+                const winAmount = 36 * system.currentBet - totalBetAmount;
+                system.totalProfitLoss += winAmount;
+                
+                if (system.currentStreak > system.longestStreak) {
+                    system.longestStreak = system.currentStreak;
+                }
+                
+                system.currentStreak = 0;
+                system.currentBet = martingale.baseBet;
+                system.betsWon++;
+            } else {
+                system.totalProfitLoss -= totalBetAmount;
+                system.currentStreak++;
+                system.betsLost++;
+                
+                if (system.currentStreak > system.longestStreak) {
+                    system.longestStreak = system.currentStreak;
+                }
+                
+                if (system.currentStreak >= martingale.maxLosses) {
+                    system.currentBet = martingale.baseBet;
+                    system.currentStreak = 0;
+                } else {
+                    system.currentBet *= 2;
+                }
+            }
         }
 
         function updateMartingaleSettings() {
@@ -1343,7 +1465,23 @@ if (nextDirection === 'cw') {
                 betsWon: 0,
                 betsLost: 0,
                 maxLosses: parseInt(maxLossesInput.value) || 10,
-                active: false
+                active: false,
+                cwSystem: {
+                    currentBet: parseFloat(baseBetInput.value) || 1,
+                    totalProfitLoss: 0,
+                    currentStreak: 0,
+                    longestStreak: 0,
+                    betsWon: 0,
+                    betsLost: 0
+                },
+                ccwSystem: {
+                    currentBet: parseFloat(baseBetInput.value) || 1,
+                    totalProfitLoss: 0,
+                    currentStreak: 0,
+                    longestStreak: 0,
+                    betsWon: 0,
+                    betsLost: 0
+                }
             };
             martingaleTransactions = [];
             updateMartingaleDisplay();
@@ -1351,24 +1489,41 @@ if (nextDirection === 'cw') {
         }
 
         function updateMartingaleDisplay() {
+            // Main system
             currentBetSpan.textContent = martingale.currentBet.toFixed(2);
             currentBankrollSpan.textContent = martingale.bankroll.toFixed(2);
             maxLossesDisplaySpan.textContent = martingale.maxLosses;
             
-            // Style profit/loss
-            totalProfitLossSpan.textContent = Math.abs(martingale.totalProfitLoss).toFixed(2);
-            if (martingale.totalProfitLoss >= 0) {
-                totalProfitLossSpan.className = 'profit';
-                totalProfitLossSpan.textContent = '+' + totalProfitLossSpan.textContent;
-            } else {
-                totalProfitLossSpan.className = 'loss';
-                totalProfitLossSpan.textContent = '-' + totalProfitLossSpan.textContent;
-            }
+            totalProfitLossSpan.textContent = formatProfitLoss(martingale.totalProfitLoss);
+            totalProfitLossSpan.className = martingale.totalProfitLoss >= 0 ? 'profit' : 'loss';
             
             currentStreakSpan.textContent = martingale.currentStreak;
             longestStreakSpan.textContent = martingale.longestStreak;
             betsWonSpan.textContent = martingale.betsWon;
             betsLostSpan.textContent = martingale.betsLost;
+            
+            // CW system
+            cwCurrentBetSpan.textContent = martingale.cwSystem.currentBet.toFixed(2);
+            cwTotalProfitLossSpan.textContent = formatProfitLoss(martingale.cwSystem.totalProfitLoss);
+            cwTotalProfitLossSpan.className = martingale.cwSystem.totalProfitLoss >= 0 ? 'profit' : 'loss';
+            cwCurrentStreakSpan.textContent = martingale.cwSystem.currentStreak;
+            cwLongestStreakSpan.textContent = martingale.cwSystem.longestStreak;
+            cwBetsWonSpan.textContent = martingale.cwSystem.betsWon;
+            cwBetsLostSpan.textContent = martingale.cwSystem.betsLost;
+            
+            // CCW system
+            ccwCurrentBetSpan.textContent = martingale.ccwSystem.currentBet.toFixed(2);
+            ccwTotalProfitLossSpan.textContent = formatProfitLoss(martingale.ccwSystem.totalProfitLoss);
+            ccwTotalProfitLossSpan.className = martingale.ccwSystem.totalProfitLoss >= 0 ? 'profit' : 'loss';
+            ccwCurrentStreakSpan.textContent = martingale.ccwSystem.currentStreak;
+            ccwLongestStreakSpan.textContent = martingale.ccwSystem.longestStreak;
+            ccwBetsWonSpan.textContent = martingale.ccwSystem.betsWon;
+            ccwBetsLostSpan.textContent = martingale.ccwSystem.betsLost;
+        }
+
+        function formatProfitLoss(value) {
+            const absValue = Math.abs(value).toFixed(2);
+            return value >= 0 ? `+${absValue}` : `-${absValue}`;
         }
     </script>
 </body>
