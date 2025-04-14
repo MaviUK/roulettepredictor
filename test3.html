@@ -517,6 +517,69 @@
             <div id="historyList" class="history-list"></div>
         </div>
     </div>
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-app.js";
+  import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-auth.js";
+  import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyCxKDamXAWnmEJbG1s39KV8DEXSUl409_Y",
+    authDomain: "roulettepredictor-71c69.firebaseapp.com",
+    projectId: "roulettepredictor-71c69",
+    storageBucket: "roulettepredictor-71c69.firebasestorage.app",
+    messagingSenderId: "895102047574",
+    appId: "1:895102047574:web:764ea339dda86381ae72f7"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+
+  const emailInput = document.getElementById('emailInput');
+  const passwordInput = document.getElementById('passwordInput');
+  const loginBtn = document.getElementById('loginBtn');
+  const signupBtn = document.getElementById('signupBtn');
+  const authStatus = document.getElementById('authStatus');
+
+  signupBtn.addEventListener('click', () => {
+    createUserWithEmailAndPassword(auth, emailInput.value, passwordInput.value)
+      .then(() => authStatus.textContent = "Signed up and logged in!")
+      .catch(err => authStatus.textContent = err.message);
+  });
+
+  loginBtn.addEventListener('click', () => {
+    signInWithEmailAndPassword(auth, emailInput.value, passwordInput.value)
+      .then(() => authStatus.textContent = "Logged in!")
+      .catch(err => authStatus.textContent = err.message);
+  });
+
+  onAuthStateChanged(auth, async (user) => {
+    if (user) {
+      authStatus.textContent = `Welcome, ${user.email}`;
+      const docRef = doc(db, "sessions", user.uid);
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        const savedState = docSnap.data();
+        console.log("Loaded saved session:", savedState);
+        // Restore your spinHistory, stats, etc. from savedState
+      }
+
+      // OPTIONAL: Auto-save session every 10 seconds
+      setInterval(async () => {
+        const sessionData = {
+          spinHistory,
+          stats,
+          martingale,
+          martingaleTransactions,
+          currentDirection,
+          currentPrediction,
+          currentSelection,
+        };
+        await setDoc(doc(db, "sessions", user.uid), sessionData);
+      }, 10000);
+    }
+  });
+</script>
 
     <script>
         // European wheel layout (single zero)
