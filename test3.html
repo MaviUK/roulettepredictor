@@ -292,7 +292,7 @@
     <div class="container">
         <div class="panel">
             <h2>Data Input</h2>
-            
+            <select id="historyDateSelector"></select>
             <h3>Single Spin Entry</h3>
             <div>
                 <input type="number" id="spinInput" placeholder="Enter number (0-36)" min="0" max="36">
@@ -558,6 +558,13 @@ import {
   const auth = getAuth(app);
   const db = getFirestore(app);
 
+const todayKey = new Date().toISOString().slice(0, 10); // e.g. "2025-04-14"
+let currentViewDate = todayKey;
+
+function isReadOnly() {
+  return currentViewDate !== todayKey;
+}
+    
   const emailInput = document.getElementById('emailInput');
   const passwordInput = document.getElementById('passwordInput');
   const loginBtn = document.getElementById('loginBtn');
@@ -589,7 +596,8 @@ import {
         location.reload(); // Optional: Refresh to reset state
       });
     });
-      const docRef = doc(db, "sessions", user.uid);
+      const todayKey = new Date().toISOString().slice(0, 10); // e.g., "2025-04-14"
+const docRef = doc(db, "sessions", user.uid, "days", todayKey);
       const docSnap = await getDoc(docRef);
       if (docSnap.exists()) {
         const savedState = docSnap.data();
@@ -760,24 +768,33 @@ import {
 
         // Initialize
         document.addEventListener('DOMContentLoaded', () => {
-            createWheel();
-            updateHistoryDisplay();
-            updateStatsDisplay();
-            updateMartingaleDisplay();
-            
-            // Load from localStorage if available
-            loadFromLocalStorage();
-            
-            // Add event listener for neighbor count change
-            neighborCountSelect.addEventListener('change', () => {
-                if (spinHistory.length > 0) {
-                    generatePrediction();
-                }
-            });
-            
-            // Add event listener for max losses change
-            maxLossesInput.addEventListener('change', updateMartingaleSettings);
-        });
+  createWheel();
+  updateHistoryDisplay();
+  updateStatsDisplay();
+  updateMartingaleDisplay();
+
+  // Load from localStorage if available
+  loadFromLocalStorage();
+
+  // Add event listener for neighbor count change
+  neighborCountSelect.addEventListener('change', () => {
+    if (spinHistory.length > 0) {
+      generatePrediction();
+    }
+  });
+
+  // 👇 ADD THIS HERE
+  const dateSelector = document.getElementById("historyDateSelector");
+  if (dateSelector) {
+    dateSelector.addEventListener("change", async (e) => {
+      currentViewDate = e.target.value;
+      await loadSessionForDate(currentViewDate);
+    });
+  }
+
+  // Add event listener for max losses change
+  maxLossesInput.addEventListener('change', updateMartingaleSettings);
+});
 
         // Create the visual roulette wheel
         function createWheel() {
@@ -831,7 +848,11 @@ import {
         }
 
         function addBatchSpins() {
-            const input = batchInput.value.trim();
+  if (isReadOnly()) {
+    alert("You cannot add spins to a past day.");
+    return;
+  }
+  const input = batchInput.value.trim();
             if (!input) return;
             
             const numbers = input.split(/[\s,]+/)
