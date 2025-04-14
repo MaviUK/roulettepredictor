@@ -560,12 +560,38 @@
       const docSnap = await getDoc(docRef);
       if (docSnap.exists()) {
         const savedState = docSnap.data();
-        console.log("Loaded saved session:", savedState);
-        // Restore your spinHistory, stats, etc. from savedState
+        spinHistory = savedState.spinHistory || [];
+        stats = savedState.stats || stats;
+        martingale = savedState.martingale || martingale;
+        martingaleTransactions = savedState.martingaleTransactions || [];
+        currentDirection = savedState.currentDirection || 'cw';
+        currentPrediction = savedState.currentPrediction || null;
+        currentSelection = savedState.currentSelection || [];
+
+        updateHistoryDisplay();
+        updateStatsDisplay();
+        updateMartingaleDisplay();
+        updateWheelDisplay();
+        updateTravelPatternsDisplay();
+
+        if (currentPrediction) {
+          const neighborCount = parseInt(document.getElementById('neighborCount').value) || 9;
+          const mainIndex = wheelLayout.indexOf(currentPrediction);
+          const leftNeighbors = [];
+          const rightNeighbors = [];
+          for (let i = 1; i <= neighborCount; i++) {
+            leftNeighbors.push(wheelLayout[(mainIndex - i + wheelLayout.length) % wheelLayout.length]);
+            rightNeighbors.push(wheelLayout[(mainIndex + i) % wheelLayout.length]);
+          }
+          updatePredictionDisplay(currentPrediction, leftNeighbors, rightNeighbors);
+        }
       }
 
-      // OPTIONAL: Auto-save session every 10 seconds
-      setInterval(async () => {
+      const saveInterval = setInterval(async () => {
+        if (!auth.currentUser) {
+          clearInterval(saveInterval);
+          return;
+        }
         const sessionData = {
           spinHistory,
           stats,
@@ -580,6 +606,7 @@
     }
   });
 </script>
+
 
     <script>
         // European wheel layout (single zero)
