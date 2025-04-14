@@ -528,6 +528,7 @@
         </div>
     </div>
 <script type="module">
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-auth.js";
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-app.js";
   import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-auth.js";
   import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-firestore.js";
@@ -566,8 +567,18 @@
   });
 
   onAuthStateChanged(auth, async (user) => {
-    if (user) {
-      authStatus.innerHTML = `Welcome, ${user.email} <button id="logoutBtn" style="
+  if (user) {
+    authStatus.innerHTML = `
+      Welcome, ${user.email}
+      <button id="logoutBtn" style="padding: 4px 10px; margin-left: 10px;">Logout</button>
+    `;
+
+    document.getElementById('logoutBtn').addEventListener('click', () => {
+      signOut(auth).then(() => {
+        authStatus.textContent = "Logged out";
+        location.reload(); // Optional: Refresh to reset state
+      });
+    });
       const docRef = doc(db, "sessions", user.uid);
       const docSnap = await getDoc(docRef);
       if (docSnap.exists()) {
