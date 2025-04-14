@@ -285,7 +285,7 @@
   <input type="password" id="passwordInput" placeholder="Password" style="flex: 1; min-width: 200px; padding: 8px;">
   <button id="loginBtn" style="padding: 8px 16px;">Login</button>
   <button id="signupBtn" style="padding: 8px 16px;">Sign Up</button>
-  <div id="authStatus" style="margin-left: auto; font-weight: bold;"></div>
+  <div id="authStatus" style="display: flex; align-items: center; gap: 10px; margin-left: auto; font-weight: bold;"></div>
 </div>
 
 
@@ -531,7 +531,9 @@
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-app.js";
   import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-auth.js";
   import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-firestore.js";
+    import { signOut } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-auth.js";
 
+    
   const firebaseConfig = {
     apiKey: "AIzaSyCxKDamXAWnmEJbG1s39KV8DEXSUl409_Y",
     authDomain: "roulettepredictor-71c69.firebaseapp.com",
@@ -565,7 +567,7 @@
 
   onAuthStateChanged(auth, async (user) => {
     if (user) {
-      authStatus.textContent = `Welcome, ${user.email}`;
+      authStatus.innerHTML = `Welcome, ${user.email} <button id="logoutBtn" style="
       const docRef = doc(db, "sessions", user.uid);
       const docSnap = await getDoc(docRef);
       if (docSnap.exists()) {
