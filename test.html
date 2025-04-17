@@ -723,84 +723,29 @@ function generatePrediction() {
     const currentIndex = wheelLayout.indexOf(lastSpin.number);
     const nextDirection = currentDirection;
 
-    function getLast3Distances(dir) {
-        const recent = [];
-        for (let i = spinHistory.length - 1; i > 0 && recent.length < 3; i--) {
-            const spin = spinHistory[i];
-            const prev = spinHistory[i - 1];
-            if (spin.direction === dir) {
-                recent.push({ from: prev.number, to: spin.number });
-            }
-        }
-
-        return recent.map(pair => {
-            const fromIndex = wheelLayout.indexOf(pair.from);
-            const toIndex = wheelLayout.indexOf(pair.to);
-            return dir === 'cw'
+    // Find the most recent travel in the upcoming direction
+    let travelDistance = null;
+    for (let i = spinHistory.length - 1; i > 0; i--) {
+        const spin = spinHistory[i];
+        const prev = spinHistory[i - 1];
+        if (spin.direction === nextDirection) {
+            const fromIndex = wheelLayout.indexOf(prev.number);
+            const toIndex = wheelLayout.indexOf(spin.number);
+            travelDistance = nextDirection === 'cw'
                 ? (toIndex - fromIndex + wheelLayout.length) % wheelLayout.length
                 : (fromIndex - toIndex + wheelLayout.length) % wheelLayout.length;
-        });
-    }
-
-    function averageClosestPair(distances) {
-        if (distances.length < 2) return null;
-        let bestPair = [distances[0], distances[1]];
-        let minDiff = Math.abs(distances[0] - distances[1]);
-
-        if (distances.length === 3) {
-            const pairs = [
-                [distances[0], distances[2]],
-                [distances[1], distances[2]]
-            ];
-            for (const [a, b] of pairs) {
-                const diff = Math.abs(a - b);
-                if (diff < minDiff) {
-                    bestPair = [a, b];
-                    minDiff = diff;
-                }
-            }
+            break;
         }
-
-        return Math.round((bestPair[0] + bestPair[1]) / 2);
     }
 
-    const cwDistances = getLast3Distances('cw');
-    const ccwDistances = getLast3Distances('ccw');
-
-    if (cwDistances.length < 2 || ccwDistances.length < 2) {
+    if (travelDistance === null) {
         resetPrediction();
         return;
     }
 
-    const cwAvg = averageClosestPair(cwDistances);
-    const ccwAvg = averageClosestPair(ccwDistances);
-
-    const finalAvg = Math.round((cwAvg + ccwAvg) / 2);
-
-    // Predict in the direction of the upcoming spin
+    // Predict index by applying the distance to the current number
     let predictedIndex;
-    if (nextDirection === 'cw') {
-        predictedIndex = (currentIndex + finalAvg) % wheelLayout.length;
-    } else {
-        predictedIndex = (currentIndex - finalAvg + wheelLayout.length) % wheelLayout.length;
-    }
-
-    const mainPrediction = wheelLayout[predictedIndex];
-
-    // Get neighbors
-    const leftNeighbors = [];
-    const rightNeighbors = [];
-
-    for (let i = 1; i <= neighborCount; i++) {
-        leftNeighbors.push(wheelLayout[(predictedIndex - i + wheelLayout.length) % wheelLayout.length]);
-        rightNeighbors.push(wheelLayout[(predictedIndex + i) % wheelLayout.length]);
-    }
-
-    currentPrediction = mainPrediction;
-    currentSelection = [mainPrediction, ...leftNeighbors, ...rightNeighbors];
-    updatePredictionDisplay(mainPrediction, leftNeighbors, rightNeighbors);
-}
-
+    if (nextDirection ===
 
 
         function updatePredictionDisplay(mainNumber, leftNeighbors, rightNeighbors) {
