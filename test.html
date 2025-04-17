@@ -3,6 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
     <title>Roulette</title>
     <style>
         body {
@@ -1108,47 +1110,36 @@ function getTravelDistance(fromNumber, toNumber, direction) {
             document.body.removeChild(link);
         }
 
-        function exportMartingaleData() {
-            if (martingaleTransactions.length === 0) {
-                alert('No Martingale data to export');
-                return;
-            }
-            
-            const headers = [
-                'Timestamp', 'Spin Number', 'Result', 'Landed Number', 
-                'Numbers Bet', 'Bet Per Number', 'Total Bet', 'Payout',
-                'Profit/Loss', 'Streak', 'Bankroll After', 'Direction'
-            ];
-            
-            const csvRows = [
-                headers.join(','), // header row first
-                ...martingaleTransactions.map(t => [
-                    t.timestamp,
-                    t.spinNumber,
-                    t.result,
-                    t.numberLanded,
-                    `"${t.numbersBet}"`, // wrap in quotes in case numbers contain commas
-                    t.betPerNumber.toFixed(2),
-                    t.totalBet.toFixed(2),
-                    t.payout.toFixed(2),
-                    t.profitLoss.toFixed(2),
-                    t.currentStreak,
-                    t.bankrollAfter.toFixed(2),
-                    t.direction.toUpperCase()
-                ].join(','))
-            ];
-            
-            const csvContent = csvRows.join('\n');
-            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.setAttribute('href', url);
-            link.setAttribute('download', `martingale_data_${new Date().toISOString().slice(0,10)}.csv`);
-            link.style.visibility = 'hidden';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        }
+       function exportMartingaleData() {
+    if (martingaleTransactions.length === 0) {
+        alert('No Martingale data to export');
+        return;
+    }
+
+    const wsData = [
+        ['Timestamp', 'Spin Number', 'Result', 'Landed Number', 'Numbers Bet', 'Bet Per Number', 'Total Bet', 'Payout', 'Profit/Loss', 'Streak', 'Bankroll After', 'Direction'],
+        ...martingaleTransactions.map(t => [
+            t.timestamp,
+            t.spinNumber,
+            t.result,
+            t.numberLanded,
+            t.numbersBet,
+            t.betPerNumber,
+            t.totalBet,
+            t.payout,
+            t.profitLoss,
+            t.currentStreak,
+            t.bankrollAfter,
+            t.direction.toUpperCase()
+        ])
+    ];
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+    XLSX.utils.book_append_sheet(wb, ws, 'Martingale Data');
+
+    XLSX.writeFile(wb, `martingale_data_${new Date().toISOString().slice(0,10)}.xlsx`);
+}
 
         function getColorForNumber(number) {
             // 0 is green
