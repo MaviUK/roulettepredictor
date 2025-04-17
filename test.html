@@ -723,55 +723,66 @@ function generatePrediction() {
     const currentIndex = wheelLayout.indexOf(lastSpin.number);
     const nextDirection = currentDirection;
 
-    // Get last 3 travel distances in the upcoming direction
-    const recentDirectionSpins = [];
-    for (let i = spinHistory.length - 1; i > 0 && recentDirectionSpins.length < 3; i--) {
-        const spin = spinHistory[i];
-        const prev = spinHistory[i - 1];
-        if (spin.direction === nextDirection) {
-            recentDirectionSpins.push({ from: prev.number, to: spin.number });
+    function getLast3Distances(dir) {
+        const recent = [];
+        for (let i = spinHistory.length - 1; i > 0 && recent.length < 3; i--) {
+            const spin = spinHistory[i];
+            const prev = spinHistory[i - 1];
+            if (spin.direction === dir) {
+                recent.push({ from: prev.number, to: spin.number });
+            }
         }
+
+        return recent.map(pair => {
+            const fromIndex = wheelLayout.indexOf(pair.from);
+            const toIndex = wheelLayout.indexOf(pair.to);
+            return dir === 'cw'
+                ? (toIndex - fromIndex + wheelLayout.length) % wheelLayout.length
+                : (fromIndex - toIndex + wheelLayout.length) % wheelLayout.length;
+        });
     }
 
-    if (recentDirectionSpins.length < 3) {
+    function averageClosestPair(distances) {
+        if (distances.length < 2) return null;
+        let bestPair = [distances[0], distances[1]];
+        let minDiff = Math.abs(distances[0] - distances[1]);
+
+        if (distances.length === 3) {
+            const pairs = [
+                [distances[0], distances[2]],
+                [distances[1], distances[2]]
+            ];
+            for (const [a, b] of pairs) {
+                const diff = Math.abs(a - b);
+                if (diff < minDiff) {
+                    bestPair = [a, b];
+                    minDiff = diff;
+                }
+            }
+        }
+
+        return Math.round((bestPair[0] + bestPair[1]) / 2);
+    }
+
+    const cwDistances = getLast3Distances('cw');
+    const ccwDistances = getLast3Distances('ccw');
+
+    if (cwDistances.length < 2 || ccwDistances.length < 2) {
         resetPrediction();
         return;
     }
 
-    // Calculate travel distances
-    const distances = recentDirectionSpins.map(pair => {
-        const fromIndex = wheelLayout.indexOf(pair.from);
-        const toIndex = wheelLayout.indexOf(pair.to);
+    const cwAvg = averageClosestPair(cwDistances);
+    const ccwAvg = averageClosestPair(ccwDistances);
 
-        if (nextDirection === 'cw') {
-            return (toIndex - fromIndex + wheelLayout.length) % wheelLayout.length;
-        } else {
-            return (fromIndex - toIndex + wheelLayout.length) % wheelLayout.length;
-        }
-    });
+    const finalAvg = Math.round((cwAvg + ccwAvg) / 2);
 
-    // Find the two distances with the smallest difference
-    let bestPair = [distances[0], distances[1]];
-    let minDiff = Math.abs(distances[0] - distances[1]);
-
-    if (Math.abs(distances[0] - distances[2]) < minDiff) {
-        bestPair = [distances[0], distances[2]];
-        minDiff = Math.abs(distances[0] - distances[2]);
-    }
-
-    if (Math.abs(distances[1] - distances[2]) < minDiff) {
-        bestPair = [distances[1], distances[2]];
-        minDiff = Math.abs(distances[1] - distances[2]);
-    }
-
-    const avgTravel = Math.round((bestPair[0] + bestPair[1]) / 2);
-
-    // Predict target index
+    // Predict in the direction of the upcoming spin
     let predictedIndex;
     if (nextDirection === 'cw') {
-        predictedIndex = (currentIndex + avgTravel) % wheelLayout.length;
+        predictedIndex = (currentIndex + finalAvg) % wheelLayout.length;
     } else {
-        predictedIndex = (currentIndex - avgTravel + wheelLayout.length) % wheelLayout.length;
+        predictedIndex = (currentIndex - finalAvg + wheelLayout.length) % wheelLayout.length;
     }
 
     const mainPrediction = wheelLayout[predictedIndex];
@@ -789,6 +800,7 @@ function generatePrediction() {
     currentSelection = [mainPrediction, ...leftNeighbors, ...rightNeighbors];
     updatePredictionDisplay(mainPrediction, leftNeighbors, rightNeighbors);
 }
+
 
 
         function updatePredictionDisplay(mainNumber, leftNeighbors, rightNeighbors) {
