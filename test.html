@@ -712,7 +712,7 @@ function getTravelDistance(fromNumber, toNumber, direction) {
 }
 
 
-function generatePrediction() {
+      function generatePrediction() {
     if (spinHistory.length < 2) {
         resetPrediction();
         return;
@@ -745,7 +745,27 @@ function generatePrediction() {
 
     // Predict index by applying the distance to the current number
     let predictedIndex;
-    if (nextDirection ===
+    if (nextDirection === 'cw') {
+        predictedIndex = (currentIndex + travelDistance) % wheelLayout.length;
+    } else {
+        predictedIndex = (currentIndex - travelDistance + wheelLayout.length) % wheelLayout.length;
+    }
+
+    const mainPrediction = wheelLayout[predictedIndex];
+
+    // Get neighbors
+    const leftNeighbors = [];
+    const rightNeighbors = [];
+
+    for (let i = 1; i <= neighborCount; i++) {
+        leftNeighbors.push(wheelLayout[(predictedIndex - i + wheelLayout.length) % wheelLayout.length]);
+        rightNeighbors.push(wheelLayout[(predictedIndex + i) % wheelLayout.length]);
+    }
+
+    currentPrediction = mainPrediction;
+    currentSelection = [mainPrediction, ...leftNeighbors, ...rightNeighbors];
+    updatePredictionDisplay(mainPrediction, leftNeighbors, rightNeighbors);
+}
 
 
         function updatePredictionDisplay(mainNumber, leftNeighbors, rightNeighbors) {
