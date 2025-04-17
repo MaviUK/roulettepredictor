@@ -723,9 +723,9 @@ function generatePrediction() {
     const currentIndex = wheelLayout.indexOf(lastSpin.number);
     const nextDirection = currentDirection;
 
-    // Get last 2 travel distances in the upcoming direction
+    // Get last 3 travel distances in the upcoming direction
     const recentDirectionSpins = [];
-    for (let i = spinHistory.length - 1; i > 0 && recentDirectionSpins.length < 2; i--) {
+    for (let i = spinHistory.length - 1; i > 0 && recentDirectionSpins.length < 3; i--) {
         const spin = spinHistory[i];
         const prev = spinHistory[i - 1];
         if (spin.direction === nextDirection) {
@@ -733,7 +733,7 @@ function generatePrediction() {
         }
     }
 
-    if (recentDirectionSpins.length < 2) {
+    if (recentDirectionSpins.length < 3) {
         resetPrediction();
         return;
     }
@@ -750,7 +750,21 @@ function generatePrediction() {
         }
     });
 
-    const avgTravel = Math.round((distances[0] + distances[1]) / 2);
+    // Find the two distances with the smallest difference
+    let bestPair = [distances[0], distances[1]];
+    let minDiff = Math.abs(distances[0] - distances[1]);
+
+    if (Math.abs(distances[0] - distances[2]) < minDiff) {
+        bestPair = [distances[0], distances[2]];
+        minDiff = Math.abs(distances[0] - distances[2]);
+    }
+
+    if (Math.abs(distances[1] - distances[2]) < minDiff) {
+        bestPair = [distances[1], distances[2]];
+        minDiff = Math.abs(distances[1] - distances[2]);
+    }
+
+    const avgTravel = Math.round((bestPair[0] + bestPair[1]) / 2);
 
     // Predict target index
     let predictedIndex;
