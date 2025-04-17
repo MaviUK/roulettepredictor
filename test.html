@@ -723,9 +723,9 @@ function generatePrediction() {
     const currentIndex = wheelLayout.indexOf(lastSpin.number);
     const nextDirection = currentDirection;
 
-    // Gather the last 5 spins in the next direction
+    // Get last 2 travel distances in the upcoming direction
     const recentDirectionSpins = [];
-    for (let i = spinHistory.length - 1; i > 0 && recentDirectionSpins.length < 5; i--) {
+    for (let i = spinHistory.length - 1; i > 0 && recentDirectionSpins.length < 2; i--) {
         const spin = spinHistory[i];
         const prev = spinHistory[i - 1];
         if (spin.direction === nextDirection) {
@@ -733,7 +733,7 @@ function generatePrediction() {
         }
     }
 
-    if (recentDirectionSpins.length < 5) {
+    if (recentDirectionSpins.length < 2) {
         resetPrediction();
         return;
     }
@@ -750,26 +750,9 @@ function generatePrediction() {
         }
     });
 
-    // Find the group of 3 distances that are closest together
-    let bestGroup = [];
-    let minSpread = Infinity;
+    const avgTravel = Math.round((distances[0] + distances[1]) / 2);
 
-    for (let i = 0; i < distances.length - 2; i++) {
-        for (let j = i + 1; j < distances.length - 1; j++) {
-            for (let k = j + 1; k < distances.length; k++) {
-                const group = [distances[i], distances[j], distances[k]].sort((a, b) => a - b);
-                const spread = group[2] - group[0]; // max - min
-                if (spread < minSpread) {
-                    minSpread = spread;
-                    bestGroup = group;
-                }
-            }
-        }
-    }
-
-    const avgTravel = Math.round(bestGroup.reduce((a, b) => a + b, 0) / bestGroup.length);
-
-    // Predict the target index based on avgTravel
+    // Predict target index
     let predictedIndex;
     if (nextDirection === 'cw') {
         predictedIndex = (currentIndex + avgTravel) % wheelLayout.length;
@@ -792,7 +775,6 @@ function generatePrediction() {
     currentSelection = [mainPrediction, ...leftNeighbors, ...rightNeighbors];
     updatePredictionDisplay(mainPrediction, leftNeighbors, rightNeighbors);
 }
-
 
 
         function updatePredictionDisplay(mainNumber, leftNeighbors, rightNeighbors) {
