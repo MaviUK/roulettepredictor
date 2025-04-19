@@ -3,201 +3,686 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Smart Roulette Predictor</title>
+    <title>Opposite Side Roulette Predictor</title>
     <style>
-        /* [Previous CSS remains exactly the same] */
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        h1, h2 {
+            color: #333;
+            text-align: center;
+        }
+        .container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+        .input-section, .wheel-section, .stats-section {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .input-section {
+            flex: 1;
+            min-width: 300px;
+        }
+        .wheel-section {
+            flex: 2;
+            min-width: 400px;
+        }
+        .stats-section {
+            flex: 1;
+            min-width: 300px;
+        }
+        input, button {
+            padding: 10px;
+            margin: 5px 0;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        .wheel {
+            position: relative;
+            width: 400px;
+            height: 400px;
+            margin: 20px auto;
+            border-radius: 50%;
+            background: #0a5c0a;
+            border: 5px solid #333;
+        }
+        .wheel-number {
+            position: absolute;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            transform-origin: center;
+        }
+        .wheel-number.zero {
+            background: green;
+        }
+        .wheel-number.red {
+            background: red;
+        }
+        .wheel-number.black {
+            background: black;
+        }
+        .wheel-number.predicted {
+            box-shadow: 0 0 0 3px yellow;
+        }
+        .wheel-number.high-confidence {
+            box-shadow: 0 0 0 3px orange;
+        }
+        .correct {
+            color: green;
+            font-weight: bold;
+        }
+        .incorrect {
+            color: red;
+        }
+        .streak-warning {
+            color: orange;
+            font-weight: bold;
+        }
+        .streak-critical {
+            color: red;
+            font-weight: bold;
+        }
+        .strategy-info {
+            margin-top: 10px;
+            padding: 10px;
+            background-color: #f8f8f8;
+            border-radius: 4px;
+            border-left: 4px solid #4CAF50;
+        }
+        textarea {
+            width: 100%;
+            box-sizing: border-box;
+            margin-bottom: 10px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .prediction-display {
+            background: #f8f8f8;
+            padding: 15px;
+            border-radius: 4px;
+            margin-top: 10px;
+        }
     </style>
 </head>
 <body>
-    <!-- [Previous HTML structure remains the same] -->
+    <h1>Opposite Side Roulette Predictor</h1>
+    <div class="container">
+        <div class="input-section">
+            <h2>Add Spins</h2>
+            <div>
+                <input type="number" id="spinInput" min="0" max="36" placeholder="Enter number (0-36)">
+                <button id="addSpinBtn">Add Spin</button>
+                <button id="clearBtn">Clear All</button>
+            </div>
+            <div>
+                <h3>Or paste multiple numbers:</h3>
+                <textarea id="bulkInput" rows="5" placeholder="Example: 5, 10, 15 or 5 10 15 or 5\n10\n15"></textarea>
+                <button id="bulkAddBtn">Add Multiple Spins</button>
+            </div>
+            <h3>Spin History</h3>
+            <table id="historyTable">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Number</th>
+                        <th>Color</th>
+                        <th>Section</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+
+        <div class="wheel-section">
+            <h2>Wheel Visualization</h2>
+            <div class="wheel" id="wheel"></div>
+            <div class="prediction-display">
+                <h3>Current Prediction</h3>
+                <p><strong>Strategy:</strong> <span id="predStrategy">-</span></p>
+                <p><strong>Predicted Numbers:</strong> <span id="predNumbers">-</span></p>
+                <p><strong>Confidence:</strong> <span id="predConfidence">-</span></p>
+                <div class="strategy-info" id="strategyInfo">No prediction yet. Add at least 2 spins.</div>
+            </div>
+        </div>
+
+        <div class="stats-section">
+            <h2>Statistics</h2>
+            <p><strong>Total Spins:</strong> <span id="totalSpins">0</span></p>
+            <p><strong>Predictions Made:</strong> <span id="totalPredictions">0</span></p>
+            <p><strong>Correct Predictions:</strong> <span id="correctPredictions">0</span></p>
+            <p><strong>Accuracy:</strong> <span id="accuracy">0%</span></p>
+            <p><strong>Current Streak:</strong> <span id="currentStreak">0</span></p>
+            <p><strong>Max Streak:</strong> <span id="maxStreak">0</span></p>
+            
+            <h3>Strategy Performance</h3>
+            <table id="strategyTable">
+                <thead>
+                    <tr>
+                        <th>Strategy</th>
+                        <th>Used</th>
+                        <th>Correct</th>
+                        <th>Accuracy</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td>Neighbors</td><td>0</td><td>0</td><td>0%</td></tr>
+                    <tr><td>Section</td><td>0</td><td>0</td><td>0%</td></tr>
+                    <tr><td>Color</td><td>0</td><td>0</td><td>0%</td></tr>
+                </tbody>
+            </table>
+            
+            <h3>Recent Predictions</h3>
+            <table id="predictionTable">
+                <thead>
+                    <tr>
+                        <th>Spin</th>
+                        <th>Prediction</th>
+                        <th>Actual</th>
+                        <th>Result</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td colspan="4">No predictions yet</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
 
     <script>
-        // Enhanced wheel layout with physical relationships
+        // European roulette wheel layout (clockwise)
         const wheelLayout = [
-            {number: 0, neighbors: [32,15,26,3], section: 1},
-            {number: 32, neighbors: [0,15,19,26], section: 1, color: 'red'},
-            {number: 15, neighbors: [0,32,19,4], section: 1, color: 'black'},
-            // [Full wheel layout data...]
+            0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10, 5, 24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26
         ];
 
-        // New prediction engine
-        class PredictionEngine {
-            constructor() {
-                this.heatMap = this.createHeatMap();
-                this.lastNumbers = [];
-                this.strategyWeights = {
-                    physics: 0.4,    // Wheel physics tendencies
-                    trends: 0.3,     // Recent number trends
-                    statistics: 0.3   // Historical patterns
-                };
-            }
+        // Red numbers
+        const redNumbers = [32, 19, 21, 25, 34, 27, 36, 30, 23, 5, 16, 1, 14, 9, 18, 7, 12, 3];
 
-            createHeatMap() {
-                const map = {};
-                wheelLayout.forEach(item => {
-                    map[item.number] = {
-                        hits: 0,
-                        recent: 0,
-                        neighbors: item.neighbors
-                    };
-                });
-                return map;
-            }
+        // Wheel sections
+        const wheelSections = [
+            [0, 32, 15, 19, 4, 21, 2],
+            [25, 17, 34, 6, 27, 13, 36],
+            [11, 30, 8, 23, 10, 5, 24],
+            [16, 33, 1, 20, 14, 31, 9],
+            [22, 18, 29, 7, 28, 12, 35],
+            [3, 26]
+        ];
 
-            updateHeatMap(number) {
-                this.heatMap[number].hits++;
-                this.heatMap[number].recent++;
-                
-                // Decay recent hits over time
-                Object.keys(this.heatMap).forEach(num => {
-                    this.heatMap[num].recent *= 0.9;
-                });
+        // Number neighbors (physically close numbers)
+        const wheelNeighbors = {
+            0: [32, 15, 26, 3], 32: [0, 15, 19, 26], 15: [0, 32, 19, 4],
+            19: [32, 15, 4, 21], 4: [15, 19, 21, 2], 21: [19, 4, 2, 25],
+            2: [4, 21, 25, 17], 25: [21, 2, 17, 34], 17: [2, 25, 34, 6],
+            34: [25, 17, 6, 27], 6: [17, 34, 27, 13], 27: [34, 6, 13, 36],
+            13: [6, 27, 36, 11], 36: [27, 13, 11, 30], 11: [13, 36, 30, 8],
+            30: [36, 11, 8, 23], 8: [11, 30, 23, 10], 23: [30, 8, 10, 5],
+            10: [8, 23, 5, 24], 5: [23, 10, 24, 16], 24: [10, 5, 16, 33],
+            16: [5, 24, 33, 1], 33: [24, 16, 1, 20], 1: [16, 33, 20, 14],
+            20: [33, 1, 14, 31], 14: [1, 20, 31, 9], 31: [20, 14, 9, 22],
+            9: [14, 31, 22, 18], 22: [31, 9, 18, 29], 18: [9, 22, 29, 7],
+            29: [22, 18, 7, 28], 7: [18, 29, 28, 12], 28: [29, 7, 12, 35],
+            12: [7, 28, 35, 3], 35: [28, 12, 3, 26], 3: [12, 35, 26, 0],
+            26: [35, 3, 0, 32]
+        };
 
-                this.lastNumbers.unshift(number);
-                if(this.lastNumbers.length > 10) this.lastNumbers.pop();
-            }
-
-            getPredictions() {
-                // 1. Physics-based prediction (wheel mechanics)
-                const physicsPrediction = this.getPhysicsPrediction();
-                
-                // 2. Trend analysis (recent patterns)
-                const trendPrediction = this.getTrendPrediction();
-                
-                // 3. Statistical prediction (hot numbers)
-                const statsPrediction = this.getStatsPrediction();
-
-                // Combine predictions with weighted strategy
-                const combined = {};
-                
-                [physicsPrediction, trendPrediction, statsPrediction].forEach((pred, i) => {
-                    const weight = Object.values(this.strategyWeights)[i];
-                    pred.forEach(num => {
-                        combined[num] = (combined[num] || 0) + weight;
-                    });
-                });
-
-                // Get top 5 predicted numbers
-                return Object.entries(combined)
-                    .sort((a,b) => b[1] - a[1])
-                    .slice(0,5)
-                    .map(item => Number(item[0]));
-            }
-
-            getPhysicsPrediction() {
-                if(this.lastNumbers.length < 2) return [];
-                
-                const lastNum = this.lastNumbers[0];
-                const secondLast = this.lastNumbers[1];
-                const wheelItem = wheelLayout.find(item => item.number === lastNum);
-                
-                // Predict numbers that frequently follow the last number
-                const followUps = wheelItem.neighbors
-                    .concat(wheelItem.neighbors.flatMap(n => 
-                        wheelLayout.find(i => i.number === n).neighbors
-                    ));
-                
-                return [...new Set(followUps)];
-            }
-
-            getTrendPrediction() {
-                if(this.lastNumbers.length < 3) return [];
-                
-                // Detect repeating patterns
-                const patterns = {};
-                for(let i=0; i<this.lastNumbers.length-1; i++) {
-                    const key = `${this.lastNumbers[i]}-${this.lastNumbers[i+1]}`;
-                    patterns[key] = (patterns[key] || 0) + 1;
+        // Function to get opposite numbers on the wheel
+        function getOppositeNumbers(numbers) {
+            const oppositeNumbers = [];
+            const halfWheel = Math.floor(wheelLayout.length / 2);
+            
+            numbers.forEach(num => {
+                const index = wheelLayout.indexOf(num);
+                if (index !== -1) {
+                    const oppositeIndex = (index + halfWheel) % wheelLayout.length;
+                    oppositeNumbers.push(wheelLayout[oppositeIndex]);
                 }
-                
-                // Find most frequent recent transitions
-                const lastNum = this.lastNumbers[0];
-                const likelyNext = Object.entries(patterns)
-                    .filter(([key]) => key.startsWith(lastNum+'-'))
-                    .sort((a,b) => b[1] - a[1])
-                    .map(([key]) => Number(key.split('-')[1]));
-                
-                return likelyNext.slice(0,3);
-            }
-
-            getStatsPrediction() {
-                // Return hottest numbers (recent + historical)
-                return Object.entries(this.heatMap)
-                    .sort((a,b) => (b[1].recent*3 + b[1].hits) - (a[1].recent*3 + a[1].hits))
-                    .slice(0,5)
-                    .map(([num]) => Number(num));
-            }
-
-            adjustStrategy(result) {
-                // Dynamically adjust strategy weights based on performance
-                if(result) {
-                    // Reward successful strategies
-                    this.strategyWeights.physics *= 1.1;
-                    this.strategyWeights.trends *= 1.05;
-                } else {
-                    // Penalize failing strategies
-                    this.strategyWeights.physics *= 0.9;
-                    this.strategyWeights.trends *= 0.95;
-                    
-                    // After 3 losses, increase statistical weighting
-                    if(this.consecutiveLosses >= 3) {
-                        this.strategyWeights.statistics = Math.min(
-                            this.strategyWeights.statistics * 1.2, 0.5
-                        );
-                    }
-                }
-                
-                // Normalize weights
-                const total = Object.values(this.strategyWeights).reduce((a,b) => a+b);
-                Object.keys(this.strategyWeights).forEach(key => {
-                    this.strategyWeights[key] /= total;
-                });
-            }
+            });
+            
+            return [...new Set(oppositeNumbers)]; // Remove duplicates
         }
 
-        // Initialize application with new engine
-        const engine = new PredictionEngine();
-        let state = {
+        // Initialize application state
+        const state = {
             spins: [],
             predictions: [],
             currentStreak: 0,
             maxStreak: 0,
-            strategyPerformance: {
-                physics: { used: 0, correct: 0 },
-                trends: { used: 0, correct: 0 },
-                statistics: { used: 0, correct: 0 }
+            strategies: {
+                neighbors: { used: 0, correct: 0 },
+                section: { used: 0, correct: 0 },
+                color: { used: 0, correct: 0 }
             }
         };
 
-        // [Rest of the application code remains similar but uses the new engine]
-        
+        // DOM elements
+        const elements = {
+            spinInput: document.getElementById('spinInput'),
+            addSpinBtn: document.getElementById('addSpinBtn'),
+            clearBtn: document.getElementById('clearBtn'),
+            bulkInput: document.getElementById('bulkInput'),
+            bulkAddBtn: document.getElementById('bulkAddBtn'),
+            historyTable: document.querySelector('#historyTable tbody'),
+            wheel: document.getElementById('wheel'),
+            predStrategy: document.getElementById('predStrategy'),
+            predNumbers: document.getElementById('predNumbers'),
+            predConfidence: document.getElementById('predConfidence'),
+            strategyInfo: document.getElementById('strategyInfo'),
+            predictionTable: document.querySelector('#predictionTable tbody'),
+            strategyTable: document.querySelector('#strategyTable tbody'),
+            totalSpins: document.getElementById('totalSpins'),
+            totalPredictions: document.getElementById('totalPredictions'),
+            correctPredictions: document.getElementById('correctPredictions'),
+            accuracy: document.getElementById('accuracy'),
+            currentStreak: document.getElementById('currentStreak'),
+            maxStreak: document.getElementById('maxStreak')
+        };
+
+        // Initialize the wheel visualization
+        function initWheel() {
+            elements.wheel.innerHTML = '';
+            const radius = 180;
+            const center = 200;
+            const angleStep = (2 * Math.PI) / wheelLayout.length;
+
+            wheelLayout.forEach((num, index) => {
+                const angle = index * angleStep;
+                const x = center + radius * Math.sin(angle);
+                const y = center - radius * Math.cos(angle);
+
+                const numberElement = document.createElement('div');
+                numberElement.className = 'wheel-number';
+                numberElement.textContent = num;
+                numberElement.id = `wheel-${num}`;
+                numberElement.style.left = `${x}px`;
+                numberElement.style.top = `${y}px`;
+
+                if (num === 0) {
+                    numberElement.classList.add('zero');
+                } else if (redNumbers.includes(num)) {
+                    numberElement.classList.add('red');
+                } else {
+                    numberElement.classList.add('black');
+                }
+
+                elements.wheel.appendChild(numberElement);
+            });
+        }
+
+        // Get wheel section for a number
+        function getSection(number) {
+            return wheelSections.findIndex(section => section.includes(number)) + 1 || 0;
+        }
+
+        // Get color for a number
+        function getColor(number) {
+            if (number === 0) return 'green';
+            return redNumbers.includes(number) ? 'red' : 'black';
+        }
+
+        // Add a single spin
+        function addSpin(number) {
+            const num = parseInt(number);
+            if (isNaN(num) || num < 0 || num > 36) {
+                alert('Please enter a valid number between 0 and 36');
+                return false;
+            }
+
+            state.spins.push({
+                number: num,
+                color: getColor(num),
+                section: getSection(num)
+            });
+
+            updateHistoryTable();
+            updateStats();
+
+            // Make prediction if we have at least 2 spins
+            if (state.spins.length > 1) {
+                makePrediction();
+            }
+
+            return true;
+        }
+
+        // Make a prediction based on previous spins
         function makePrediction() {
-            const lastSpin = state.spins[state.spins.length - 1];
-            engine.updateHeatMap(lastSpin.number);
+            const lastSpin = state.spins[state.spins.length - 2];
+            const currentSpin = state.spins[state.spins.length - 1];
             
-            const predictedNumbers = engine.getPredictions();
-            const actualNumber = /* get next number */;
+            // Choose prediction strategy
+            let strategy, predictedNumbers, confidence, explanation;
             
-            const isCorrect = predictedNumbers.includes(actualNumber);
-            engine.adjustStrategy(isCorrect);
+            // If on losing streak, use broader predictions
+            if (state.currentStreak >= 3) {
+                if (state.currentStreak >= 5) {
+                    // Critical streak - use section prediction
+                    strategy = 'section';
+                    predictedNumbers = [...wheelSections[lastSpin.section - 1]];
+                    confidence = 'Low';
+                    explanation = `Section prediction (${lastSpin.section}) due to long losing streak`;
+                } else {
+                    // Moderate streak - use color prediction
+                    strategy = 'color';
+                    predictedNumbers = lastSpin.color === 'red' ? 
+                        redNumbers : 
+                        wheelLayout.filter(n => n !== 0 && !redNumbers.includes(n));
+                    confidence = 'Medium';
+                    explanation = `Color prediction (${lastSpin.color}) due to losing streak`;
+                }
+            } else {
+                // No streak - choose best performing strategy
+                const options = [
+                    {
+                        name: 'neighbors',
+                        numbers: wheelNeighbors[lastSpin.number],
+                        confidence: 'High',
+                        explanation: `Neighbors of ${lastSpin.number} (high precision)`
+                    },
+                    {
+                        name: 'section',
+                        numbers: [...wheelSections[lastSpin.section - 1]],
+                        confidence: 'Medium',
+                        explanation: `Section ${lastSpin.section} prediction`
+                    },
+                    {
+                        name: 'color',
+                        numbers: lastSpin.color === 'red' ? 
+                            redNumbers : 
+                            wheelLayout.filter(n => n !== 0 && !redNumbers.includes(n)),
+                        confidence: 'Low',
+                        explanation: `${lastSpin.color} color prediction`
+                    }
+                ];
+
+                // Select strategy with best historical performance
+                let bestScore = -1;
+                options.forEach(option => {
+                    const strat = state.strategies[option.name];
+                    const accuracy = strat.used > 0 ? strat.correct / strat.used : 0.5;
+                    const weight = option.confidence === 'High' ? 1.2 : 
+                                 option.confidence === 'Medium' ? 1.0 : 0.8;
+                    const score = accuracy * weight;
+                    
+                    if (score > bestScore) {
+                        bestScore = score;
+                        strategy = option.name;
+                        predictedNumbers = option.numbers;
+                        confidence = option.confidence;
+                        explanation = option.explanation;
+                    }
+                });
+            }
+
+            // Get opposite numbers instead of the predicted ones
+            const finalPrediction = getOppositeNumbers(predictedNumbers);
+            explanation += " (using opposite numbers)";
+
+            // Check if prediction was correct
+            const isCorrect = finalPrediction.includes(currentSpin.number);
             
-            // Update streaks and statistics
-            if(isCorrect) {
+            // Update streaks
+            if (isCorrect) {
                 state.currentStreak = 0;
             } else {
                 state.currentStreak++;
-                if(state.currentStreak > state.maxStreak) {
+                if (state.currentStreak > state.maxStreak) {
                     state.maxStreak = state.currentStreak;
-                    
-                    // Emergency broadening after 5 losses
-                    if(state.currentStreak >= 5) {
-                        predictedNumbers.push(...engine.getStatsPrediction().slice(0,3));
-                    }
                 }
             }
-            
-            // [Rest of prediction handling...]
+
+            // Update strategy performance
+            state.strategies[strategy].used++;
+            if (isCorrect) state.strategies[strategy].correct++;
+
+            // Store prediction
+            state.predictions.push({
+                spinNumber: state.spins.length,
+                strategy,
+                predictedNumbers: finalPrediction,
+                originalPrediction: predictedNumbers,
+                actual: currentSpin.number,
+                correct: isCorrect,
+                confidence
+            });
+
+            // Update UI
+            updatePredictionDisplay(strategy, finalPrediction, confidence, explanation);
+            updatePredictionTable();
+            updateStrategyTable();
+            highlightNumbers(finalPrediction, confidence);
         }
+
+        // Update history table
+        function updateHistoryTable() {
+            elements.historyTable.innerHTML = '';
+            state.spins.forEach((spin, index) => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${index + 1}</td>
+                    <td>${spin.number}</td>
+                    <td style="color: ${spin.color}">${spin.color}</td>
+                    <td>${spin.section}</td>
+                `;
+                elements.historyTable.appendChild(row);
+            });
+            elements.totalSpins.textContent = state.spins.length;
+        }
+
+        // Update prediction display
+        function updatePredictionDisplay(strategy, numbers, confidence, explanation) {
+            elements.predStrategy.textContent = strategy;
+            elements.predNumbers.textContent = numbers.join(', ');
+            elements.predConfidence.textContent = confidence;
+            elements.strategyInfo.textContent = explanation || 'No prediction explanation';
+            elements.totalPredictions.textContent = state.predictions.length;
+        }
+
+        // Update prediction table
+        function updatePredictionTable() {
+            elements.predictionTable.innerHTML = '';
+            
+            if (state.predictions.length === 0) {
+                elements.predictionTable.innerHTML = '<tr><td colspan="4">No predictions yet</td></tr>';
+                return;
+            }
+
+            // Show last 10 predictions (newest first)
+            const recentPredictions = state.predictions.slice().reverse().slice(0, 10);
+            
+            recentPredictions.forEach(pred => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${pred.spinNumber}</td>
+                    <td>${pred.predictedNumbers.join(', ')}</td>
+                    <td>${pred.actual}</td>
+                    <td class="${pred.correct ? 'correct' : 'incorrect'}">
+                        ${pred.correct ? '✓' : '✗'}
+                        ${pred.spinNumber === state.spins.length ? ` (Current)` : ''}
+                    </td>
+                `;
+                elements.predictionTable.appendChild(row);
+            });
+        }
+
+        // Update strategy table
+        function updateStrategyTable() {
+            elements.strategyTable.innerHTML = '';
+            
+            Object.entries(state.strategies).forEach(([name, stats]) => {
+                const row = document.createElement('tr');
+                const accuracy = stats.used > 0 ? Math.round((stats.correct / stats.used) * 100) : 0;
+                row.innerHTML = `
+                    <td>${name.charAt(0).toUpperCase() + name.slice(1)}</td>
+                    <td>${stats.used}</td>
+                    <td>${stats.correct}</td>
+                    <td>${accuracy}%</td>
+                `;
+                elements.strategyTable.appendChild(row);
+            });
+        }
+
+        // Highlight predicted numbers on wheel
+        function highlightNumbers(numbers, confidence) {
+            // Clear previous highlights
+            document.querySelectorAll('.wheel-number').forEach(el => {
+                el.classList.remove('predicted', 'high-confidence');
+            });
+            
+            // Add new highlights
+            numbers.forEach(num => {
+                const el = document.getElementById(`wheel-${num}`);
+                if (el) {
+                    el.classList.add('predicted');
+                    if (confidence === 'High') {
+                        el.classList.add('high-confidence');
+                    }
+                }
+            });
+        }
+
+        // Update statistics
+        function updateStats() {
+            const correct = state.predictions.filter(p => p.correct).length;
+            const accuracy = state.predictions.length > 0 ? 
+                Math.round((correct / state.predictions.length) * 100) : 0;
+            
+            elements.correctPredictions.textContent = correct;
+            elements.accuracy.textContent = `${accuracy}%`;
+            elements.currentStreak.textContent = state.currentStreak;
+            elements.maxStreak.textContent = state.maxStreak;
+            
+            // Update streak display
+            if (state.currentStreak >= 3 && state.currentStreak < 5) {
+                elements.currentStreak.className = 'streak-warning';
+            } else if (state.currentStreak >= 5) {
+                elements.currentStreak.className = 'streak-critical';
+            } else {
+                elements.currentStreak.className = '';
+            }
+        }
+
+        // Add multiple spins from bulk input
+        function addBulkSpins() {
+            const input = elements.bulkInput.value.trim();
+            if (!input) {
+                alert('Please enter some numbers first');
+                return;
+            }
+            
+            // Parse numbers (accepts comma, space, or newline separated)
+            const numbers = input.split(/[\s,]+/).filter(n => n !== '');
+            let addedCount = 0;
+            
+            numbers.forEach(num => {
+                if (addSpin(num)) {
+                    addedCount++;
+                }
+            });
+            
+            if (addedCount > 0) {
+                elements.bulkInput.value = '';
+                alert(`Added ${addedCount} spins`);
+            } else {
+                alert('No valid numbers found');
+            }
+        }
+
+        // Clear all data
+        function clearAll() {
+            if (confirm('Are you sure you want to clear all data?')) {
+                state.spins = [];
+                state.predictions = [];
+                state.currentStreak = 0;
+                state.maxStreak = 0;
+                
+                // Reset strategy performance
+                Object.keys(state.strategies).forEach(key => {
+                    state.strategies[key] = { used: 0, correct: 0 };
+                });
+                
+                // Reset UI
+                updateHistoryTable();
+                updatePredictionTable();
+                updateStrategyTable();
+                updateStats();
+                
+                elements.predStrategy.textContent = '-';
+                elements.predNumbers.textContent = '-';
+                elements.predConfidence.textContent = '-';
+                elements.strategyInfo.textContent = 'No prediction yet. Add at least 2 spins.';
+                
+                // Clear wheel highlights
+                document.querySelectorAll('.wheel-number').forEach(el => {
+                    el.classList.remove('predicted', 'high-confidence');
+                });
+            }
+        }
+
+        // Event listeners
+        elements.addSpinBtn.addEventListener('click', () => {
+            if (!elements.spinInput.value.trim()) {
+                alert('Please enter a number first');
+                return;
+            }
+            addSpin(elements.spinInput.value);
+        });
+        
+        elements.clearBtn.addEventListener('click', clearAll);
+        elements.bulkAddBtn.addEventListener('click', addBulkSpins);
+        
+        elements.spinInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                if (!elements.spinInput.value.trim()) {
+                    alert('Please enter a number first');
+                    return;
+                }
+                addSpin(elements.spinInput.value);
+            }
+        });
+
+        // Initialize the application
+        window.addEventListener('load', () => {
+            initWheel();
+            updateStats();
+        });
     </script>
 </body>
 </html>
