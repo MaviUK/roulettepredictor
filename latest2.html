@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Adaptive Roulette Predictor</title>
+    <title>Dual Strategy Roulette Predictor</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -102,14 +102,11 @@
         .wheel-number.predicted {
             box-shadow: 0 0 0 3px yellow;
         }
-        .wheel-number.high-confidence {
-            box-shadow: 0 0 0 3px orange;
+        .wheel-number.complementary {
+            box-shadow: 0 0 0 3px magenta;
         }
         .wheel-number.streak-pick {
             box-shadow: 0 0 0 3px cyan;
-        }
-        .wheel-number.complementary {
-            box-shadow: 0 0 0 3px magenta;
         }
         .correct {
             color: green;
@@ -162,7 +159,7 @@
     </style>
 </head>
 <body>
-    <h1>Adaptive Roulette Predictor</h1>
+    <h1>Dual Strategy Roulette Predictor</h1>
     <div class="container">
         <div class="input-section">
             <h2>Add Spins</h2>
@@ -194,13 +191,14 @@
             <h2>Wheel Visualization</h2>
             <div class="wheel" id="wheel"></div>
             <div class="prediction-toggle">
-                <button id="neighborhoodBtn" class="active">Show Neighborhood</button>
-                <button id="complementaryBtn">Show Complementary</button>
+                <button id="neighborhoodBtn" class="active">Show Neighborhood (19)</button>
+                <button id="complementaryBtn">Show Complementary (18)</button>
             </div>
             <div class="prediction-display">
                 <h3>Current Prediction</h3>
                 <p><strong>Strategy:</strong> <span id="predStrategy">-</span></p>
                 <p><strong>Predicted Numbers:</strong> <span id="predNumbers">-</span></p>
+                <p><strong>Count:</strong> <span id="predCount">-</span></p>
                 <p><strong>Confidence:</strong> <span id="predConfidence">-</span></p>
                 <div class="strategy-info" id="strategyInfo">No prediction yet. Add at least 2 spins.</div>
             </div>
@@ -220,13 +218,14 @@
                 <thead>
                     <tr>
                         <th>Spin</th>
+                        <th>Strategy</th>
                         <th>Prediction</th>
                         <th>Actual</th>
                         <th>Result</th>
                     </tr>
                 </thead>
                 <tbody>
-                    <tr><td colspan="4">No predictions yet</td></tr>
+                    <tr><td colspan="5">No predictions yet</td></tr>
                 </tbody>
             </table>
         </div>
@@ -261,6 +260,7 @@
             wheel: document.getElementById('wheel'),
             predStrategy: document.getElementById('predStrategy'),
             predNumbers: document.getElementById('predNumbers'),
+            predCount: document.getElementById('predCount'),
             predConfidence: document.getElementById('predConfidence'),
             strategyInfo: document.getElementById('strategyInfo'),
             predictionTable: document.querySelector('#predictionTable tbody'),
@@ -317,7 +317,7 @@
             return Math.ceil(number / 6);
         }
 
-        // Get numbers in neighborhood (center + 9 each side)
+        // Get numbers in neighborhood (center + 9 each side) - should return exactly 19 numbers
         function getNeighborhood(centerNumber) {
             const index = wheelLayout.indexOf(centerNumber);
             if (index === -1) return [];
@@ -340,12 +340,21 @@
             // Add the center number
             neighborhood.push(centerNumber);
             
-            return [...new Set(neighborhood)]; // Remove duplicates
+            // Return unique numbers only (should be 19)
+            return [...new Set(neighborhood)];
         }
 
-        // Get complementary numbers (those not in the neighborhood)
+        // Get complementary numbers (those not in the neighborhood) - should return exactly 18 numbers
         function getComplementaryNumbers(neighborhood) {
-            return wheelLayout.filter(num => !neighborhood.includes(num));
+            // Filter wheel layout to exclude neighborhood numbers
+            const complementary = wheelLayout.filter(num => !neighborhood.includes(num));
+            
+            // Verify we have exactly 18 complementary numbers
+            if (complementary.length !== 18) {
+                console.warn(`Complementary numbers count mismatch: Expected 18, got ${complementary.length}`);
+            }
+            
+            return complementary;
         }
 
         // Add a single spin
@@ -378,8 +387,10 @@
             const lastSpin = state.spins[state.spins.length - 2];
             const currentSpin = state.spins[state.spins.length - 1];
             
-            // First get the neighborhood prediction
+            // First get the neighborhood prediction (19 numbers)
             const neighborhood = getNeighborhood(lastSpin.number);
+            
+            // Then get the complementary numbers (18 numbers)
             const complementary = getComplementaryNumbers(neighborhood);
             
             let predictedNumbers, strategy, confidence, explanation;
@@ -391,17 +402,17 @@
                 confidence = "High";
                 explanation = `Predicting only ${lastSpin.number} after ${state.currentStreak} losses`;
             } else if (state.currentStrategy === 'complementary') {
-                // Complementary strategy - predict numbers not in neighborhood
+                // Complementary strategy - predict numbers not in neighborhood (18 numbers)
                 predictedNumbers = complementary;
-                strategy = "17-number complementary";
+                strategy = "18-number complementary";
                 confidence = "Medium";
-                explanation = `Predicting numbers not in ${lastSpin.number}'s neighborhood (${predictedNumbers.length} numbers)`;
+                explanation = `Predicting the 18 numbers not in ${lastSpin.number}'s neighborhood`;
             } else {
-                // Normal operation - predict neighborhood
+                // Normal operation - predict neighborhood (19 numbers)
                 predictedNumbers = neighborhood;
                 strategy = "19-number neighborhood";
                 confidence = "Medium";
-                explanation = `Predicting ${lastSpin.number} and its 9 neighbors on each side (${predictedNumbers.length} numbers)`;
+                explanation = `Predicting ${lastSpin.number} and its 9 neighbors on each side (19 numbers total)`;
             }
 
             // Check if prediction was correct
@@ -430,8 +441,15 @@
             // Update UI
             updatePredictionDisplay(strategy, predictedNumbers, confidence, explanation);
             updatePredictionTable();
-            highlightNumbers(predictedNumbers, state.currentStrategy === 'complementary' ? 'complementary' : 
-                           (state.currentStreak >= 4 ? 'streak-pick' : 'predicted'));
+            
+            // Highlight numbers based on current strategy
+            if (state.currentStreak >= 4) {
+                highlightNumbers(predictedNumbers, 'streak-pick');
+            } else if (state.currentStrategy === 'complementary') {
+                highlightNumbers(predictedNumbers, 'complementary');
+            } else {
+                highlightNumbers(predictedNumbers, 'predicted');
+            }
         }
 
         // Update history table
@@ -454,6 +472,7 @@
         function updatePredictionDisplay(strategy, numbers, confidence, explanation) {
             elements.predStrategy.textContent = strategy;
             elements.predNumbers.textContent = numbers.join(', ');
+            elements.predCount.textContent = numbers.length;
             elements.predConfidence.textContent = confidence;
             elements.strategyInfo.textContent = explanation || 'No prediction explanation';
             elements.totalPredictions.textContent = state.predictions.length;
@@ -464,7 +483,7 @@
             elements.predictionTable.innerHTML = '';
             
             if (state.predictions.length === 0) {
-                elements.predictionTable.innerHTML = '<tr><td colspan="4">No predictions yet</td></tr>';
+                elements.predictionTable.innerHTML = '<tr><td colspan="5">No predictions yet</td></tr>';
                 return;
             }
 
@@ -475,7 +494,8 @@
                 const row = document.createElement('tr');
                 row.innerHTML = `
                     <td>${pred.spinNumber}</td>
-                    <td>${pred.predictedNumbers.join(', ')}</td>
+                    <td>${pred.strategy}</td>
+                    <td>${pred.predictedNumbers.join(', ')} (${pred.predictedNumbers.length})</td>
                     <td>${pred.actual}</td>
                     <td class="${pred.correct ? 'correct' : 'incorrect'}">
                         ${pred.correct ? '✓' : '✗'}
@@ -490,7 +510,7 @@
         function highlightNumbers(numbers, highlightClass) {
             // Clear previous highlights
             document.querySelectorAll('.wheel-number').forEach(el => {
-                el.classList.remove('predicted', 'high-confidence', 'streak-pick', 'complementary');
+                el.classList.remove('predicted', 'complementary', 'streak-pick');
             });
             
             // Add new highlights
@@ -564,12 +584,13 @@
                 
                 elements.predStrategy.textContent = '-';
                 elements.predNumbers.textContent = '-';
+                elements.predCount.textContent = '-';
                 elements.predConfidence.textContent = '-';
                 elements.strategyInfo.textContent = 'No prediction yet. Add at least 2 spins.';
                 
                 // Clear wheel highlights
                 document.querySelectorAll('.wheel-number').forEach(el => {
-                    el.classList.remove('predicted', 'high-confidence', 'streak-pick', 'complementary');
+                    el.classList.remove('predicted', 'complementary', 'streak-pick');
                 });
             }
         }
