@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Neighborhood Roulette Predictor</title>
+    <title>Adaptive Roulette Predictor</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -105,6 +105,9 @@
         .wheel-number.high-confidence {
             box-shadow: 0 0 0 3px orange;
         }
+        .wheel-number.streak-pick {
+            box-shadow: 0 0 0 3px cyan;
+        }
         .correct {
             color: green;
             font-weight: bold;
@@ -144,7 +147,7 @@
     </style>
 </head>
 <body>
-    <h1>Neighborhood Roulette Predictor</h1>
+    <h1>Adaptive Roulette Predictor</h1>
     <div class="container">
         <div class="input-section">
             <h2>Add Spins</h2>
@@ -288,7 +291,6 @@
 
         // Get wheel section for a number
         function getSection(number) {
-            // Simple section division (can be improved)
             if (number === 0) return 0;
             return Math.ceil(number / 6);
         }
@@ -349,11 +351,21 @@
             const lastSpin = state.spins[state.spins.length - 2];
             const currentSpin = state.spins[state.spins.length - 1];
             
-            // Get neighborhood of last number (center + 9 each side)
-            const predictedNumbers = getNeighborhood(lastSpin.number);
-            const strategy = "19-number neighborhood";
-            const confidence = "High";
-            const explanation = `Predicting ${lastSpin.number} and its 9 neighbors on each side`;
+            let predictedNumbers, strategy, confidence, explanation;
+            
+            if (state.currentStreak >= 4) {
+                // After 4 losses, predict only the center number
+                predictedNumbers = [lastSpin.number];
+                strategy = "Single number (streak breaker)";
+                confidence = "High";
+                explanation = `Predicting only ${lastSpin.number} after ${state.currentStreak} losses`;
+            } else {
+                // Normal operation - predict center + 9 neighbors each side
+                predictedNumbers = getNeighborhood(lastSpin.number);
+                strategy = "19-number neighborhood";
+                confidence = "Medium";
+                explanation = `Predicting ${lastSpin.number} and its 9 neighbors on each side (${predictedNumbers.length} numbers)`;
+            }
 
             // Check if prediction was correct
             const isCorrect = predictedNumbers.includes(currentSpin.number);
@@ -381,7 +393,7 @@
             // Update UI
             updatePredictionDisplay(strategy, predictedNumbers, confidence, explanation);
             updatePredictionTable();
-            highlightNumbers(predictedNumbers, confidence);
+            highlightNumbers(predictedNumbers, state.currentStreak >= 4 ? 'streak-pick' : 'predicted');
         }
 
         // Update history table
@@ -437,20 +449,17 @@
         }
 
         // Highlight predicted numbers on wheel
-        function highlightNumbers(numbers, confidence) {
+        function highlightNumbers(numbers, highlightClass) {
             // Clear previous highlights
             document.querySelectorAll('.wheel-number').forEach(el => {
-                el.classList.remove('predicted', 'high-confidence');
+                el.classList.remove('predicted', 'high-confidence', 'streak-pick');
             });
             
             // Add new highlights
             numbers.forEach(num => {
                 const el = document.getElementById(`wheel-${num}`);
                 if (el) {
-                    el.classList.add('predicted');
-                    if (confidence === 'High') {
-                        el.classList.add('high-confidence');
-                    }
+                    el.classList.add(highlightClass);
                 }
             });
         }
@@ -522,7 +531,7 @@
                 
                 // Clear wheel highlights
                 document.querySelectorAll('.wheel-number').forEach(el => {
-                    el.classList.remove('predicted', 'high-confidence');
+                    el.classList.remove('predicted', 'high-confidence', 'streak-pick');
                 });
             }
         }
