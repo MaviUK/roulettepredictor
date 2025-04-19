@@ -390,6 +390,54 @@
             return true;
         }
 
+        // Add multiple spins from bulk input
+        function addBulkSpins() {
+            const input = elements.bulkInput.value.trim();
+            if (!input) {
+                alert('Please enter some numbers first');
+                return;
+            }
+            
+            // Parse numbers (accepts comma, space, or newline separated)
+            const numbers = input.split(/[\s,]+/).filter(n => n !== '');
+            let addedCount = 0;
+            
+            // Process all numbers first
+            const validNumbers = [];
+            numbers.forEach(num => {
+                const parsedNum = parseInt(num);
+                if (!isNaN(parsedNum) && parsedNum >= 0 && parsedNum <= 36) {
+                    validNumbers.push(parsedNum);
+                }
+            });
+            
+            // Add all valid numbers to the spins
+            validNumbers.forEach(num => {
+                state.spins.push({
+                    number: num,
+                    color: getColor(num),
+                    section: getSection(num)
+                });
+                addedCount++;
+            });
+            
+            if (addedCount > 0) {
+                elements.bulkInput.value = '';
+                // Update UI once after all numbers are added
+                updateHistoryTable();
+                updateStats();
+                
+                // Make predictions if we have enough spins
+                if (state.spins.length > 1) {
+                    makePrediction();
+                }
+                
+                alert(`Added ${addedCount} spins`);
+            } else {
+                alert('No valid numbers found');
+            }
+        }
+
         // Make a prediction based on previous spins
         function makePrediction() {
             const lastSpin = state.spins[state.spins.length - 2];
@@ -417,12 +465,12 @@
             
             // Update streaks
             if (isCorrect) {
-                state.currentStreak = 0;
-            } else {
                 state.currentStreak++;
                 if (state.currentStreak > state.maxStreak) {
                     state.maxStreak = state.currentStreak;
                 }
+            } else {
+                state.currentStreak = 0;
             }
 
             // Store prediction
@@ -555,30 +603,9 @@
             });
         }
 
-        // Add multiple spins from bulk input
-        function addBulkSpins() {
-            const input = elements.bulkInput.value.trim();
-            if (!input) {
-                alert('Please enter some numbers first');
-                return;
-            }
-            
-            // Parse numbers (accepts comma, space, or newline separated)
-            const numbers = input.split(/[\s,]+/).filter(n => n !== '');
-            let addedCount = 0;
-            
-            numbers.forEach(num => {
-                if (addSpin(num)) {
-                    addedCount++;
-                }
-            });
-            
-            if (addedCount > 0) {
-                elements.bulkInput.value = '';
-                alert(`Added ${addedCount} spins`);
-            } else {
-                alert('No valid numbers found');
-            }
+        // Update stats display
+        function updateStats() {
+            elements.totalSpins.textContent = state.spins.length;
         }
 
         // Clear all data
@@ -615,6 +642,7 @@
                 return;
             }
             addSpin(elements.spinInput.value);
+            elements.spinInput.value = '';
         });
         
         elements.clearBtn.addEventListener('click', clearAll);
@@ -627,6 +655,7 @@
                     return;
                 }
                 addSpin(elements.spinInput.value);
+                elements.spinInput.value = '';
             }
         });
 
