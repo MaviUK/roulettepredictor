@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Advanced Roulette Predictor</title>
+    <title>Working Roulette Predictor</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -40,7 +40,7 @@
             min-width: 300px;
         }
         input, button {
-            padding: 8px;
+            padding: 10px;
             margin: 5px 0;
             width: 100%;
             box-sizing: border-box;
@@ -51,6 +51,7 @@
             border: none;
             cursor: pointer;
             border-radius: 4px;
+            font-weight: bold;
         }
         button:hover {
             background-color: #45a049;
@@ -75,6 +76,7 @@
             margin: 20px auto;
             border-radius: 50%;
             background: #0a5c0a;
+            border: 5px solid #333;
         }
         .wheel-number {
             position: absolute;
@@ -123,16 +125,26 @@
             padding: 10px;
             background-color: #f8f8f8;
             border-radius: 4px;
+            border-left: 4px solid #4CAF50;
         }
         textarea {
             width: 100%;
             box-sizing: border-box;
             margin-bottom: 10px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .prediction-display {
+            background: #f8f8f8;
+            padding: 15px;
+            border-radius: 4px;
+            margin-top: 10px;
         }
     </style>
 </head>
 <body>
-    <h1>Advanced Roulette Predictor</h1>
+    <h1>Roulette Predictor</h1>
     <div class="container">
         <div class="input-section">
             <h2>Add Spins</h2>
@@ -143,7 +155,7 @@
             </div>
             <div>
                 <h3>Or paste multiple numbers:</h3>
-                <textarea id="bulkInput" rows="5" placeholder="Paste numbers separated by spaces, commas or new lines"></textarea>
+                <textarea id="bulkInput" rows="5" placeholder="Example: 5, 10, 15 or 5 10 15 or 5\n10\n15"></textarea>
                 <button id="bulkAddBtn">Add Multiple Spins</button>
             </div>
             <h3>Spin History</h3>
@@ -163,23 +175,23 @@
         <div class="wheel-section">
             <h2>Wheel Visualization</h2>
             <div class="wheel" id="wheel"></div>
-            <div id="currentPrediction">
+            <div class="prediction-display">
                 <h3>Current Prediction</h3>
-                <p>Strategy: <span id="predStrategy">-</span></p>
-                <p>Predicted Numbers: <span id="predNumbers">-</span></p>
-                <p>Confidence: <span id="predConfidence">-</span></p>
-                <div class="strategy-info" id="strategyInfo"></div>
+                <p><strong>Strategy:</strong> <span id="predStrategy">-</span></p>
+                <p><strong>Predicted Numbers:</strong> <span id="predNumbers">-</span></p>
+                <p><strong>Confidence:</strong> <span id="predConfidence">-</span></p>
+                <div class="strategy-info" id="strategyInfo">No prediction yet. Add at least 2 spins.</div>
             </div>
         </div>
 
         <div class="stats-section">
             <h2>Statistics</h2>
-            <p>Total Spins: <span id="totalSpins">0</span></p>
-            <p>Predictions Made: <span id="totalPredictions">0</span></p>
-            <p>Correct Predictions: <span id="correctPredictions">0</span></p>
-            <p>Accuracy: <span id="accuracy">0%</span></p>
-            <p>Current Streak: <span id="currentStreak">0</span></p>
-            <p>Max Streak: <span id="maxStreak">0</span></p>
+            <p><strong>Total Spins:</strong> <span id="totalSpins">0</span></p>
+            <p><strong>Predictions Made:</strong> <span id="totalPredictions">0</span></p>
+            <p><strong>Correct Predictions:</strong> <span id="correctPredictions">0</span></p>
+            <p><strong>Accuracy:</strong> <span id="accuracy">0%</span></p>
+            <p><strong>Current Streak:</strong> <span id="currentStreak">0</span></p>
+            <p><strong>Max Streak:</strong> <span id="maxStreak">0</span></p>
             
             <h3>Strategy Performance</h3>
             <table id="strategyTable">
@@ -191,7 +203,12 @@
                         <th>Accuracy</th>
                     </tr>
                 </thead>
-                <tbody></tbody>
+                <tbody>
+                    <tr><td>Neighbors</td><td>0</td><td>0</td><td>0%</td></tr>
+                    <tr><td>Section</td><td>0</td><td>0</td><td>0%</td></tr>
+                    <tr><td>Color</td><td>0</td><td>0</td><td>0%</td></tr>
+                    <tr><td>Opposite</td><td>0</td><td>0</td><td>0%</td></tr>
+                </tbody>
             </table>
             
             <h3>Recent Predictions</h3>
@@ -204,112 +221,94 @@
                         <th>Result</th>
                     </tr>
                 </thead>
-                <tbody></tbody>
+                <tbody>
+                    <tr><td colspan="4">No predictions yet</td></tr>
+                </tbody>
             </table>
         </div>
     </div>
 
     <script>
         // European roulette wheel layout (clockwise)
-        const europeanWheel = [
+        const wheelLayout = [
             0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10, 5, 24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26
         ];
 
-        // Red numbers on European roulette
+        // Red numbers
         const redNumbers = [32, 19, 21, 25, 34, 27, 36, 30, 23, 5, 16, 1, 14, 9, 18, 7, 12, 3];
 
-        // Wheel sections (divided into 6 sections)
+        // Wheel sections
         const wheelSections = [
-            [0, 32, 15, 19, 4, 21, 2],    // Section 1
-            [25, 17, 34, 6, 27, 13, 36],  // Section 2
-            [11, 30, 8, 23, 10, 5, 24],   // Section 3
-            [16, 33, 1, 20, 14, 31, 9],   // Section 4
-            [22, 18, 29, 7, 28, 12, 35],  // Section 5
-            [3, 26]                        // Section 6 (smaller section)
+            [0, 32, 15, 19, 4, 21, 2],
+            [25, 17, 34, 6, 27, 13, 36],
+            [11, 30, 8, 23, 10, 5, 24],
+            [16, 33, 1, 20, 14, 31, 9],
+            [22, 18, 29, 7, 28, 12, 35],
+            [3, 26]
         ];
 
-        // Number neighbors (numbers physically close on the wheel)
+        // Number neighbors (physically close numbers)
         const wheelNeighbors = {
-            0: [32, 15, 26, 3],
-            32: [0, 15, 19, 26],
-            15: [0, 32, 19, 4],
-            19: [32, 15, 4, 21],
-            4: [15, 19, 21, 2],
-            21: [19, 4, 2, 25],
-            2: [4, 21, 25, 17],
-            25: [21, 2, 17, 34],
-            17: [2, 25, 34, 6],
-            34: [25, 17, 6, 27],
-            6: [17, 34, 27, 13],
-            27: [34, 6, 13, 36],
-            13: [6, 27, 36, 11],
-            36: [27, 13, 11, 30],
-            11: [13, 36, 30, 8],
-            30: [36, 11, 8, 23],
-            8: [11, 30, 23, 10],
-            23: [30, 8, 10, 5],
-            10: [8, 23, 5, 24],
-            5: [23, 10, 24, 16],
-            24: [10, 5, 16, 33],
-            16: [5, 24, 33, 1],
-            33: [24, 16, 1, 20],
-            1: [16, 33, 20, 14],
-            20: [33, 1, 14, 31],
-            14: [1, 20, 31, 9],
-            31: [20, 14, 9, 22],
-            9: [14, 31, 22, 18],
-            22: [31, 9, 18, 29],
-            18: [9, 22, 29, 7],
-            29: [22, 18, 7, 28],
-            7: [18, 29, 28, 12],
-            28: [29, 7, 12, 35],
-            12: [7, 28, 35, 3],
-            35: [28, 12, 3, 26],
-            3: [12, 35, 26, 0],
+            0: [32, 15, 26, 3], 32: [0, 15, 19, 26], 15: [0, 32, 19, 4],
+            19: [32, 15, 4, 21], 4: [15, 19, 21, 2], 21: [19, 4, 2, 25],
+            2: [4, 21, 25, 17], 25: [21, 2, 17, 34], 17: [2, 25, 34, 6],
+            34: [25, 17, 6, 27], 6: [17, 34, 27, 13], 27: [34, 6, 13, 36],
+            13: [6, 27, 36, 11], 36: [27, 13, 11, 30], 11: [13, 36, 30, 8],
+            30: [36, 11, 8, 23], 8: [11, 30, 23, 10], 23: [30, 8, 10, 5],
+            10: [8, 23, 5, 24], 5: [23, 10, 24, 16], 24: [10, 5, 16, 33],
+            16: [5, 24, 33, 1], 33: [24, 16, 1, 20], 1: [16, 33, 20, 14],
+            20: [33, 1, 14, 31], 14: [1, 20, 31, 9], 31: [20, 14, 9, 22],
+            9: [14, 31, 22, 18], 22: [31, 9, 18, 29], 18: [9, 22, 29, 7],
+            29: [22, 18, 7, 28], 7: [18, 29, 28, 12], 28: [29, 7, 12, 35],
+            12: [7, 28, 35, 3], 35: [28, 12, 3, 26], 3: [12, 35, 26, 0],
             26: [35, 3, 0, 32]
         };
 
-        // Application state
-        let spins = [];
-        let predictions = [];
-        let currentStreak = 0;
-        let maxStreak = 0;
-        let strategyPerformance = {
-            'neighbors': { used: 0, correct: 0 },
-            'section': { used: 0, correct: 0 },
-            'color': { used: 0, correct: 0 },
-            'opposite': { used: 0, correct: 0 }
+        // Initialize application state
+        const state = {
+            spins: [],
+            predictions: [],
+            currentStreak: 0,
+            maxStreak: 0,
+            strategies: {
+                neighbors: { used: 0, correct: 0 },
+                section: { used: 0, correct: 0 },
+                color: { used: 0, correct: 0 },
+                opposite: { used: 0, correct: 0 }
+            }
         };
 
         // DOM elements
-        const spinInput = document.getElementById('spinInput');
-        const addSpinBtn = document.getElementById('addSpinBtn');
-        const clearBtn = document.getElementById('clearBtn');
-        const bulkInput = document.getElementById('bulkInput');
-        const bulkAddBtn = document.getElementById('bulkAddBtn');
-        const historyTable = document.querySelector('#historyTable tbody');
-        const wheel = document.getElementById('wheel');
-        const predStrategy = document.getElementById('predStrategy');
-        const predNumbers = document.getElementById('predNumbers');
-        const predConfidence = document.getElementById('predConfidence');
-        const strategyInfo = document.getElementById('strategyInfo');
-        const predictionTable = document.querySelector('#predictionTable tbody');
-        const strategyTable = document.querySelector('#strategyTable tbody');
-        const totalSpins = document.getElementById('totalSpins');
-        const totalPredictions = document.getElementById('totalPredictions');
-        const correctPredictions = document.getElementById('correctPredictions');
-        const accuracy = document.getElementById('accuracy');
-        const currentStreakDisplay = document.getElementById('currentStreak');
-        const maxStreakDisplay = document.getElementById('maxStreak');
+        const elements = {
+            spinInput: document.getElementById('spinInput'),
+            addSpinBtn: document.getElementById('addSpinBtn'),
+            clearBtn: document.getElementById('clearBtn'),
+            bulkInput: document.getElementById('bulkInput'),
+            bulkAddBtn: document.getElementById('bulkAddBtn'),
+            historyTable: document.querySelector('#historyTable tbody'),
+            wheel: document.getElementById('wheel'),
+            predStrategy: document.getElementById('predStrategy'),
+            predNumbers: document.getElementById('predNumbers'),
+            predConfidence: document.getElementById('predConfidence'),
+            strategyInfo: document.getElementById('strategyInfo'),
+            predictionTable: document.querySelector('#predictionTable tbody'),
+            strategyTable: document.querySelector('#strategyTable tbody'),
+            totalSpins: document.getElementById('totalSpins'),
+            totalPredictions: document.getElementById('totalPredictions'),
+            correctPredictions: document.getElementById('correctPredictions'),
+            accuracy: document.getElementById('accuracy'),
+            currentStreak: document.getElementById('currentStreak'),
+            maxStreak: document.getElementById('maxStreak')
+        };
 
-        // Initialize the wheel
+        // Initialize the wheel visualization
         function initWheel() {
-            wheel.innerHTML = '';
+            elements.wheel.innerHTML = '';
             const radius = 180;
             const center = 200;
-            const angleStep = (2 * Math.PI) / europeanWheel.length;
+            const angleStep = (2 * Math.PI) / wheelLayout.length;
 
-            europeanWheel.forEach((num, index) => {
+            wheelLayout.forEach((num, index) => {
                 const angle = index * angleStep;
                 const x = center + radius * Math.sin(angle);
                 const y = center - radius * Math.cos(angle);
@@ -329,21 +328,16 @@
                     numberElement.classList.add('black');
                 }
 
-                wheel.appendChild(numberElement);
+                elements.wheel.appendChild(numberElement);
             });
         }
 
-        // Get the wheel section for a number
+        // Get wheel section for a number
         function getSection(number) {
-            for (let i = 0; i < wheelSections.length; i++) {
-                if (wheelSections[i].includes(number)) {
-                    return i + 1;
-                }
-            }
-            return 0;
+            return wheelSections.findIndex(section => section.includes(number)) + 1 || 0;
         }
 
-        // Get the color for a number
+        // Get color for a number
         function getColor(number) {
             if (number === 0) return 'green';
             return redNumbers.includes(number) ? 'red' : 'black';
@@ -352,190 +346,177 @@
         // Add a single spin
         function addSpin(number) {
             const num = parseInt(number);
-            if (isNaN(num)) {
-                alert('Please enter a valid number');
-                return;
-            }
-            if (num < 0 || num > 36) {
-                alert('Please enter a number between 0 and 36');
-                return;
+            if (isNaN(num) || num < 0 || num > 36) {
+                alert('Please enter a valid number between 0 and 36');
+                return false;
             }
 
-            const newSpin = { 
+            state.spins.push({
                 number: num,
                 color: getColor(num),
                 section: getSection(num)
-            };
-            
-            spins.push(newSpin);
-            updateHistoryTable();
+            });
 
-            // Make prediction if we have at least one previous spin
-            if (spins.length > 1) {
+            updateHistoryTable();
+            updateStats();
+
+            // Make prediction if we have at least 2 spins
+            if (state.spins.length > 1) {
                 makePrediction();
             }
 
-            updateStats();
-            spinInput.value = '';
+            return true;
         }
 
         // Make a prediction based on previous spins
         function makePrediction() {
-            const lastSpin = spins[spins.length - 2]; // Previous spin
-            const currentSpin = spins[spins.length - 1]; // Current spin
+            const lastSpin = state.spins[state.spins.length - 2];
+            const currentSpin = state.spins[state.spins.length - 1];
             
-            // Choose prediction strategy based on recent performance and streak
-            let strategy;
-            let predictedNumbers = [];
-            let confidence = "Medium";
-            let strategyExplanation = "";
+            // Choose prediction strategy
+            let strategy, predictedNumbers, confidence, explanation;
             
-            // If we're on a losing streak, switch to more conservative strategies
-            if (currentStreak >= 3) {
-                // On streak, use broader predictions
-                if (currentStreak >= 5) {
-                    // Critical streak - use very broad prediction
+            // If on losing streak, use broader predictions
+            if (state.currentStreak >= 3) {
+                if (state.currentStreak >= 5) {
+                    // Critical streak - use section prediction
                     strategy = 'section';
-                    const sectionIndex = lastSpin.section - 1;
-                    predictedNumbers = [...wheelSections[sectionIndex]];
-                    confidence = "Low";
-                    strategyExplanation = `Using section prediction (${lastSpin.section}) due to long losing streak (${currentStreak})`;
+                    predictedNumbers = [...wheelSections[lastSpin.section - 1]];
+                    confidence = 'Low';
+                    explanation = `Section prediction (${lastSpin.section}) due to long losing streak`;
                 } else {
                     // Moderate streak - use color prediction
                     strategy = 'color';
                     predictedNumbers = lastSpin.color === 'red' ? 
                         redNumbers : 
-                        europeanWheel.filter(n => n !== 0 && !redNumbers.includes(n));
-                    confidence = "Medium";
-                    strategyExplanation = `Using color prediction (${lastSpin.color}) due to losing streak (${currentStreak})`;
+                        wheelLayout.filter(n => n !== 0 && !redNumbers.includes(n));
+                    confidence = 'Medium';
+                    explanation = `Color prediction (${lastSpin.color}) due to losing streak`;
                 }
             } else {
-                // No streak - use normal strategies
-                const strategyOptions = [];
-                
-                // Add neighbors strategy (high precision)
-                strategyOptions.push({
-                    name: 'neighbors',
-                    numbers: wheelNeighbors[lastSpin.number],
-                    confidence: 'High',
-                    explanation: `Predicting neighbors of ${lastSpin.number} (high precision)`
-                });
-                
-                // Add section strategy (medium precision)
-                const sectionIndex = lastSpin.section - 1;
-                strategyOptions.push({
-                    name: 'section',
-                    numbers: [...wheelSections[sectionIndex]],
-                    confidence: 'Medium',
-                    explanation: `Predicting same section as ${lastSpin.number} (section ${lastSpin.section})`
-                });
-                
-                // Add color strategy (low precision)
-                strategyOptions.push({
-                    name: 'color',
-                    numbers: lastSpin.color === 'red' ? 
-                        redNumbers : 
-                        europeanWheel.filter(n => n !== 0 && !redNumbers.includes(n)),
-                    confidence: 'Low',
-                    explanation: `Predicting same color as ${lastSpin.number} (${lastSpin.color})`
-                });
-                
-                // Add opposite strategy (for variety)
-                strategyOptions.push({
-                    name: 'opposite',
-                    numbers: lastSpin.color === 'red' ? 
-                        europeanWheel.filter(n => n !== 0 && !redNumbers.includes(n)) :
-                        redNumbers,
-                    confidence: 'Medium',
-                    explanation: `Predicting opposite color of ${lastSpin.number} (${lastSpin.color === 'red' ? 'black' : 'red'})`
-                });
-                
-                // Choose the best strategy based on past performance
-                let bestScore = -Infinity;
-                let bestStrategy = strategyOptions[0];
-                
-                for (const option of strategyOptions) {
-                    const perf = strategyPerformance[option.name];
-                    const accuracy = perf.used > 0 ? (perf.correct / perf.used) : 0.5;
+                // No streak - choose best performing strategy
+                const options = [
+                    {
+                        name: 'neighbors',
+                        numbers: wheelNeighbors[lastSpin.number],
+                        confidence: 'High',
+                        explanation: `Neighbors of ${lastSpin.number} (high precision)`
+                    },
+                    {
+                        name: 'section',
+                        numbers: [...wheelSections[lastSpin.section - 1]],
+                        confidence: 'Medium',
+                        explanation: `Section ${lastSpin.section} prediction`
+                    },
+                    {
+                        name: 'color',
+                        numbers: lastSpin.color === 'red' ? 
+                            redNumbers : 
+                            wheelLayout.filter(n => n !== 0 && !redNumbers.includes(n)),
+                        confidence: 'Low',
+                        explanation: `${lastSpin.color} color prediction`
+                    },
+                    {
+                        name: 'opposite',
+                        numbers: lastSpin.color === 'red' ? 
+                            wheelLayout.filter(n => n !== 0 && !redNumbers.includes(n)) :
+                            redNumbers,
+                        confidence: 'Medium',
+                        explanation: `Opposite color prediction`
+                    }
+                ];
+
+                // Select strategy with best historical performance
+                let bestScore = -1;
+                options.forEach(option => {
+                    const strat = state.strategies[option.name];
+                    const accuracy = strat.used > 0 ? strat.correct / strat.used : 0.5;
                     const weight = option.confidence === 'High' ? 1.2 : 
                                  option.confidence === 'Medium' ? 1.0 : 0.8;
                     const score = accuracy * weight;
                     
                     if (score > bestScore) {
                         bestScore = score;
-                        bestStrategy = option;
+                        strategy = option.name;
+                        predictedNumbers = option.numbers;
+                        confidence = option.confidence;
+                        explanation = option.explanation;
                     }
-                }
-                
-                strategy = bestStrategy.name;
-                predictedNumbers = bestStrategy.numbers;
-                confidence = bestStrategy.confidence;
-                strategyExplanation = bestStrategy.explanation;
+                });
             }
-            
+
             // Check if prediction was correct
             const isCorrect = predictedNumbers.includes(currentSpin.number);
             
             // Update streaks
             if (isCorrect) {
-                currentStreak = 0;
+                state.currentStreak = 0;
             } else {
-                currentStreak++;
-                if (currentStreak > maxStreak) {
-                    maxStreak = currentStreak;
+                state.currentStreak++;
+                if (state.currentStreak > state.maxStreak) {
+                    state.maxStreak = state.currentStreak;
                 }
             }
-            
+
             // Update strategy performance
-            strategyPerformance[strategy].used++;
-            if (isCorrect) {
-                strategyPerformance[strategy].correct++;
-            }
-            
-            const prediction = {
-                spinNumber: spins.length,
-                strategy: strategy,
-                predictedNumbers: predictedNumbers,
+            state.strategies[strategy].used++;
+            if (isCorrect) state.strategies[strategy].correct++;
+
+            // Store prediction
+            state.predictions.push({
+                spinNumber: state.spins.length,
+                strategy,
+                predictedNumbers,
                 actual: currentSpin.number,
                 correct: isCorrect,
-                streak: currentStreak,
-                confidence: confidence
-            };
-            
-            predictions.push(prediction);
-            updatePredictionDisplay(prediction, strategyExplanation);
+                confidence
+            });
+
+            // Update UI
+            updatePredictionDisplay(strategy, predictedNumbers, confidence, explanation);
             updatePredictionTable();
             updateStrategyTable();
-            highlightPredictedNumbers(predictedNumbers, confidence);
+            highlightNumbers(predictedNumbers, confidence);
         }
 
-        // Update the history table
+        // Update history table
         function updateHistoryTable() {
-            historyTable.innerHTML = '';
-            spins.forEach((spin, index) => {
+            elements.historyTable.innerHTML = '';
+            state.spins.forEach((spin, index) => {
                 const row = document.createElement('tr');
                 row.innerHTML = `
                     <td>${index + 1}</td>
                     <td>${spin.number}</td>
-                    <td style="color: ${spin.color === 'red' ? 'red' : spin.color === 'black' ? 'black' : 'green'}">${spin.color}</td>
+                    <td style="color: ${spin.color}">${spin.color}</td>
                     <td>${spin.section}</td>
                 `;
-                historyTable.appendChild(row);
+                elements.historyTable.appendChild(row);
             });
+            elements.totalSpins.textContent = state.spins.length;
         }
 
-        // Update the prediction display
-        function updatePredictionDisplay(prediction, explanation) {
-            predStrategy.textContent = prediction.strategy;
-            predNumbers.textContent = prediction.predictedNumbers.join(', ');
-            predConfidence.textContent = prediction.confidence;
-            strategyInfo.textContent = explanation;
+        // Update prediction display
+        function updatePredictionDisplay(strategy, numbers, confidence, explanation) {
+            elements.predStrategy.textContent = strategy;
+            elements.predNumbers.textContent = numbers.join(', ');
+            elements.predConfidence.textContent = confidence;
+            elements.strategyInfo.textContent = explanation || 'No prediction explanation';
+            elements.totalPredictions.textContent = state.predictions.length;
         }
 
-        // Update the prediction table
+        // Update prediction table
         function updatePredictionTable() {
-            predictionTable.innerHTML = '';
-            predictions.slice().reverse().slice(0, 10).forEach(pred => {
+            elements.predictionTable.innerHTML = '';
+            
+            if (state.predictions.length === 0) {
+                elements.predictionTable.innerHTML = '<tr><td colspan="4">No predictions yet</td></tr>';
+                return;
+            }
+
+            // Show last 10 predictions (newest first)
+            const recentPredictions = state.predictions.slice().reverse().slice(0, 10);
+            
+            recentPredictions.forEach(pred => {
                 const row = document.createElement('tr');
                 row.innerHTML = `
                     <td>${pred.spinNumber}</td>
@@ -543,36 +524,32 @@
                     <td>${pred.actual}</td>
                     <td class="${pred.correct ? 'correct' : 'incorrect'}">
                         ${pred.correct ? '✓' : '✗'}
-                        ${pred.streak > 2 ? ` (${pred.streak})` : ''}
+                        ${pred.spinNumber === state.spins.length ? ` (Current)` : ''}
                     </td>
                 `;
-                if (pred.streak >= 3 && pred.streak < 5) {
-                    row.querySelector('td:last-child').classList.add('streak-warning');
-                } else if (pred.streak >= 5) {
-                    row.querySelector('td:last-child').classList.add('streak-critical');
-                }
-                predictionTable.appendChild(row);
+                elements.predictionTable.appendChild(row);
             });
         }
 
-        // Update the strategy performance table
+        // Update strategy table
         function updateStrategyTable() {
-            strategyTable.innerHTML = '';
-            Object.entries(strategyPerformance).forEach(([strategy, perf]) => {
+            elements.strategyTable.innerHTML = '';
+            
+            Object.entries(state.strategies).forEach(([name, stats]) => {
                 const row = document.createElement('tr');
-                const accuracy = perf.used > 0 ? Math.round((perf.correct / perf.used) * 100 : 0;
+                const accuracy = stats.used > 0 ? Math.round((stats.correct / stats.used) * 100) : 0;
                 row.innerHTML = `
-                    <td>${strategy}</td>
-                    <td>${perf.used}</td>
-                    <td>${perf.correct}</td>
+                    <td>${name.charAt(0).toUpperCase() + name.slice(1)}</td>
+                    <td>${stats.used}</td>
+                    <td>${stats.correct}</td>
                     <td>${accuracy}%</td>
                 `;
-                strategyTable.appendChild(row);
+                elements.strategyTable.appendChild(row);
             });
         }
 
-        // Highlight predicted numbers on the wheel
-        function highlightPredictedNumbers(numbers, confidence) {
+        // Highlight predicted numbers on wheel
+        function highlightNumbers(numbers, confidence) {
             // Clear previous highlights
             document.querySelectorAll('.wheel-number').forEach(el => {
                 el.classList.remove('predicted', 'high-confidence');
@@ -592,104 +569,109 @@
 
         // Update statistics
         function updateStats() {
-            totalSpins.textContent = spins.length;
-            totalPredictions.textContent = predictions.length;
+            const correct = state.predictions.filter(p => p.correct).length;
+            const accuracy = state.predictions.length > 0 ? 
+                Math.round((correct / state.predictions.length) * 100) : 0;
             
-            const correct = predictions.filter(p => p.correct).length;
-            correctPredictions.textContent = correct;
+            elements.correctPredictions.textContent = correct;
+            elements.accuracy.textContent = `${accuracy}%`;
+            elements.currentStreak.textContent = state.currentStreak;
+            elements.maxStreak.textContent = state.maxStreak;
             
-            const acc = predictions.length > 0 ? Math.round((correct / predictions.length) * 100) : 0;
-            accuracy.textContent = `${acc}%`;
-            
-            currentStreakDisplay.textContent = currentStreak;
-            maxStreakDisplay.textContent = maxStreak;
-            
-            // Update streak display color
-            if (currentStreak >= 3 && currentStreak < 5) {
-                currentStreakDisplay.className = 'streak-warning';
-            } else if (currentStreak >= 5) {
-                currentStreakDisplay.className = 'streak-critical';
+            // Update streak display
+            if (state.currentStreak >= 3 && state.currentStreak < 5) {
+                elements.currentStreak.className = 'streak-warning';
+            } else if (state.currentStreak >= 5) {
+                elements.currentStreak.className = 'streak-critical';
             } else {
-                currentStreakDisplay.className = '';
+                elements.currentStreak.className = '';
             }
         }
 
         // Add multiple spins from bulk input
         function addBulkSpins() {
-            const input = bulkInput.value.trim();
+            const input = elements.bulkInput.value.trim();
             if (!input) {
                 alert('Please enter some numbers first');
                 return;
             }
             
-            // Split by any combination of commas, spaces or newlines
+            // Parse numbers (accepts comma, space, or newline separated)
             const numbers = input.split(/[\s,]+/).filter(n => n !== '');
+            let addedCount = 0;
             
             numbers.forEach(num => {
-                const parsedNum = parseInt(num);
-                if (!isNaN(parsedNum) {
-                    addSpin(parsedNum);
+                if (addSpin(num)) {
+                    addedCount++;
                 }
             });
             
-            bulkInput.value = '';
+            if (addedCount > 0) {
+                elements.bulkInput.value = '';
+                alert(`Added ${addedCount} spins`);
+            } else {
+                alert('No valid numbers found');
+            }
         }
 
         // Clear all data
         function clearAll() {
-            spins = [];
-            predictions = [];
-            currentStreak = 0;
-            maxStreak = 0;
-            
-            // Reset strategy performance
-            strategyPerformance = {
-                'neighbors': { used: 0, correct: 0 },
-                'section': { used: 0, correct: 0 },
-                'color': { used: 0, correct: 0 },
-                'opposite': { used: 0, correct: 0 }
-            };
-            
-            updateHistoryTable();
-            updatePredictionTable();
-            updateStrategyTable();
-            updateStats();
-            
-            predStrategy.textContent = '-';
-            predNumbers.textContent = '-';
-            predConfidence.textContent = '-';
-            strategyInfo.textContent = '';
-            
-            // Clear wheel highlights
-            document.querySelectorAll('.wheel-number').forEach(el => {
-                el.classList.remove('predicted', 'high-confidence');
-            });
+            if (confirm('Are you sure you want to clear all data?')) {
+                state.spins = [];
+                state.predictions = [];
+                state.currentStreak = 0;
+                state.maxStreak = 0;
+                
+                // Reset strategy performance
+                Object.keys(state.strategies).forEach(key => {
+                    state.strategies[key] = { used: 0, correct: 0 };
+                });
+                
+                // Reset UI
+                updateHistoryTable();
+                updatePredictionTable();
+                updateStrategyTable();
+                updateStats();
+                
+                elements.predStrategy.textContent = '-';
+                elements.predNumbers.textContent = '-';
+                elements.predConfidence.textContent = '-';
+                elements.strategyInfo.textContent = 'No prediction yet. Add at least 2 spins.';
+                
+                // Clear wheel highlights
+                document.querySelectorAll('.wheel-number').forEach(el => {
+                    el.classList.remove('predicted', 'high-confidence');
+                });
+            }
         }
 
         // Event listeners
-        addSpinBtn.addEventListener('click', () => {
-            if (spinInput.value.trim() === '') {
+        elements.addSpinBtn.addEventListener('click', () => {
+            if (!elements.spinInput.value.trim()) {
                 alert('Please enter a number first');
                 return;
             }
-            addSpin(spinInput.value);
+            addSpin(elements.spinInput.value);
         });
         
-        clearBtn.addEventListener('click', clearAll);
-        bulkAddBtn.addEventListener('click', addBulkSpins);
+        elements.clearBtn.addEventListener('click', clearAll);
+        elements.bulkAddBtn.addEventListener('click', addBulkSpins);
         
-        spinInput.addEventListener('keypress', (e) => {
+        elements.spinInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
-                if (spinInput.value.trim() === '') {
+                if (!elements.spinInput.value.trim()) {
                     alert('Please enter a number first');
                     return;
                 }
-                addSpin(spinInput.value);
+                addSpin(elements.spinInput.value);
             }
         });
 
-        // Initialize the wheel on load
-        window.addEventListener('load', initWheel);
+        // Initialize the application
+        window.addEventListener('load', () => {
+            initWheel();
+            updateStats();
+        });
     </script>
 </body>
 </html>
