@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Roulette Predictor</title>
+    <title>Advanced Roulette Predictor</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -97,6 +97,9 @@
         .wheel-number.predicted {
             box-shadow: 0 0 0 3px yellow;
         }
+        .wheel-number.high-confidence {
+            box-shadow: 0 0 0 3px orange;
+        }
         .correct {
             color: green;
             font-weight: bold;
@@ -112,10 +115,16 @@
             color: red;
             font-weight: bold;
         }
+        .strategy-info {
+            margin-top: 10px;
+            padding: 10px;
+            background-color: #f8f8f8;
+            border-radius: 4px;
+        }
     </style>
 </head>
 <body>
-    <h1>Roulette Predictor</h1>
+    <h1>Advanced Roulette Predictor</h1>
     <div class="container">
         <div class="input-section">
             <h2>Add Spins</h2>
@@ -135,7 +144,8 @@
                     <tr>
                         <th>#</th>
                         <th>Number</th>
-                        <th>Direction</th>
+                        <th>Color</th>
+                        <th>Section</th>
                     </tr>
                 </thead>
                 <tbody></tbody>
@@ -147,9 +157,10 @@
             <div class="wheel" id="wheel"></div>
             <div id="currentPrediction">
                 <h3>Current Prediction</h3>
-                <p>Direction: <span id="predDirection">-</span></p>
-                <p>Center Number: <span id="predCenter">-</span></p>
+                <p>Strategy: <span id="predStrategy">-</span></p>
                 <p>Predicted Numbers: <span id="predNumbers">-</span></p>
+                <p>Confidence: <span id="predConfidence">-</span></p>
+                <div class="strategy-info" id="strategyInfo"></div>
             </div>
         </div>
 
@@ -161,6 +172,19 @@
             <p>Accuracy: <span id="accuracy">0%</span></p>
             <p>Current Streak: <span id="currentStreak">0</span></p>
             <p>Max Streak: <span id="maxStreak">0</span></p>
+            
+            <h3>Strategy Performance</h3>
+            <table id="strategyTable">
+                <thead>
+                    <tr>
+                        <th>Strategy</th>
+                        <th>Used</th>
+                        <th>Correct</th>
+                        <th>Accuracy</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
             
             <h3>Recent Predictions</h3>
             <table id="predictionTable">
@@ -186,11 +210,69 @@
         // Red numbers on European roulette
         const redNumbers = [32, 19, 21, 25, 34, 27, 36, 30, 23, 5, 16, 1, 14, 9, 18, 7, 12, 3];
 
+        // Wheel sections (divided into 8 sections)
+        const wheelSections = [
+            [0, 32, 15, 19, 4, 21, 2],    // Section 1
+            [25, 17, 34, 6, 27, 13, 36],  // Section 2
+            [11, 30, 8, 23, 10, 5, 24],   // Section 3
+            [16, 33, 1, 20, 14, 31, 9],   // Section 4
+            [22, 18, 29, 7, 28, 12, 35],  // Section 5
+            [3, 26]                        // Section 6 (smaller section)
+        ];
+
+        // Number neighbors (numbers physically close on the wheel)
+        const wheelNeighbors = {
+            0: [32, 15, 26, 3],
+            32: [0, 15, 19, 26],
+            15: [0, 32, 19, 4],
+            19: [32, 15, 4, 21],
+            4: [15, 19, 21, 2],
+            21: [19, 4, 2, 25],
+            2: [4, 21, 25, 17],
+            25: [21, 2, 17, 34],
+            17: [2, 25, 34, 6],
+            34: [25, 17, 6, 27],
+            6: [17, 34, 27, 13],
+            27: [34, 6, 13, 36],
+            13: [6, 27, 36, 11],
+            36: [27, 13, 11, 30],
+            11: [13, 36, 30, 8],
+            30: [36, 11, 8, 23],
+            8: [11, 30, 23, 10],
+            23: [30, 8, 10, 5],
+            10: [8, 23, 5, 24],
+            5: [23, 10, 24, 16],
+            24: [10, 5, 16, 33],
+            16: [5, 24, 33, 1],
+            33: [24, 16, 1, 20],
+            1: [16, 33, 20, 14],
+            20: [33, 1, 14, 31],
+            14: [1, 20, 31, 9],
+            31: [20, 14, 9, 22],
+            9: [14, 31, 22, 18],
+            22: [31, 9, 18, 29],
+            18: [9, 22, 29, 7],
+            29: [22, 18, 7, 28],
+            7: [18, 29, 28, 12],
+            28: [29, 7, 12, 35],
+            12: [7, 28, 35, 3],
+            35: [28, 12, 3, 26],
+            3: [12, 35, 26, 0],
+            26: [35, 3, 0, 32]
+        };
+
         // Application state
         let spins = [];
         let predictions = [];
         let currentStreak = 0;
         let maxStreak = 0;
+        let strategyPerformance = {
+            'neighbors': { used: 0, correct: 0 },
+            'section': { used: 0, correct: 0 },
+            'color': { used: 0, correct: 0 },
+            'opposite': { used: 0, correct: 0 },
+            'random': { used: 0, correct: 0 }
+        };
 
         // DOM elements
         const spinInput = document.getElementById('spinInput');
@@ -200,10 +282,12 @@
         const bulkAddBtn = document.getElementById('bulkAddBtn');
         const historyTable = document.querySelector('#historyTable tbody');
         const wheel = document.getElementById('wheel');
-        const predDirection = document.getElementById('predDirection');
-        const predCenter = document.getElementById('predCenter');
+        const predStrategy = document.getElementById('predStrategy');
         const predNumbers = document.getElementById('predNumbers');
+        const predConfidence = document.getElementById('predConfidence');
+        const strategyInfo = document.getElementById('strategyInfo');
         const predictionTable = document.querySelector('#predictionTable tbody');
+        const strategyTable = document.querySelector('#strategyTable tbody');
         const totalSpins = document.getElementById('totalSpins');
         const totalPredictions = document.getElementById('totalPredictions');
         const correctPredictions = document.getElementById('correctPredictions');
@@ -242,18 +326,40 @@
             });
         }
 
+        // Get the wheel section for a number
+        function getSection(number) {
+            for (let i = 0; i < wheelSections.length; i++) {
+                if (wheelSections[i].includes(number)) {
+                    return i + 1;
+                }
+            }
+            return 0;
+        }
+
+        // Get the color for a number
+        function getColor(number) {
+            if (number === 0) return 'green';
+            return redNumbers.includes(number) ? 'red' : 'black';
+        }
+
         // Add a single spin
         function addSpin(number) {
             const num = parseInt(number);
-            if (isNaN(num) || num < 0 || num > 36) {
+            if (isNaN(num) {
+                alert('Please enter a valid number');
+                return;
+            }
+            if (num < 0 || num > 36) {
                 alert('Please enter a number between 0 and 36');
                 return;
             }
 
-            const lastDirection = spins.length === 0 ? 'CCW' : 
-                                spins[spins.length - 1].direction === 'CW' ? 'CCW' : 'CW';
+            const newSpin = { 
+                number: num,
+                color: getColor(num),
+                section: getSection(num)
+            };
             
-            const newSpin = { number: num, direction: lastDirection };
             spins.push(newSpin);
             updateHistoryTable();
 
@@ -266,24 +372,104 @@
             spinInput.value = '';
         }
 
-        // Make a prediction based on last spin
+        // Make a prediction based on previous spins
         function makePrediction() {
             const lastSpin = spins[spins.length - 2]; // Previous spin
             const currentSpin = spins[spins.length - 1]; // Current spin
             
-            const nextDirection = lastSpin.direction === 'CW' ? 'CCW' : 'CW';
-            const wheelOrder = nextDirection === 'CW' ? [...europeanWheel] : [...europeanWheel].reverse();
+            // Choose prediction strategy based on recent performance and streak
+            let strategy;
+            let predictedNumbers = [];
+            let confidence = "Medium";
+            let strategyExplanation = "";
             
-            const centerIndex = wheelOrder.indexOf(lastSpin.number);
-            const predictedNumbers = [];
-            
-            for (let i = -9; i <= 9; i++) {
-                const neighborIndex = (centerIndex + i + wheelOrder.length) % wheelOrder.length;
-                predictedNumbers.push(wheelOrder[neighborIndex]);
+            // If we're on a losing streak, switch to more conservative strategies
+            if (currentStreak >= 3) {
+                // On streak, use broader predictions
+                if (currentStreak >= 5) {
+                    // Critical streak - use very broad prediction
+                    strategy = 'section';
+                    const sectionIndex = lastSpin.section - 1;
+                    predictedNumbers = [...wheelSections[sectionIndex]];
+                    confidence = "Low";
+                    strategyExplanation = `Using section prediction (${lastSpin.section}) due to long losing streak (${currentStreak})`;
+                } else {
+                    // Moderate streak - use color prediction
+                    strategy = 'color';
+                    predictedNumbers = lastSpin.color === 'red' ? 
+                        redNumbers : 
+                        europeanWheel.filter(n => n !== 0 && !redNumbers.includes(n));
+                    confidence = "Medium";
+                    strategyExplanation = `Using color prediction (${lastSpin.color}) due to losing streak (${currentStreak})`;
+                }
+            } else {
+                // No streak - use normal strategies
+                const strategyOptions = [];
+                
+                // Add neighbors strategy (high precision)
+                strategyOptions.push({
+                    name: 'neighbors',
+                    numbers: wheelNeighbors[lastSpin.number],
+                    confidence: 'High',
+                    explanation: `Predicting neighbors of ${lastSpin.number} (high precision)`
+                });
+                
+                // Add section strategy (medium precision)
+                const sectionIndex = lastSpin.section - 1;
+                strategyOptions.push({
+                    name: 'section',
+                    numbers: [...wheelSections[sectionIndex]],
+                    confidence: 'Medium',
+                    explanation: `Predicting same section as ${lastSpin.number} (section ${lastSpin.section})`
+                });
+                
+                // Add color strategy (low precision)
+                strategyOptions.push({
+                    name: 'color',
+                    numbers: lastSpin.color === 'red' ? 
+                        redNumbers : 
+                        europeanWheel.filter(n => n !== 0 && !redNumbers.includes(n)),
+                    confidence: 'Low',
+                    explanation: `Predicting same color as ${lastSpin.number} (${lastSpin.color})`
+                });
+                
+                // Add opposite strategy (for variety)
+                strategyOptions.push({
+                    name: 'opposite',
+                    numbers: lastSpin.color === 'red' ? 
+                        europeanWheel.filter(n => n !== 0 && !redNumbers.includes(n)) :
+                        redNumbers,
+                    confidence: 'Medium',
+                    explanation: `Predicting opposite color of ${lastSpin.number} (${lastSpin.color === 'red' ? 'black' : 'red'})`
+                });
+                
+                // Choose the best strategy based on past performance
+                let bestScore = -Infinity;
+                let bestStrategy = strategyOptions[0];
+                
+                for (const option of strategyOptions) {
+                    const perf = strategyPerformance[option.name];
+                    const accuracy = perf.used > 0 ? (perf.correct / perf.used) : 0.5;
+                    const weight = option.confidence === 'High' ? 1.2 : 
+                                 option.confidence === 'Medium' ? 1.0 : 0.8;
+                    const score = accuracy * weight;
+                    
+                    if (score > bestScore) {
+                        bestScore = score;
+                        bestStrategy = option;
+                    }
+                }
+                
+                strategy = bestStrategy.name;
+                predictedNumbers = bestStrategy.numbers;
+                confidence = bestStrategy.confidence;
+                strategyExplanation = bestStrategy.explanation;
             }
             
+            // Check if prediction was correct
             const isCorrect = predictedNumbers.includes(currentSpin.number);
             
+            // Update streaks
             if (isCorrect) {
                 currentStreak = 0;
             } else {
@@ -293,20 +479,27 @@
                 }
             }
             
+            // Update strategy performance
+            strategyPerformance[strategy].used++;
+            if (isCorrect) {
+                strategyPerformance[strategy].correct++;
+            }
+            
             const prediction = {
                 spinNumber: spins.length,
-                direction: nextDirection,
-                center: lastSpin.number,
-                predictedNumbers,
+                strategy: strategy,
+                predictedNumbers: predictedNumbers,
                 actual: currentSpin.number,
                 correct: isCorrect,
-                streak: currentStreak
+                streak: currentStreak,
+                confidence: confidence
             };
             
             predictions.push(prediction);
-            updatePredictionDisplay(prediction);
+            updatePredictionDisplay(prediction, strategyExplanation);
             updatePredictionTable();
-            highlightPredictedNumbers(predictedNumbers);
+            updateStrategyTable();
+            highlightPredictedNumbers(predictedNumbers, confidence);
         }
 
         // Update the history table
@@ -317,17 +510,19 @@
                 row.innerHTML = `
                     <td>${index + 1}</td>
                     <td>${spin.number}</td>
-                    <td>${spin.direction}</td>
+                    <td>${spin.color}</td>
+                    <td>${spin.section}</td>
                 `;
                 historyTable.appendChild(row);
             });
         }
 
         // Update the prediction display
-        function updatePredictionDisplay(prediction) {
-            predDirection.textContent = prediction.direction;
-            predCenter.textContent = prediction.center;
+        function updatePredictionDisplay(prediction, explanation) {
+            predStrategy.textContent = prediction.strategy;
             predNumbers.textContent = prediction.predictedNumbers.join(', ');
+            predConfidence.textContent = prediction.confidence;
+            strategyInfo.textContent = explanation;
         }
 
         // Update the prediction table
@@ -341,29 +536,50 @@
                     <td>${pred.actual}</td>
                     <td class="${pred.correct ? 'correct' : 'incorrect'}">
                         ${pred.correct ? '✓' : '✗'}
-                        ${pred.streak > 3 ? ` (${pred.streak})` : ''}
+                        ${pred.streak > 2 ? ` (${pred.streak})` : ''}
                     </td>
                 `;
-                if (pred.streak >= 4 && pred.streak < 6) {
+                if (pred.streak >= 3 && pred.streak < 5) {
                     row.querySelector('td:last-child').classList.add('streak-warning');
-                } else if (pred.streak >= 6) {
+                } else if (pred.streak >= 5) {
                     row.querySelector('td:last-child').classList.add('streak-critical');
                 }
                 predictionTable.appendChild(row);
             });
         }
 
+        // Update the strategy performance table
+        function updateStrategyTable() {
+            strategyTable.innerHTML = '';
+            Object.entries(strategyPerformance).forEach(([strategy, perf]) => {
+                const row = document.createElement('tr');
+                const accuracy = perf.used > 0 ? Math.round((perf.correct / perf.used) * 100 : 0;
+                row.innerHTML = `
+                    <td>${strategy}</td>
+                    <td>${perf.used}</td>
+                    <td>${perf.correct}</td>
+                    <td>${accuracy}%</td>
+                `;
+                strategyTable.appendChild(row);
+            });
+        }
+
         // Highlight predicted numbers on the wheel
-        function highlightPredictedNumbers(numbers) {
+        function highlightPredictedNumbers(numbers, confidence) {
             // Clear previous highlights
             document.querySelectorAll('.wheel-number').forEach(el => {
-                el.classList.remove('predicted');
+                el.classList.remove('predicted', 'high-confidence');
             });
             
             // Add new highlights
             numbers.forEach(num => {
                 const el = document.getElementById(`wheel-${num}`);
-                if (el) el.classList.add('predicted');
+                if (el) {
+                    el.classList.add('predicted');
+                    if (confidence === 'High') {
+                        el.classList.add('high-confidence');
+                    }
+                }
             });
         }
 
@@ -382,9 +598,9 @@
             maxStreakDisplay.textContent = maxStreak;
             
             // Update streak display color
-            if (currentStreak >= 4 && currentStreak < 6) {
+            if (currentStreak >= 3 && currentStreak < 5) {
                 currentStreakDisplay.className = 'streak-warning';
-            } else if (currentStreak >= 6) {
+            } else if (currentStreak >= 5) {
                 currentStreakDisplay.className = 'streak-critical';
             } else {
                 currentStreakDisplay.className = '';
@@ -413,17 +629,28 @@
             currentStreak = 0;
             maxStreak = 0;
             
+            // Reset strategy performance
+            strategyPerformance = {
+                'neighbors': { used: 0, correct: 0 },
+                'section': { used: 0, correct: 0 },
+                'color': { used: 0, correct: 0 },
+                'opposite': { used: 0, correct: 0 },
+                'random': { used: 0, correct: 0 }
+            };
+            
             updateHistoryTable();
             updatePredictionTable();
+            updateStrategyTable();
             updateStats();
             
-            predDirection.textContent = '-';
-            predCenter.textContent = '-';
+            predStrategy.textContent = '-';
             predNumbers.textContent = '-';
+            predConfidence.textContent = '-';
+            strategyInfo.textContent = '';
             
             // Clear wheel highlights
             document.querySelectorAll('.wheel-number').forEach(el => {
-                el.classList.remove('predicted');
+                el.classList.remove('predicted', 'high-confidence');
             });
         }
 
