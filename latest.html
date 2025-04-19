@@ -42,6 +42,8 @@
         input, button {
             padding: 8px;
             margin: 5px 0;
+            width: 100%;
+            box-sizing: border-box;
         }
         button {
             background-color: #4CAF50;
@@ -56,6 +58,7 @@
         table {
             width: 100%;
             border-collapse: collapse;
+            margin-top: 10px;
         }
         th, td {
             border: 1px solid #ddd;
@@ -69,7 +72,7 @@
             position: relative;
             width: 400px;
             height: 400px;
-            margin: 0 auto;
+            margin: 20px auto;
             border-radius: 50%;
             background: #0a5c0a;
         }
@@ -121,6 +124,11 @@
             background-color: #f8f8f8;
             border-radius: 4px;
         }
+        textarea {
+            width: 100%;
+            box-sizing: border-box;
+            margin-bottom: 10px;
+        }
     </style>
 </head>
 <body>
@@ -135,7 +143,7 @@
             </div>
             <div>
                 <h3>Or paste multiple numbers:</h3>
-                <textarea id="bulkInput" rows="5" style="width: 100%;" placeholder="Paste numbers separated by spaces, commas or new lines"></textarea>
+                <textarea id="bulkInput" rows="5" placeholder="Paste numbers separated by spaces, commas or new lines"></textarea>
                 <button id="bulkAddBtn">Add Multiple Spins</button>
             </div>
             <h3>Spin History</h3>
@@ -210,7 +218,7 @@
         // Red numbers on European roulette
         const redNumbers = [32, 19, 21, 25, 34, 27, 36, 30, 23, 5, 16, 1, 14, 9, 18, 7, 12, 3];
 
-        // Wheel sections (divided into 8 sections)
+        // Wheel sections (divided into 6 sections)
         const wheelSections = [
             [0, 32, 15, 19, 4, 21, 2],    // Section 1
             [25, 17, 34, 6, 27, 13, 36],  // Section 2
@@ -270,8 +278,7 @@
             'neighbors': { used: 0, correct: 0 },
             'section': { used: 0, correct: 0 },
             'color': { used: 0, correct: 0 },
-            'opposite': { used: 0, correct: 0 },
-            'random': { used: 0, correct: 0 }
+            'opposite': { used: 0, correct: 0 }
         };
 
         // DOM elements
@@ -345,7 +352,7 @@
         // Add a single spin
         function addSpin(number) {
             const num = parseInt(number);
-            if (isNaN(num) {
+            if (isNaN(num)) {
                 alert('Please enter a valid number');
                 return;
             }
@@ -510,7 +517,7 @@
                 row.innerHTML = `
                     <td>${index + 1}</td>
                     <td>${spin.number}</td>
-                    <td>${spin.color}</td>
+                    <td style="color: ${spin.color === 'red' ? 'red' : spin.color === 'black' ? 'black' : 'green'}">${spin.color}</td>
                     <td>${spin.section}</td>
                 `;
                 historyTable.appendChild(row);
@@ -610,13 +617,19 @@
         // Add multiple spins from bulk input
         function addBulkSpins() {
             const input = bulkInput.value.trim();
-            if (!input) return;
+            if (!input) {
+                alert('Please enter some numbers first');
+                return;
+            }
             
             // Split by any combination of commas, spaces or newlines
             const numbers = input.split(/[\s,]+/).filter(n => n !== '');
             
             numbers.forEach(num => {
-                addSpin(num);
+                const parsedNum = parseInt(num);
+                if (!isNaN(parsedNum) {
+                    addSpin(parsedNum);
+                }
             });
             
             bulkInput.value = '';
@@ -634,8 +647,7 @@
                 'neighbors': { used: 0, correct: 0 },
                 'section': { used: 0, correct: 0 },
                 'color': { used: 0, correct: 0 },
-                'opposite': { used: 0, correct: 0 },
-                'random': { used: 0, correct: 0 }
+                'opposite': { used: 0, correct: 0 }
             };
             
             updateHistoryTable();
@@ -655,11 +667,25 @@
         }
 
         // Event listeners
-        addSpinBtn.addEventListener('click', () => addSpin(spinInput.value));
+        addSpinBtn.addEventListener('click', () => {
+            if (spinInput.value.trim() === '') {
+                alert('Please enter a number first');
+                return;
+            }
+            addSpin(spinInput.value);
+        });
+        
         clearBtn.addEventListener('click', clearAll);
         bulkAddBtn.addEventListener('click', addBulkSpins);
+        
         spinInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') addSpin(spinInput.value);
+            if (e.key === 'Enter') {
+                if (spinInput.value.trim() === '') {
+                    alert('Please enter a number first');
+                    return;
+                }
+                addSpin(spinInput.value);
+            }
         });
 
         // Initialize the wheel on load
