@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Opposite Side Roulette Predictor</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        h1, h2 {
+            color: #333;
+            text-align: center;
+        }
+        .container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+        .input-section, .wheel-section, .stats-section {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .input-section {
+            flex: 1;
+            min-width: 300px;
+        }
+        .wheel-section {
+            flex: 2;
+            min-width: 400px;
+        }
+        .stats-section {
+            flex: 1;
+            min-width: 300px;
+        }
+        input, button {
+            padding: 10px;
+            margin: 5px 0;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        .wheel {
+            position: relative;
+            width: 400px;
+            height: 400px;
+            margin: 20px auto;
+            border-radius: 50%;
+            background: #0a5c0a;
+            border: 5px solid #333;
+        }
+        .wheel-number {
+            position: absolute;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            transform-origin: center;
+        }
+        .wheel-number.zero {
+            background: green;
+        }
+        .wheel-number.red {
+            background: red;
+        }
+        .wheel-number.black {
+            background: black;
+        }
+        .wheel-number.predicted {
+            box-shadow: 0 0 0 3px yellow;
+        }
+        .wheel-number.opposite {
+            box-shadow: 0 0 0 3px cyan;
+        }
+        .correct {
+            color: green;
+            font-weight: bold;
+        }
+        .incorrect {
+            color: red;
+        }
+        .streak-warning {
+            color: orange;
+            font-weight: bold;
+        }
+        .streak-critical {
+            color: red;
+            font-weight: bold;
+        }
+        .strategy-info {
+            margin-top: 10px;
+            padding: 10px;
+            background-color: #f8f8f8;
+            border-radius: 4px;
+            border-left: 4px solid #4CAF50;
+        }
+        textarea {
+            width: 100%;
+            box-sizing: border-box;
+            margin-bottom: 10px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .prediction-display {
+            background: #f8f8f8;
+            padding: 15px;
+            border-radius: 4px;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Opposite Side Roulette Predictor</h1>
+    <div class="container">
+        <div class="input-section">
+            <h2>Add Spins</h2>
+            <div>
+                <input type="number" id="spinInput" min="0" max="36" placeholder="Enter number (0-36)">
+                <button id="addSpinBtn">Add Spin</button>
+                <button id="clearBtn">Clear All</button>
+            </div>
+            <div>
+                <h3>Or paste multiple numbers:</h3>
+                <textarea id="bulkInput" rows="5" placeholder="Example: 5, 10, 15 or 5 10 15 or 5\n10\n15"></textarea>
+                <button id="bulkAddBtn">Add Multiple Spins</button>
+            </div>
+            <h3>Spin History</h3>
+            <table id="historyTable">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Number</th>
+                        <th>Color</th>
+                        <th>Section</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+
+        <div class="wheel-section">
+            <h2>Wheel Visualization</h2>
+            <div class="wheel" id="wheel"></div>
+            <div class="prediction-display">
+                <h3>Current Prediction</h3>
+                <p><strong>Strategy:</strong> <span id="predStrategy">-</span></p>
+                <p><strong>Predicted Numbers:</strong> <span id="predNumbers">-</span></p>
+                <p><strong>Confidence:</strong> <span id="predConfidence">-</span></p>
+                <div class="strategy-info" id="strategyInfo">No prediction yet. Add at least 2 spins.</div>
+            </div>
+        </div>
+
+        <div class="stats-section">
+            <h2>Statistics</h2>
+            <p><strong>Total Spins:</strong> <span id="totalSpins">0</span></p>
+            <p><strong>Predictions Made:</strong> <span id="totalPredictions">0</span></p>
+            <p><strong>Correct Predictions:</strong> <span id="correctPredictions">0</span></p>
+            <p><strong>Accuracy:</strong> <span id="accuracy">0%</span></p>
+            <p><strong>Current Streak:</strong> <span id="currentStreak">0</span></p>
+            <p><strong>Max Streak:</strong> <span id="maxStreak">0</span></p>
+            
+            <h3>Recent Predictions</h3>
+            <table id="predictionTable">
+                <thead>
+                    <tr>
+                        <th>Spin</th>
+                        <th>Prediction</th>
+                        <th>Actual</th>
+                        <th>Result</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td colspan="4">No predictions yet</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        // European roulette wheel layout (clockwise)
+        const wheelLayout = [
+            0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10, 5, 24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26
+        ];
+
+        // Red numbers
+        const redNumbers = [32, 19, 21, 25, 34, 27, 36, 30, 23, 5, 16, 1, 14, 9, 18, 7, 12, 3];
+
+        // Initialize application state
+        const state = {
+            spins: [],
+            predictions: [],
+            currentStreak: 0,
+            maxStreak: 0
+        };
+
+        // DOM elements
+        const elements = {
+            spinInput: document.getElementById('spinInput'),
+            addSpinBtn: document.getElementById('addSpinBtn'),
+            clearBtn: document.getElementById('clearBtn'),
+            bulkInput: document.getElementById('bulkInput'),
+            bulkAddBtn: document.getElementById('bulkAddBtn'),
+            historyTable: document.querySelector('#historyTable tbody'),
+            wheel: document.getElementById('wheel'),
+            predStrategy: document.getElementById('predStrategy'),
+            predNumbers: document.getElementById('predNumbers'),
+            predConfidence: document.getElementById('predConfidence'),
+            strategyInfo: document.getElementById('strategyInfo'),
+            predictionTable: document.querySelector('#predictionTable tbody'),
+            totalSpins: document.getElementById('totalSpins'),
+            totalPredictions: document.getElementById('totalPredictions'),
+            correctPredictions: document.getElementById('correctPredictions'),
+            accuracy: document.getElementById('accuracy'),
+            currentStreak: document.getElementById('currentStreak'),
+            maxStreak: document.getElementById('maxStreak')
+        };
+
+        // Initialize the wheel visualization
+        function initWheel() {
+            elements.wheel.innerHTML = '';
+            const radius = 180;
+            const center = 200;
+            const angleStep = (2 * Math.PI) / wheelLayout.length;
+
+            wheelLayout.forEach((num, index) => {
+                const angle = index * angleStep;
+                const x = center + radius * Math.sin(angle);
+                const y = center - radius * Math.cos(angle);
+
+                const numberElement = document.createElement('div');
+                numberElement.className = 'wheel-number';
+                numberElement.textContent = num;
+                numberElement.id = `wheel-${num}`;
+                numberElement.style.left = `${x}px`;
+                numberElement.style.top = `${y}px`;
+
+                if (num === 0) {
+                    numberElement.classList.add('zero');
+                } else if (redNumbers.includes(num)) {
+                    numberElement.classList.add('red');
+                } else {
+                    numberElement.classList.add('black');
+                }
+
+                elements.wheel.appendChild(numberElement);
+            });
+        }
+
+        // Get color for a number
+        function getColor(number) {
+            if (number === 0) return 'green';
+            return redNumbers.includes(number) ? 'red' : 'black';
+        }
+
+        // Get wheel section for a number
+        function getSection(number) {
+            if (number === 0) return 0;
+            return Math.ceil(number / 6);
+        }
+
+        // Get numbers in neighborhood (center + 9 each side)
+        function getNeighborhood(centerNumber) {
+            const index = wheelLayout.indexOf(centerNumber);
+            if (index === -1) return [];
+            
+            const neighborhood = [];
+            const wheelSize = wheelLayout.length;
+            
+            // Get 9 numbers clockwise
+            for (let i = 1; i <= 9; i++) {
+                const neighborIndex = (index + i) % wheelSize;
+                neighborhood.push(wheelLayout[neighborIndex]);
+            }
+            
+            // Get 9 numbers counter-clockwise
+            for (let i = 1; i <= 9; i++) {
+                const neighborIndex = (index - i + wheelSize) % wheelSize;
+                neighborhood.push(wheelLayout[neighborIndex]);
+            }
+            
+            // Add the center number
+            neighborhood.push(centerNumber);
+            
+            return [...new Set(neighborhood)]; // Remove duplicates
+        }
+
+        // Get opposite numbers on the wheel
+        function getOppositeNumbers(numbers) {
+            const oppositeNumbers = [];
+            const halfWheel = Math.floor(wheelLayout.length / 2);
+            
+            numbers.forEach(num => {
+                const index = wheelLayout.indexOf(num);
+                if (index !== -1) {
+                    const oppositeIndex = (index + halfWheel) % wheelLayout.length;
+                    oppositeNumbers.push(wheelLayout[oppositeIndex]);
+                }
+            });
+            
+            return [...new Set(oppositeNumbers)]; // Remove duplicates
+        }
+
+        // Add a single spin
+        function addSpin(number) {
+            const num = parseInt(number);
+            if (isNaN(num) || num < 0 || num > 36) {
+                alert('Please enter a valid number between 0 and 36');
+                return false;
+            }
+
+            state.spins.push({
+                number: num,
+                color: getColor(num),
+                section: getSection(num)
+            });
+
+            updateHistoryTable();
+            updateStats();
+
+            // Make prediction if we have at least 2 spins
+            if (state.spins.length > 1) {
+                makePrediction();
+            }
+
+            return true;
+        }
+
+        // Make a prediction based on previous spins
+        function makePrediction() {
+            const lastSpin = state.spins[state.spins.length - 2];
+            const currentSpin = state.spins[state.spins.length - 1];
+            
+            // First get the neighborhood prediction
+            const neighborhood = getNeighborhood(lastSpin.number);
+            
+            // Then get the opposite numbers
+            const predictedNumbers = getOppositeNumbers(neighborhood);
+            const strategy = "Opposite of 19-number neighborhood";
+            const confidence = "High";
+            const explanation = `Predicting numbers opposite to ${lastSpin.number}'s neighborhood (${predictedNumbers.length} numbers)`;
+
+            // Check if prediction was correct
+            const isCorrect = predictedNumbers.includes(currentSpin.number);
+            
+            // Update streaks
+            if (isCorrect) {
+                state.currentStreak = 0;
+            } else {
+                state.currentStreak++;
+                if (state.currentStreak > state.maxStreak) {
+                    state.maxStreak = state.currentStreak;
+                }
+            }
+
+            // Store prediction
+            state.predictions.push({
+                spinNumber: state.spins.length,
+                strategy,
+                predictedNumbers,
+                actual: currentSpin.number,
+                correct: isCorrect,
+                confidence
+            });
+
+            // Update UI
+            updatePredictionDisplay(strategy, predictedNumbers, confidence, explanation);
+            updatePredictionTable();
+            highlightNumbers(predictedNumbers, 'opposite');
+        }
+
+        // Update history table
+        function updateHistoryTable() {
+            elements.historyTable.innerHTML = '';
+            state.spins.forEach((spin, index) => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${index + 1}</td>
+                    <td>${spin.number}</td>
+                    <td style="color: ${spin.color}">${spin.color}</td>
+                    <td>${spin.section}</td>
+                `;
+                elements.historyTable.appendChild(row);
+            });
+            elements.totalSpins.textContent = state.spins.length;
+        }
+
+        // Update prediction display
+        function updatePredictionDisplay(strategy, numbers, confidence, explanation) {
+            elements.predStrategy.textContent = strategy;
+            elements.predNumbers.textContent = numbers.join(', ');
+            elements.predConfidence.textContent = confidence;
+            elements.strategyInfo.textContent = explanation || 'No prediction explanation';
+            elements.totalPredictions.textContent = state.predictions.length;
+        }
+
+        // Update prediction table
+        function updatePredictionTable() {
+            elements.predictionTable.innerHTML = '';
+            
+            if (state.predictions.length === 0) {
+                elements.predictionTable.innerHTML = '<tr><td colspan="4">No predictions yet</td></tr>';
+                return;
+            }
+
+            // Show last 10 predictions (newest first)
+            const recentPredictions = state.predictions.slice().reverse().slice(0, 10);
+            
+            recentPredictions.forEach(pred => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${pred.spinNumber}</td>
+                    <td>${pred.predictedNumbers.join(', ')}</td>
+                    <td>${pred.actual}</td>
+                    <td class="${pred.correct ? 'correct' : 'incorrect'}">
+                        ${pred.correct ? '✓' : '✗'}
+                        ${pred.spinNumber === state.spins.length ? ` (Current)` : ''}
+                    </td>
+                `;
+                elements.predictionTable.appendChild(row);
+            });
+        }
+
+        // Highlight predicted numbers on wheel
+        function highlightNumbers(numbers, highlightClass) {
+            // Clear previous highlights
+            document.querySelectorAll('.wheel-number').forEach(el => {
+                el.classList.remove('predicted', 'opposite');
+            });
+            
+            // Add new highlights
+            numbers.forEach(num => {
+                const el = document.getElementById(`wheel-${num}`);
+                if (el) {
+                    el.classList.add(highlightClass);
+                }
+            });
+        }
+
+        // Update statistics
+        function updateStats() {
+            const correct = state.predictions.filter(p => p.correct).length;
+            const accuracy = state.predictions.length > 0 ? 
+                Math.round((correct / state.predictions.length) * 100) : 0;
+            
+            elements.correctPredictions.textContent = correct;
+            elements.accuracy.textContent = `${accuracy}%`;
+            elements.currentStreak.textContent = state.currentStreak;
+            elements.maxStreak.textContent = state.maxStreak;
+            
+            // Update streak display
+            if (state.currentStreak >= 3 && state.currentStreak < 5) {
+                elements.currentStreak.className = 'streak-warning';
+            } else if (state.currentStreak >= 5) {
+                elements.currentStreak.className = 'streak-critical';
+            } else {
+                elements.currentStreak.className = '';
+            }
+        }
+
+        // Add multiple spins from bulk input
+        function addBulkSpins() {
+            const input = elements.bulkInput.value.trim();
+            if (!input) {
+                alert('Please enter some numbers first');
+                return;
+            }
+            
+            // Parse numbers (accepts comma, space, or newline separated)
+            const numbers = input.split(/[\s,]+/).filter(n => n !== '');
+            let addedCount = 0;
+            
+            numbers.forEach(num => {
+                if (addSpin(num)) {
+                    addedCount++;
+                }
+            });
+            
+            if (addedCount > 0) {
+                elements.bulkInput.value = '';
+                alert(`Added ${addedCount} spins`);
+            } else {
+                alert('No valid numbers found');
+            }
+        }
+
+        // Clear all data
+        function clearAll() {
+            if (confirm('Are you sure you want to clear all data?')) {
+                state.spins = [];
+                state.predictions = [];
+                state.currentStreak = 0;
+                state.maxStreak = 0;
+                
+                // Reset UI
+                updateHistoryTable();
+                updatePredictionTable();
+                updateStats();
+                
+                elements.predStrategy.textContent = '-';
+                elements.predNumbers.textContent = '-';
+                elements.predConfidence.textContent = '-';
+                elements.strategyInfo.textContent = 'No prediction yet. Add at least 2 spins.';
+                
+                // Clear wheel highlights
+                document.querySelectorAll('.wheel-number').forEach(el => {
+                    el.classList.remove('predicted', 'opposite');
+                });
+            }
+        }
+
+        // Event listeners
+        elements.addSpinBtn.addEventListener('click', () => {
+            if (!elements.spinInput.value.trim()) {
+                alert('Please enter a number first');
+                return;
+            }
+            addSpin(elements.spinInput.value);
+        });
+        
+        elements.clearBtn.addEventListener('click', clearAll);
+        elements.bulkAddBtn.addEventListener('click', addBulkSpins);
+        
+        elements.spinInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                if (!elements.spinInput.value.trim()) {
+                    alert('Please enter a number first');
+                    return;
+                }
+                addSpin(elements.spinInput.value);
+            }
+        });
+
+        // Initialize the application
+        window.addEventListener('load', () => {
+            initWheel();
+            updateStats();
+        });
+    </script>
+</body>
+</html>
