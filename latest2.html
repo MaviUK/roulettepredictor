@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Opposite Side Roulette Predictor</title>
+    <title>Dual-Tracking Roulette Predictor</title>
     <style>
         body {
             font-family: Arial, sans-serif;
-            max-width: 1000px;
+            max-width: 1200px;
             margin: 0 auto;
             padding: 20px;
             background-color: #f5f5f5;
@@ -60,6 +60,7 @@
             width: 100%;
             border-collapse: collapse;
             margin-top: 10px;
+            font-size: 14px;
         }
         th, td {
             border: 1px solid #ddd;
@@ -99,7 +100,7 @@
         .wheel-number.black {
             background: black;
         }
-        .wheel-number.predicted {
+        .wheel-number.original {
             box-shadow: 0 0 0 3px yellow;
         }
         .wheel-number.opposite {
@@ -141,10 +142,28 @@
             border-radius: 4px;
             margin-top: 10px;
         }
+        .original-prediction {
+            color: #666;
+            font-size: 0.9em;
+            margin-top: 3px;
+        }
+        .accuracy-display {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 10px;
+        }
+        .accuracy-box {
+            background: #f0f0f0;
+            padding: 8px;
+            border-radius: 4px;
+            text-align: center;
+            flex: 1;
+            margin: 0 5px;
+        }
     </style>
 </head>
 <body>
-    <h1>Opposite Side Roulette Predictor</h1>
+    <h1>Dual-Tracking Roulette Predictor</h1>
     <div class="container">
         <div class="input-section">
             <h2>Add Spins</h2>
@@ -177,9 +196,14 @@
             <div class="wheel" id="wheel"></div>
             <div class="prediction-display">
                 <h3>Current Prediction</h3>
-                <p><strong>Strategy:</strong> <span id="predStrategy">-</span></p>
+                <p><strong>Active Strategy:</strong> <span id="predStrategy">-</span></p>
                 <p><strong>Predicted Numbers:</strong> <span id="predNumbers">-</span></p>
-                <p><strong>Confidence:</strong> <span id="predConfidence">-</span></p>
+                <div class="original-prediction" id="originalPredNumbers">Original: -</div>
+                <div class="accuracy-display">
+                    <div class="accuracy-box" id="originalAccuracy">Original: -</div>
+                    <div class="accuracy-box" id="oppositeAccuracy">Opposite: -</div>
+                    <div class="accuracy-box" id="combinedAccuracy">Combined: -</div>
+                </div>
                 <div class="strategy-info" id="strategyInfo">No prediction yet. Add at least 2 spins.</div>
             </div>
         </div>
@@ -189,7 +213,7 @@
             <p><strong>Total Spins:</strong> <span id="totalSpins">0</span></p>
             <p><strong>Predictions Made:</strong> <span id="totalPredictions">0</span></p>
             <p><strong>Correct Predictions:</strong> <span id="correctPredictions">0</span></p>
-            <p><strong>Accuracy:</strong> <span id="accuracy">0%</span></p>
+            <p><strong>Active Accuracy:</strong> <span id="accuracy">0%</span></p>
             <p><strong>Current Streak:</strong> <span id="currentStreak">0</span></p>
             <p><strong>Max Streak:</strong> <span id="maxStreak">0</span></p>
             
@@ -199,12 +223,14 @@
                     <tr>
                         <th>Spin</th>
                         <th>Prediction</th>
+                        <th>Original</th>
                         <th>Actual</th>
                         <th>Result</th>
+                        <th>Original</th>
                     </tr>
                 </thead>
                 <tbody>
-                    <tr><td colspan="4">No predictions yet</td></tr>
+                    <tr><td colspan="6">No predictions yet</td></tr>
                 </tbody>
             </table>
         </div>
@@ -223,6 +249,8 @@
         const state = {
             spins: [],
             predictions: [],
+            originalResults: [],
+            oppositeResults: [],
             currentStreak: 0,
             maxStreak: 0
         };
@@ -238,7 +266,7 @@
             wheel: document.getElementById('wheel'),
             predStrategy: document.getElementById('predStrategy'),
             predNumbers: document.getElementById('predNumbers'),
-            predConfidence: document.getElementById('predConfidence'),
+            originalPredNumbers: document.getElementById('originalPredNumbers'),
             strategyInfo: document.getElementById('strategyInfo'),
             predictionTable: document.querySelector('#predictionTable tbody'),
             totalSpins: document.getElementById('totalSpins'),
@@ -246,7 +274,10 @@
             correctPredictions: document.getElementById('correctPredictions'),
             accuracy: document.getElementById('accuracy'),
             currentStreak: document.getElementById('currentStreak'),
-            maxStreak: document.getElementById('maxStreak')
+            maxStreak: document.getElementById('maxStreak'),
+            originalAccuracy: document.getElementById('originalAccuracy'),
+            oppositeAccuracy: document.getElementById('oppositeAccuracy'),
+            combinedAccuracy: document.getElementById('combinedAccuracy')
         };
 
         // Initialize the wheel visualization
@@ -364,17 +395,25 @@
             const lastSpin = state.spins[state.spins.length - 2];
             const currentSpin = state.spins[state.spins.length - 1];
             
-            // First get the neighborhood prediction
-            const neighborhood = getNeighborhood(lastSpin.number);
+            // 1. Make original neighborhood prediction
+            const originalNumbers = getNeighborhood(lastSpin.number);
+            const isOriginalCorrect = originalNumbers.includes(currentSpin.number);
             
-            // Then get the opposite numbers
-            const predictedNumbers = getOppositeNumbers(neighborhood);
+            // 2. Make opposite prediction
+            const oppositeNumbers = getOppositeNumbers(originalNumbers);
+            const isOppositeCorrect = oppositeNumbers.includes(currentSpin.number);
+            
+            // Store results for both strategies
+            state.originalResults.push(isOriginalCorrect);
+            state.oppositeResults.push(isOppositeCorrect);
+
+            // Use opposite prediction for display
             const strategy = "Opposite of 19-number neighborhood";
             const confidence = "High";
-            const explanation = `Predicting numbers opposite to ${lastSpin.number}'s neighborhood (${predictedNumbers.length} numbers)`;
+            const explanation = `Opposite numbers strategy active`;
 
-            // Check if prediction was correct
-            const isCorrect = predictedNumbers.includes(currentSpin.number);
+            // Check if opposite prediction was correct
+            const isCorrect = isOppositeCorrect;
             
             // Update streaks
             if (isCorrect) {
@@ -390,16 +429,115 @@
             state.predictions.push({
                 spinNumber: state.spins.length,
                 strategy,
-                predictedNumbers,
+                predictedNumbers: oppositeNumbers,
+                originalNumbers: originalNumbers,
                 actual: currentSpin.number,
                 correct: isCorrect,
+                originalCorrect: isOriginalCorrect,
                 confidence
             });
 
             // Update UI
-            updatePredictionDisplay(strategy, predictedNumbers, confidence, explanation);
+            updatePredictionDisplay(strategy, oppositeNumbers, originalNumbers, confidence, explanation);
             updatePredictionTable();
-            highlightNumbers(predictedNumbers, 'opposite');
+            highlightNumbers(oppositeNumbers, originalNumbers);
+            updateAccuracyStats();
+        }
+
+        // Update prediction display
+        function updatePredictionDisplay(strategy, numbers, originalNumbers, confidence, explanation) {
+            elements.predStrategy.textContent = strategy;
+            elements.predNumbers.textContent = numbers.join(', ');
+            elements.originalPredNumbers.textContent = `Original: ${originalNumbers.join(', ')}`;
+            elements.strategyInfo.textContent = explanation;
+            elements.totalPredictions.textContent = state.predictions.length;
+        }
+
+        // Update prediction table
+        function updatePredictionTable() {
+            elements.predictionTable.innerHTML = '';
+            
+            if (state.predictions.length === 0) {
+                elements.predictionTable.innerHTML = '<tr><td colspan="6">No predictions yet</td></tr>';
+                return;
+            }
+
+            // Show last 10 predictions (newest first)
+            const recentPredictions = state.predictions.slice().reverse().slice(0, 10);
+            
+            recentPredictions.forEach(pred => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${pred.spinNumber}</td>
+                    <td>${pred.predictedNumbers.join(', ')}</td>
+                    <td>${pred.originalNumbers.join(', ')}</td>
+                    <td>${pred.actual}</td>
+                    <td class="${pred.correct ? 'correct' : 'incorrect'}">
+                        ${pred.correct ? '✓' : '✗'}
+                    </td>
+                    <td class="${pred.originalCorrect ? 'correct' : 'incorrect'}">
+                        ${pred.originalCorrect ? '✓' : '✗'}
+                    </td>
+                `;
+                elements.predictionTable.appendChild(row);
+            });
+        }
+
+        // Highlight predicted numbers on wheel
+        function highlightNumbers(oppositeNumbers, originalNumbers) {
+            // Clear previous highlights
+            document.querySelectorAll('.wheel-number').forEach(el => {
+                el.classList.remove('original', 'opposite');
+            });
+            
+            // Highlight original numbers
+            originalNumbers.forEach(num => {
+                const el = document.getElementById(`wheel-${num}`);
+                if (el) el.classList.add('original');
+            });
+            
+            // Highlight opposite numbers
+            oppositeNumbers.forEach(num => {
+                const el = document.getElementById(`wheel-${num}`);
+                if (el) el.classList.add('opposite');
+            });
+        }
+
+        // Update accuracy statistics
+        function updateAccuracyStats() {
+            const total = state.predictions.length;
+            
+            if (total === 0) return;
+            
+            const originalCorrect = state.originalResults.filter(Boolean).length;
+            const oppositeCorrect = state.oppositeResults.filter(Boolean).length;
+            const combinedCorrect = originalCorrect + oppositeCorrect;
+            
+            // Calculate accuracies
+            const originalAcc = Math.round((originalCorrect / total) * 100);
+            const oppositeAcc = Math.round((oppositeCorrect / total) * 100);
+            const combinedAcc = Math.min(Math.round((combinedCorrect / total) * 100), 100);
+            
+            // Update displays
+            elements.originalAccuracy.textContent = `Original: ${originalAcc}%`;
+            elements.oppositeAccuracy.textContent = `Opposite: ${oppositeAcc}%`;
+            elements.combinedAccuracy.textContent = `Combined: ${combinedAcc}%`;
+            
+            elements.correctPredictions.textContent = oppositeCorrect;
+            elements.accuracy.textContent = `${oppositeAcc}%`;
+            elements.totalSpins.textContent = state.spins.length;
+            
+            // Update streak display
+            elements.currentStreak.textContent = state.currentStreak;
+            elements.maxStreak.textContent = state.maxStreak;
+            
+            if (state.currentStreak >= 3 && state.currentStreak < 5) {
+                elements.currentStreak.className = 'streak-warning';
+            } else if (state.currentStreak >= 5) {
+                elements.currentStreak.className = 'streak-critical';
+            } else {
+                elements.currentStreak.className = '';
+            }
         }
 
         // Update history table
@@ -415,80 +553,6 @@
                 `;
                 elements.historyTable.appendChild(row);
             });
-            elements.totalSpins.textContent = state.spins.length;
-        }
-
-        // Update prediction display
-        function updatePredictionDisplay(strategy, numbers, confidence, explanation) {
-            elements.predStrategy.textContent = strategy;
-            elements.predNumbers.textContent = numbers.join(', ');
-            elements.predConfidence.textContent = confidence;
-            elements.strategyInfo.textContent = explanation || 'No prediction explanation';
-            elements.totalPredictions.textContent = state.predictions.length;
-        }
-
-        // Update prediction table
-        function updatePredictionTable() {
-            elements.predictionTable.innerHTML = '';
-            
-            if (state.predictions.length === 0) {
-                elements.predictionTable.innerHTML = '<tr><td colspan="4">No predictions yet</td></tr>';
-                return;
-            }
-
-            // Show last 10 predictions (newest first)
-            const recentPredictions = state.predictions.slice().reverse().slice(0, 10);
-            
-            recentPredictions.forEach(pred => {
-                const row = document.createElement('tr');
-                row.innerHTML = `
-                    <td>${pred.spinNumber}</td>
-                    <td>${pred.predictedNumbers.join(', ')}</td>
-                    <td>${pred.actual}</td>
-                    <td class="${pred.correct ? 'correct' : 'incorrect'}">
-                        ${pred.correct ? '✓' : '✗'}
-                        ${pred.spinNumber === state.spins.length ? ` (Current)` : ''}
-                    </td>
-                `;
-                elements.predictionTable.appendChild(row);
-            });
-        }
-
-        // Highlight predicted numbers on wheel
-        function highlightNumbers(numbers, highlightClass) {
-            // Clear previous highlights
-            document.querySelectorAll('.wheel-number').forEach(el => {
-                el.classList.remove('predicted', 'opposite');
-            });
-            
-            // Add new highlights
-            numbers.forEach(num => {
-                const el = document.getElementById(`wheel-${num}`);
-                if (el) {
-                    el.classList.add(highlightClass);
-                }
-            });
-        }
-
-        // Update statistics
-        function updateStats() {
-            const correct = state.predictions.filter(p => p.correct).length;
-            const accuracy = state.predictions.length > 0 ? 
-                Math.round((correct / state.predictions.length) * 100) : 0;
-            
-            elements.correctPredictions.textContent = correct;
-            elements.accuracy.textContent = `${accuracy}%`;
-            elements.currentStreak.textContent = state.currentStreak;
-            elements.maxStreak.textContent = state.maxStreak;
-            
-            // Update streak display
-            if (state.currentStreak >= 3 && state.currentStreak < 5) {
-                elements.currentStreak.className = 'streak-warning';
-            } else if (state.currentStreak >= 5) {
-                elements.currentStreak.className = 'streak-critical';
-            } else {
-                elements.currentStreak.className = '';
-            }
         }
 
         // Add multiple spins from bulk input
@@ -522,22 +586,24 @@
             if (confirm('Are you sure you want to clear all data?')) {
                 state.spins = [];
                 state.predictions = [];
+                state.originalResults = [];
+                state.oppositeResults = [];
                 state.currentStreak = 0;
                 state.maxStreak = 0;
                 
                 // Reset UI
                 updateHistoryTable();
                 updatePredictionTable();
-                updateStats();
+                updateAccuracyStats();
                 
                 elements.predStrategy.textContent = '-';
                 elements.predNumbers.textContent = '-';
-                elements.predConfidence.textContent = '-';
+                elements.originalPredNumbers.textContent = 'Original: -';
                 elements.strategyInfo.textContent = 'No prediction yet. Add at least 2 spins.';
                 
                 // Clear wheel highlights
                 document.querySelectorAll('.wheel-number').forEach(el => {
-                    el.classList.remove('predicted', 'opposite');
+                    el.classList.remove('original', 'opposite');
                 });
             }
         }
@@ -567,7 +633,7 @@
         // Initialize the application
         window.addEventListener('load', () => {
             initWheel();
-            updateStats();
+            updateAccuracyStats();
         });
     </script>
 </body>
