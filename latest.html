@@ -3,35 +3,77 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Roulette Prediction Engine</title>
+    <title>Roulette Predictor</title>
     <style>
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            max-width: 1200px;
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
             margin: 0 auto;
             padding: 20px;
-            background-color: #f8f9fa;
+            background-color: #f5f5f5;
+        }
+        h1, h2 {
             color: #333;
+            text-align: center;
         }
-        .dashboard {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
+        .container {
+            display: flex;
+            flex-wrap: wrap;
             gap: 20px;
-            margin-top: 20px;
         }
-        .panel {
+        .input-section, .wheel-section, .stats-section {
             background: white;
-            border-radius: 8px;
             padding: 20px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
-        .wheel-viz {
+        .input-section {
+            flex: 1;
+            min-width: 300px;
+        }
+        .wheel-section {
+            flex: 2;
+            min-width: 400px;
+        }
+        .stats-section {
+            flex: 1;
+            min-width: 300px;
+        }
+        input, button {
+            padding: 8px;
+            margin: 5px 0;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        .wheel {
+            position: relative;
             width: 400px;
             height: 400px;
             margin: 0 auto;
-            position: relative;
+            border-radius: 50%;
+            background: #0a5c0a;
         }
-        .number {
+        .wheel-number {
             position: absolute;
             width: 30px;
             height: 30px;
@@ -39,132 +81,95 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            font-weight: bold;
             color: white;
+            font-weight: bold;
             transform-origin: center;
         }
-        .red { background-color: #e74c3c; }
-        .black { background-color: #2c3e50; }
-        .green { background-color: #27ae60; }
-        .predicted {
-            box-shadow: 0 0 0 3px #f39c12;
-            z-index: 10;
+        .wheel-number.zero {
+            background: green;
         }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 15px;
+        .wheel-number.red {
+            background: red;
         }
-        th, td {
-            padding: 10px;
-            text-align: center;
-            border: 1px solid #ddd;
+        .wheel-number.black {
+            background: black;
         }
-        th {
-            background-color: #3498db;
-            color: white;
+        .wheel-number.predicted {
+            box-shadow: 0 0 0 3px yellow;
         }
-        .correct { color: #27ae60; font-weight: bold; }
-        .incorrect { color: #e74c3c; }
-        .streak-warning { color: #f39c12; }
-        .streak-critical { color: #c0392b; }
-        .controls {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 20px;
-        }
-        button {
-            padding: 8px 16px;
-            background-color: #3498db;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-        button:hover {
-            background-color: #2980b9;
-        }
-        textarea {
-            width: 100%;
-            min-height: 100px;
-            padding: 10px;
-            border-radius: 4px;
-            border: 1px solid #ddd;
-        }
-        .stats {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 10px;
-            margin-bottom: 20px;
-        }
-        .stat-card {
-            background: white;
-            padding: 15px;
-            border-radius: 8px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-            text-align: center;
-        }
-        .stat-value {
-            font-size: 24px;
+        .correct {
+            color: green;
             font-weight: bold;
-            margin: 5px 0;
+        }
+        .incorrect {
+            color: red;
+        }
+        .streak-warning {
+            color: orange;
+            font-weight: bold;
+        }
+        .streak-critical {
+            color: red;
+            font-weight: bold;
         }
     </style>
 </head>
 <body>
-    <h1>Roulette Prediction Engine</h1>
-    
-    <div class="controls">
-        <textarea id="numberInput" placeholder="Paste your sequence of numbers here (one per line or space/comma separated)"></textarea>
-    </div>
-    
-    <div class="controls">
-        <button id="analyzeBtn">Analyze & Predict</button>
-        <button id="resetBtn">Reset</button>
-        <button id="nextBtn">Next Prediction</button>
-    </div>
-    
-    <div class="stats">
-        <div class="stat-card">
-            <div>Total Spins</div>
-            <div class="stat-value" id="totalSpins">0</div>
-        </div>
-        <div class="stat-card">
-            <div>Predictions</div>
-            <div class="stat-value" id="totalPredictions">0</div>
-        </div>
-        <div class="stat-card">
-            <div>Accuracy</div>
-            <div class="stat-value" id="accuracy">0%</div>
-        </div>
-        <div class="stat-card">
-            <div>Current Streak</div>
-            <div class="stat-value" id="currentStreak">0</div>
-        </div>
-    </div>
-    
-    <div class="dashboard">
-        <div class="panel">
-            <h2>Wheel Visualization</h2>
-            <div class="wheel-viz" id="wheel"></div>
+    <h1>Roulette Predictor</h1>
+    <div class="container">
+        <div class="input-section">
+            <h2>Add Spins</h2>
             <div>
-                <h3>Current Prediction</h3>
-                <p>Next Spin Direction: <strong id="nextDirection">-</strong></p>
-                <p>Predicted Numbers (19): <span id="predictedNumbers">-</span></p>
-                <p>Confidence: <span id="confidence">-</span></p>
+                <input type="number" id="spinInput" min="0" max="36" placeholder="Enter number (0-36)">
+                <button id="addSpinBtn">Add Spin</button>
+                <button id="clearBtn">Clear All</button>
             </div>
-        </div>
-        
-        <div class="panel">
-            <h2>Prediction History</h2>
+            <div>
+                <h3>Or paste multiple numbers:</h3>
+                <textarea id="bulkInput" rows="5" style="width: 100%;" placeholder="Paste numbers separated by spaces, commas or new lines"></textarea>
+                <button id="bulkAddBtn">Add Multiple Spins</button>
+            </div>
+            <h3>Spin History</h3>
             <table id="historyTable">
                 <thead>
                     <tr>
+                        <th>#</th>
+                        <th>Number</th>
+                        <th>Direction</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+
+        <div class="wheel-section">
+            <h2>Wheel Visualization</h2>
+            <div class="wheel" id="wheel"></div>
+            <div id="currentPrediction">
+                <h3>Current Prediction</h3>
+                <p>Direction: <span id="predDirection">-</span></p>
+                <p>Center Number: <span id="predCenter">-</span></p>
+                <p>Predicted Numbers: <span id="predNumbers">-</span></p>
+            </div>
+        </div>
+
+        <div class="stats-section">
+            <h2>Statistics</h2>
+            <p>Total Spins: <span id="totalSpins">0</span></p>
+            <p>Predictions Made: <span id="totalPredictions">0</span></p>
+            <p>Correct Predictions: <span id="correctPredictions">0</span></p>
+            <p>Accuracy: <span id="accuracy">0%</span></p>
+            <p>Current Streak: <span id="currentStreak">0</span></p>
+            <p>Max Streak: <span id="maxStreak">0</span></p>
+            
+            <h3>Recent Predictions</h3>
+            <table id="predictionTable">
+                <thead>
+                    <tr>
                         <th>Spin</th>
-                        <th>Predicted</th>
+                        <th>Prediction</th>
                         <th>Actual</th>
                         <th>Result</th>
-                        <th>Direction</th>
                     </tr>
                 </thead>
                 <tbody></tbody>
@@ -174,318 +179,263 @@
 
     <script>
         // European roulette wheel layout (clockwise)
-        const EUROPEAN_WHEEL = [
+        const europeanWheel = [
             0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10, 5, 24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26
         ];
-        
-        // Red numbers
-        const RED_NUMBERS = [32, 19, 21, 25, 34, 27, 36, 30, 23, 5, 16, 1, 14, 9, 18, 7, 12, 3];
-        
+
+        // Red numbers on European roulette
+        const redNumbers = [32, 19, 21, 25, 34, 27, 36, 30, 23, 5, 16, 1, 14, 9, 18, 7, 12, 3];
+
         // Application state
         let spins = [];
         let predictions = [];
         let currentStreak = 0;
         let maxStreak = 0;
-        let currentPosition = 0;
-        let numberFrequency = {};
-        let directionalPatterns = { CW: {}, CCW: {} };
 
-        // Initialize wheel visualization
+        // DOM elements
+        const spinInput = document.getElementById('spinInput');
+        const addSpinBtn = document.getElementById('addSpinBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        const bulkInput = document.getElementById('bulkInput');
+        const bulkAddBtn = document.getElementById('bulkAddBtn');
+        const historyTable = document.querySelector('#historyTable tbody');
+        const wheel = document.getElementById('wheel');
+        const predDirection = document.getElementById('predDirection');
+        const predCenter = document.getElementById('predCenter');
+        const predNumbers = document.getElementById('predNumbers');
+        const predictionTable = document.querySelector('#predictionTable tbody');
+        const totalSpins = document.getElementById('totalSpins');
+        const totalPredictions = document.getElementById('totalPredictions');
+        const correctPredictions = document.getElementById('correctPredictions');
+        const accuracy = document.getElementById('accuracy');
+        const currentStreakDisplay = document.getElementById('currentStreak');
+        const maxStreakDisplay = document.getElementById('maxStreak');
+
+        // Initialize the wheel
         function initWheel() {
-            const wheel = document.getElementById('wheel');
             wheel.innerHTML = '';
-            const center = 200;
             const radius = 180;
-            const angleStep = (2 * Math.PI) / EUROPEAN_WHEEL.length;
-            
-            EUROPEAN_WHEEL.forEach((num, index) => {
+            const center = 200;
+            const angleStep = (2 * Math.PI) / europeanWheel.length;
+
+            europeanWheel.forEach((num, index) => {
                 const angle = index * angleStep;
                 const x = center + radius * Math.sin(angle);
                 const y = center - radius * Math.cos(angle);
-                
-                const numElement = document.createElement('div');
-                numElement.className = 'number';
-                numElement.textContent = num;
-                numElement.id = `num-${num}`;
-                numElement.style.left = `${x}px`;
-                numElement.style.top = `${y}px`;
-                
+
+                const numberElement = document.createElement('div');
+                numberElement.className = 'wheel-number';
+                numberElement.textContent = num;
+                numberElement.id = `wheel-${num}`;
+                numberElement.style.left = `${x}px`;
+                numberElement.style.top = `${y}px`;
+
                 if (num === 0) {
-                    numElement.classList.add('green');
-                } else if (RED_NUMBERS.includes(num)) {
-                    numElement.classList.add('red');
+                    numberElement.classList.add('zero');
+                } else if (redNumbers.includes(num)) {
+                    numberElement.classList.add('red');
                 } else {
-                    numElement.classList.add('black');
+                    numberElement.classList.add('black');
                 }
-                
-                wheel.appendChild(numElement);
+
+                wheel.appendChild(numberElement);
             });
         }
 
-        // Parse input numbers
-        function parseInput(input) {
-            return input.trim()
-                .split(/[\s,\n]+/)
-                .filter(x => x !== '')
-                .map(x => parseInt(x))
-                .filter(x => !isNaN(x) && x >= 0 && x <= 36);
-        }
-
-        // Analyze number frequencies and patterns
-        function analyzeData() {
-            numberFrequency = {};
-            directionalPatterns = { CW: {}, CCW: {} };
-            
-            // Calculate number frequencies
-            spins.forEach(num => {
-                numberFrequency[num] = (numberFrequency[num] || 0) + 1;
-            });
-            
-            // Calculate directional patterns (how often numbers follow others in each direction)
-            for (let i = 1; i < spins.length; i++) {
-                const current = spins[i];
-                const prev = spins[i - 1];
-                const direction = i % 2 === 1 ? 'CW' : 'CCW'; // Alternating directions
-                
-                if (!directionalPatterns[direction][prev]) {
-                    directionalPatterns[direction][prev] = {};
-                }
-                
-                directionalPatterns[direction][prev][current] = 
-                    (directionalPatterns[direction][prev][current] || 0) + 1;
+        // Add a single spin
+        function addSpin(number) {
+            const num = parseInt(number);
+            if (isNaN(num) || num < 0 || num > 36) {
+                alert('Please enter a number between 0 and 36');
+                return;
             }
+
+            const lastDirection = spins.length === 0 ? 'CCW' : 
+                                spins[spins.length - 1].direction === 'CW' ? 'CCW' : 'CW';
+            
+            const newSpin = { number: num, direction: lastDirection };
+            spins.push(newSpin);
+            updateHistoryTable();
+
+            // Make prediction if we have at least one previous spin
+            if (spins.length > 1) {
+                makePrediction();
+            }
+
+            updateStats();
+            spinInput.value = '';
         }
 
-        // Generate prediction for next spin
-        function generatePrediction() {
-            if (spins.length < 2) return null;
+        // Make a prediction based on last spin
+        function makePrediction() {
+            const lastSpin = spins[spins.length - 2]; // Previous spin
+            const currentSpin = spins[spins.length - 1]; // Current spin
             
-            const lastNumber = spins[spins.length - 1];
-            const nextDirection = spins.length % 2 === 0 ? 'CW' : 'CCW';
+            const nextDirection = lastSpin.direction === 'CW' ? 'CCW' : 'CW';
+            const wheelOrder = nextDirection === 'CW' ? [...europeanWheel] : [...europeanWheel].reverse();
             
-            // 1. Base prediction (9 neighbors each side)
-            const wheelOrder = nextDirection === 'CW' ? [...EUROPEAN_WHEEL] : [...EUROPEAN_WHEEL].reverse();
-            const centerIndex = wheelOrder.indexOf(lastNumber);
-            let predictedNumbers = [];
+            const centerIndex = wheelOrder.indexOf(lastSpin.number);
+            const predictedNumbers = [];
             
             for (let i = -9; i <= 9; i++) {
                 const neighborIndex = (centerIndex + i + wheelOrder.length) % wheelOrder.length;
                 predictedNumbers.push(wheelOrder[neighborIndex]);
             }
             
-            // 2. Boost numbers that frequently follow in this direction
-            const directionalBoosts = directionalPatterns[nextDirection][lastNumber] || {};
-            const boostedNumbers = Object.entries(directionalBoosts)
-                .sort((a, b) => b[1] - a[1])
-                .slice(0, 3)
-                .map(x => parseInt(x[0]));
+            const isCorrect = predictedNumbers.includes(currentSpin.number);
             
-            // 3. Include hot numbers (most frequent in recent spins)
-            const recentSpins = spins.slice(-30);
-            const frequencyMap = {};
-            recentSpins.forEach(num => {
-                frequencyMap[num] = (frequencyMap[num] || 0) + 1;
-            });
-            const hotNumbers = Object.entries(frequencyMap)
-                .sort((a, b) => b[1] - a[1])
-                .slice(0, 3)
-                .map(x => parseInt(x[0]));
-            
-            // Combine all approaches (prioritize base prediction)
-            const finalPrediction = [...new Set([
-                ...predictedNumbers.slice(0, 15), // First 15 from base prediction
-                ...boostedNumbers,
-                ...hotNumbers
-            ])].slice(0, 19);
-            
-            return {
-                direction: nextDirection,
-                numbers: finalPrediction,
-                confidence: calculateConfidence(finalPrediction, lastNumber, nextDirection)
-            };
-        }
-
-        // Calculate prediction confidence (0-100%)
-        function calculateConfidence(prediction, lastNumber, direction) {
-            let confidence = 50; // Base confidence
-            
-            // Boost if predicted numbers include frequently following numbers
-            const commonFollowers = directionalPatterns[direction][lastNumber] || {};
-            const matchingFollowers = prediction.filter(num => commonFollowers[num]);
-            if (matchingFollowers.length > 0) {
-                confidence += 15 * matchingFollowers.length;
-            }
-            
-            // Boost if including hot numbers
-            const recentSpins = spins.slice(-30);
-            const hotNumbers = [...new Set(recentSpins)]
-                .sort((a, b) => 
-                    recentSpins.filter(x => x === b).length - 
-                    recentSpins.filter(x => x === a).length
-                )
-                .slice(0, 3);
-                
-            const matchingHot = prediction.filter(num => hotNumbers.includes(num));
-            if (matchingHot.length > 0) {
-                confidence += 10 * matchingHot.length;
-            }
-            
-            return Math.min(95, Math.max(5, confidence)); // Keep between 5-95%
-        }
-
-        // Process next spin and update predictions
-        function processNextSpin() {
-            if (currentPosition >= spins.length) return;
-            
-            const actualNumber = spins[currentPosition];
-            let prediction = null;
-            
-            // Only predict if we have at least 2 spins of history
-            if (currentPosition >= 2) {
-                prediction = generatePrediction();
-                
-                const isCorrect = prediction.numbers.includes(actualNumber);
-                if (isCorrect) {
-                    currentStreak = 0;
-                } else {
-                    currentStreak++;
-                    maxStreak = Math.max(maxStreak, currentStreak);
-                }
-                
-                predictions.push({
-                    spinNumber: currentPosition + 1,
-                    predictedNumbers: prediction.numbers,
-                    actual: actualNumber,
-                    correct: isCorrect,
-                    direction: prediction.direction,
-                    confidence: prediction.confidence
-                });
-                
-                updatePredictionDisplay(prediction, isCorrect);
-            }
-            
-            currentPosition++;
-            updateStats();
-            updateHistoryTable();
-            
-            if (currentPosition < spins.length) {
-                document.getElementById('nextBtn').textContent = `Next Spin (${spins[currentPosition]})`;
+            if (isCorrect) {
+                currentStreak = 0;
             } else {
-                document.getElementById('nextBtn').textContent = 'No more spins';
-                document.getElementById('nextBtn').disabled = true;
+                currentStreak++;
+                if (currentStreak > maxStreak) {
+                    maxStreak = currentStreak;
+                }
             }
+            
+            const prediction = {
+                spinNumber: spins.length,
+                direction: nextDirection,
+                center: lastSpin.number,
+                predictedNumbers,
+                actual: currentSpin.number,
+                correct: isCorrect,
+                streak: currentStreak
+            };
+            
+            predictions.push(prediction);
+            updatePredictionDisplay(prediction);
+            updatePredictionTable();
+            highlightPredictedNumbers(predictedNumbers);
         }
 
-        // Update prediction display
-        function updatePredictionDisplay(prediction, isCorrect) {
-            if (!prediction) return;
-            
-            document.getElementById('nextDirection').textContent = prediction.direction;
-            document.getElementById('predictedNumbers').textContent = prediction.numbers.join(', ');
-            document.getElementById('confidence').textContent = `${prediction.confidence}%`;
-            
-            // Highlight predicted numbers on wheel
-            document.querySelectorAll('.number').forEach(el => {
-                el.classList.remove('predicted');
-            });
-            
-            prediction.numbers.forEach(num => {
-                const el = document.getElementById(`num-${num}`);
-                if (el) el.classList.add('predicted');
-            });
-        }
-
-        // Update statistics
-        function updateStats() {
-            document.getElementById('totalSpins').textContent = spins.length;
-            document.getElementById('totalPredictions').textContent = predictions.length;
-            
-            const correct = predictions.filter(p => p.correct).length;
-            const accuracy = predictions.length > 0 
-                ? Math.round((correct / predictions.length) * 100)
-                : 0;
-            
-            document.getElementById('accuracy').textContent = `${accuracy}%`;
-            
-            const streakElement = document.getElementById('currentStreak');
-            streakElement.textContent = currentStreak;
-            streakElement.className = '';
-            
-            if (currentStreak >= 4) streakElement.classList.add('streak-warning');
-            if (currentStreak >= 6) streakElement.classList.add('streak-critical');
-        }
-
-        // Update history table
+        // Update the history table
         function updateHistoryTable() {
-            const tbody = document.querySelector('#historyTable tbody');
-            tbody.innerHTML = '';
-            
-            predictions.slice().reverse().slice(0, 20).forEach(pred => {
+            historyTable.innerHTML = '';
+            spins.forEach((spin, index) => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${index + 1}</td>
+                    <td>${spin.number}</td>
+                    <td>${spin.direction}</td>
+                `;
+                historyTable.appendChild(row);
+            });
+        }
+
+        // Update the prediction display
+        function updatePredictionDisplay(prediction) {
+            predDirection.textContent = prediction.direction;
+            predCenter.textContent = prediction.center;
+            predNumbers.textContent = prediction.predictedNumbers.join(', ');
+        }
+
+        // Update the prediction table
+        function updatePredictionTable() {
+            predictionTable.innerHTML = '';
+            predictions.slice().reverse().slice(0, 10).forEach(pred => {
                 const row = document.createElement('tr');
                 row.innerHTML = `
                     <td>${pred.spinNumber}</td>
                     <td>${pred.predictedNumbers.join(', ')}</td>
                     <td>${pred.actual}</td>
                     <td class="${pred.correct ? 'correct' : 'incorrect'}">
-                        ${pred.correct ? '✓' : '✗'} (${pred.confidence}%)
+                        ${pred.correct ? '✓' : '✗'}
+                        ${pred.streak > 3 ? ` (${pred.streak})` : ''}
                     </td>
-                    <td>${pred.direction}</td>
                 `;
-                tbody.appendChild(row);
+                if (pred.streak >= 4 && pred.streak < 6) {
+                    row.querySelector('td:last-child').classList.add('streak-warning');
+                } else if (pred.streak >= 6) {
+                    row.querySelector('td:last-child').classList.add('streak-critical');
+                }
+                predictionTable.appendChild(row);
             });
         }
 
-        // Reset everything
-        function reset() {
+        // Highlight predicted numbers on the wheel
+        function highlightPredictedNumbers(numbers) {
+            // Clear previous highlights
+            document.querySelectorAll('.wheel-number').forEach(el => {
+                el.classList.remove('predicted');
+            });
+            
+            // Add new highlights
+            numbers.forEach(num => {
+                const el = document.getElementById(`wheel-${num}`);
+                if (el) el.classList.add('predicted');
+            });
+        }
+
+        // Update statistics
+        function updateStats() {
+            totalSpins.textContent = spins.length;
+            totalPredictions.textContent = predictions.length;
+            
+            const correct = predictions.filter(p => p.correct).length;
+            correctPredictions.textContent = correct;
+            
+            const acc = predictions.length > 0 ? Math.round((correct / predictions.length) * 100) : 0;
+            accuracy.textContent = `${acc}%`;
+            
+            currentStreakDisplay.textContent = currentStreak;
+            maxStreakDisplay.textContent = maxStreak;
+            
+            // Update streak display color
+            if (currentStreak >= 4 && currentStreak < 6) {
+                currentStreakDisplay.className = 'streak-warning';
+            } else if (currentStreak >= 6) {
+                currentStreakDisplay.className = 'streak-critical';
+            } else {
+                currentStreakDisplay.className = '';
+            }
+        }
+
+        // Add multiple spins from bulk input
+        function addBulkSpins() {
+            const input = bulkInput.value.trim();
+            if (!input) return;
+            
+            // Split by any combination of commas, spaces or newlines
+            const numbers = input.split(/[\s,]+/).filter(n => n !== '');
+            
+            numbers.forEach(num => {
+                addSpin(num);
+            });
+            
+            bulkInput.value = '';
+        }
+
+        // Clear all data
+        function clearAll() {
             spins = [];
             predictions = [];
             currentStreak = 0;
             maxStreak = 0;
-            currentPosition = 0;
-            numberFrequency = {};
-            directionalPatterns = { CW: {}, CCW: {} };
             
-            document.getElementById('totalSpins').textContent = '0';
-            document.getElementById('totalPredictions').textContent = '0';
-            document.getElementById('accuracy').textContent = '0%';
-            document.getElementById('currentStreak').textContent = '0';
-            document.getElementById('nextDirection').textContent = '-';
-            document.getElementById('predictedNumbers').textContent = '-';
-            document.getElementById('confidence').textContent = '-';
-            document.querySelector('#historyTable tbody').innerHTML = '';
-            document.getElementById('nextBtn').textContent = 'Next Prediction';
-            document.getElementById('nextBtn').disabled = false;
+            updateHistoryTable();
+            updatePredictionTable();
+            updateStats();
             
-            document.querySelectorAll('.number').forEach(el => {
+            predDirection.textContent = '-';
+            predCenter.textContent = '-';
+            predNumbers.textContent = '-';
+            
+            // Clear wheel highlights
+            document.querySelectorAll('.wheel-number').forEach(el => {
                 el.classList.remove('predicted');
             });
         }
 
         // Event listeners
-        document.getElementById('analyzeBtn').addEventListener('click', () => {
-            const input = document.getElementById('numberInput').value;
-            spins = parseInput(input);
-            
-            if (spins.length < 2) {
-                alert('Please enter at least 2 numbers to analyze');
-                return;
-            }
-            
-            analyzeData();
-            currentPosition = 0;
-            predictions = [];
-            updateStats();
-            
-            // Process first prediction
-            processNextSpin();
-            processNextSpin(); // Need at least 2 spins to start predicting
+        addSpinBtn.addEventListener('click', () => addSpin(spinInput.value));
+        clearBtn.addEventListener('click', clearAll);
+        bulkAddBtn.addEventListener('click', addBulkSpins);
+        spinInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') addSpin(spinInput.value);
         });
-        
-        document.getElementById('resetBtn').addEventListener('click', reset);
-        
-        document.getElementById('nextBtn').addEventListener('click', processNextSpin);
 
-        // Initialize
+        // Initialize the wheel on load
         window.addEventListener('load', initWheel);
     </script>
 </body>
