@@ -102,9 +102,6 @@
         .wheel-number.predicted {
             box-shadow: 0 0 0 3px yellow;
         }
-        .wheel-number.complementary {
-            box-shadow: 0 0 0 3px magenta;
-        }
         .wheel-number.streak-pick {
             box-shadow: 0 0 0 3px cyan;
         }
@@ -144,18 +141,6 @@
             border-radius: 4px;
             margin-top: 10px;
         }
-        .prediction-toggle {
-            display: flex;
-            justify-content: center;
-            margin: 10px 0;
-        }
-        .prediction-toggle button {
-            flex: 1;
-            margin: 0 5px;
-        }
-        .prediction-toggle button.active {
-            background-color: #2E7D32;
-        }
     </style>
 </head>
 <body>
@@ -190,10 +175,6 @@
         <div class="wheel-section">
             <h2>Wheel Visualization</h2>
             <div class="wheel" id="wheel"></div>
-            <div class="prediction-toggle">
-                <button id="neighborhoodBtn" class="active">Show Neighborhood (19)</button>
-                <button id="complementaryBtn">Show Complementary (18)</button>
-            </div>
             <div class="prediction-display">
                 <h3>Current Prediction</h3>
                 <p><strong>Strategy:</strong> <span id="predStrategy">-</span></p>
@@ -245,8 +226,7 @@
             spins: [],
             predictions: [],
             currentStreak: 0,
-            maxStreak: 0,
-            currentStrategy: 'neighborhood' // 'neighborhood' or 'complementary'
+            maxStreak: 0
         };
 
         // DOM elements
@@ -269,9 +249,7 @@
             correctPredictions: document.getElementById('correctPredictions'),
             accuracy: document.getElementById('accuracy'),
             currentStreak: document.getElementById('currentStreak'),
-            maxStreak: document.getElementById('maxStreak'),
-            neighborhoodBtn: document.getElementById('neighborhoodBtn'),
-            complementaryBtn: document.getElementById('complementaryBtn')
+            maxStreak: document.getElementById('maxStreak')
         };
 
         // Initialize the wheel visualization
@@ -352,16 +330,6 @@
             return wheelLayout[(index + halfWheel) % wheelLayout.length];
         }
 
-        // Get truly complementary numbers (only those not in original prediction)
-        function getComplementaryNumbers(centerNumber) {
-            const originalNeighborhood = getNeighborhood(centerNumber);
-            const oppositeNumber = getOppositeNumber(centerNumber);
-            const oppositeNeighborhood = getNeighborhood(oppositeNumber);
-            
-            // Only include numbers not in the original prediction
-            return oppositeNeighborhood.filter(num => !originalNeighborhood.includes(num));
-        }
-
         // Add a single spin
         function addSpin(number) {
             const num = parseInt(number);
@@ -388,55 +356,57 @@
         }
 
         // Make a prediction based on previous spins
-       function makePrediction() {
-    const lastSpin = state.spins[state.spins.length - 2];
-    const currentSpin = state.spins[state.spins.length - 1];
+        function makePrediction() {
+            const lastSpin = state.spins[state.spins.length - 2];
+            const currentSpin = state.spins[state.spins.length - 1];
+            
+            let predictedNumbers, strategy, confidence, explanation;
+            
+            if (state.currentStreak >= 4) {
+                // After 4 losses, predict only the center number
+                predictedNumbers = [lastSpin.number];
+                strategy = "Single number (streak breaker)";
+                confidence = "High";
+                explanation = `Predicting only ${lastSpin.number} after ${state.currentStreak} losses`;
+            } else {
+                // Get the opposite number
+                const oppositeNumber = getOppositeNumber(lastSpin.number);
+                
+                // Predict the neighborhood of the opposite number
+                predictedNumbers = getNeighborhood(oppositeNumber);
+                strategy = "Opposite Neighborhood (19)";
+                confidence = "Medium";
+                explanation = `Predicting ${oppositeNumber} (opposite of ${lastSpin.number}) and its 9 neighbors on each side`;
+            }
 
-    if (!lastSpin) return;
+            // Check if prediction was correct
+            const isCorrect = predictedNumbers.includes(currentSpin.number);
+            
+            // Update streaks
+            if (isCorrect) {
+                state.currentStreak = 0;
+            } else {
+                state.currentStreak++;
+                if (state.currentStreak > state.maxStreak) {
+                    state.maxStreak = state.currentStreak;
+                }
+            }
 
-    let predictedNumbers, strategy, confidence, explanation;
+            // Store prediction
+            state.predictions.push({
+                spinNumber: state.spins.length,
+                strategy,
+                predictedNumbers,
+                actual: currentSpin.number,
+                correct: isCorrect,
+                confidence
+            });
 
-    if (state.currentStreak >= 4) {
-        // After 4 losses, predict only the opposite center number
-        const opposite = getOppositeNumber(lastSpin.number);
-        predictedNumbers = [opposite];
-        strategy = "Single Opposite Number (streak breaker)";
-        confidence = "High";
-        explanation = `Predicting only ${opposite} after ${state.currentStreak} losses (opposite of ${lastSpin.number})`;
-    } else {
-        const originalPredictedNumber = lastSpin.number;
-        const opposite = getOppositeNumber(originalPredictedNumber);
-        predictedNumbers = getNeighborhood(opposite);
-        strategy = "Opposite Zone (19)";
-        confidence = "Medium";
-        explanation = `Predicting the 9 neighbors each side of ${opposite} (opposite of ${originalPredictedNumber})`;
-    }
-
-    const isCorrect = predictedNumbers.includes(currentSpin.number);
-
-    if (isCorrect) {
-        state.currentStreak = 0;
-    } else {
-        state.currentStreak++;
-        if (state.currentStreak > state.maxStreak) {
-            state.maxStreak = state.currentStreak;
+            // Update UI
+            updatePredictionDisplay(strategy, predictedNumbers, confidence, explanation);
+            updatePredictionTable();
+            highlightNumbers(predictedNumbers, state.currentStreak >= 4 ? 'streak-pick' : 'predicted');
         }
-    }
-
-    state.predictions.push({
-        spinNumber: state.spins.length,
-        strategy,
-        predictedNumbers,
-        actual: currentSpin.number,
-        correct: isCorrect,
-        confidence
-    });
-
-    updatePredictionDisplay(strategy, predictedNumbers, confidence, explanation);
-    updatePredictionTable();
-    highlightNumbers(predictedNumbers, 'predicted');
-}
-
 
         // Update history table
         function updateHistoryTable() {
@@ -485,7 +455,7 @@
                     <td>${pred.actual}</td>
                     <td class="${pred.correct ? 'correct' : 'incorrect'}">
                         ${pred.correct ? '✓' : '✗'}
-                        ${pred.spinNumber === state.spins.length ? ` (Current)` : ''}
+                        ${pred.spinNumber === state.spins.length ? '(Current)' : ''}
                     </td>
                 `;
                 elements.predictionTable.appendChild(row);
@@ -496,7 +466,7 @@
         function highlightNumbers(numbers, highlightClass) {
             // Clear previous highlights
             document.querySelectorAll('.wheel-number').forEach(el => {
-                el.classList.remove('predicted', 'complementary', 'streak-pick');
+                el.classList.remove('predicted', 'streak-pick');
             });
             
             // Add new highlights
@@ -576,22 +546,8 @@
                 
                 // Clear wheel highlights
                 document.querySelectorAll('.wheel-number').forEach(el => {
-                    el.classList.remove('predicted', 'complementary', 'streak-pick');
+                    el.classList.remove('predicted', 'streak-pick');
                 });
-            }
-        }
-
-        // Toggle between neighborhood and complementary prediction display
-        function togglePredictionDisplay(strategy) {
-            state.currentStrategy = strategy;
-            
-            // Update button states
-            elements.neighborhoodBtn.classList.toggle('active', strategy === 'neighborhood');
-            elements.complementaryBtn.classList.toggle('active', strategy === 'complementary');
-            
-            // If we have spins, update the display
-            if (state.spins.length > 1) {
-                makePrediction();
             }
         }
 
@@ -616,9 +572,6 @@
                 addSpin(elements.spinInput.value);
             }
         });
-
-        elements.neighborhoodBtn.addEventListener('click', () => togglePredictionDisplay('neighborhood'));
-        elements.complementaryBtn.addEventListener('click', () => togglePredictionDisplay('complementary'));
 
         // Initialize the application
         window.addEventListener('load', () => {
