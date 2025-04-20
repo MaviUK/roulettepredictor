@@ -56,6 +56,12 @@
         button:hover {
             background-color: #45a049;
         }
+        button.export-btn {
+            background-color: #2196F3;
+        }
+        button.export-btn:hover {
+            background-color: #0b7dda;
+        }
         table {
             width: 100%;
             border-collapse: collapse;
@@ -194,6 +200,8 @@
             <p><strong>Current Streak:</strong> <span id="currentStreak">0</span></p>
             <p><strong>Max Streak:</strong> <span id="maxStreak">0</span></p>
             
+            <button id="exportBtn" class="export-btn">Export to Excel</button>
+            
             <h3>Recent Predictions</h3>
             <table id="predictionTable">
                 <thead>
@@ -249,7 +257,8 @@
             correctPredictions: document.getElementById('correctPredictions'),
             accuracy: document.getElementById('accuracy'),
             currentStreak: document.getElementById('currentStreak'),
-            maxStreak: document.getElementById('maxStreak')
+            maxStreak: document.getElementById('maxStreak'),
+            exportBtn: document.getElementById('exportBtn')
         };
 
         // Initialize the wheel visualization
@@ -551,6 +560,63 @@
             }
         }
 
+        // Export data to Excel
+        function exportToExcel() {
+            if (state.spins.length === 0) {
+                alert('No data to export');
+                return;
+            }
+
+            // Create CSV content
+            let csvContent = "data:text/csv;charset=utf-8,";
+            
+            // Add headers
+            csvContent += "Spin,Number,Color,Section,Strategy,Predicted Numbers,Actual,Result,Confidence\n";
+            
+            // Add data rows
+            state.predictions.forEach((pred, index) => {
+                const spin = state.spins[index + 1]; // +1 because predictions start after first spin
+                const row = [
+                    pred.spinNumber,
+                    spin.number,
+                    spin.color,
+                    spin.section,
+                    pred.strategy,
+                    pred.predictedNumbers.join(', '),
+                    pred.actual,
+                    pred.correct ? 'Correct' : 'Incorrect',
+                    pred.confidence
+                ].join(',');
+                csvContent += row + "\n";
+            });
+            
+            // Add summary stats
+            const correct = state.predictions.filter(p => p.correct).length;
+            const accuracy = state.predictions.length > 0 ? 
+                (correct / state.predictions.length * 100).toFixed(2) : 0;
+            
+            csvContent += "\nSummary Statistics\n";
+            csvContent += `Total Spins,${state.spins.length}\n`;
+            csvContent += `Predictions Made,${state.predictions.length}\n`;
+            csvContent += `Correct Predictions,${correct}\n`;
+            csvContent += `Accuracy,${accuracy}%\n`;
+            csvContent += `Current Streak,${state.currentStreak}\n`;
+            csvContent += `Max Streak,${state.maxStreak}\n`;
+            
+            // Create download link
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", "roulette_predictions.csv");
+            document.body.appendChild(link);
+            
+            // Trigger download
+            link.click();
+            
+            // Clean up
+            document.body.removeChild(link);
+        }
+
         // Event listeners
         elements.addSpinBtn.addEventListener('click', () => {
             if (!elements.spinInput.value.trim()) {
@@ -562,6 +628,7 @@
         
         elements.clearBtn.addEventListener('click', clearAll);
         elements.bulkAddBtn.addEventListener('click', addBulkSpins);
+        elements.exportBtn.addEventListener('click', exportToExcel);
         
         elements.spinInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
