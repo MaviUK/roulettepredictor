@@ -388,61 +388,55 @@
         }
 
         // Make a prediction based on previous spins
-        function makePrediction() {
-            const lastSpin = state.spins[state.spins.length - 2];
-            const currentSpin = state.spins[state.spins.length - 1];
-            
-            let predictedNumbers, strategy, confidence, explanation;
-            
-            if (state.currentStreak >= 4) {
-                // After 4 losses, predict only the center number
-                predictedNumbers = [lastSpin.number];
-                strategy = "Single number (streak breaker)";
-                confidence = "High";
-                explanation = `Predicting only ${lastSpin.number} after ${state.currentStreak} losses`;
-            } else if (state.currentStrategy === 'complementary') {
-                // Complementary strategy - predict only numbers not in original prediction
-                predictedNumbers = getComplementaryNumbers(lastSpin.number);
-                strategy = "True Complementary (18)";
-                confidence = "High";
-                explanation = `Predicting only numbers not in ${lastSpin.number}'s neighborhood`;
-            } else {
-                // Normal operation - predict neighborhood
-                predictedNumbers = getNeighborhood(lastSpin.number);
-                strategy = "Neighborhood (19)";
-                confidence = "Medium";
-                explanation = `Predicting ${lastSpin.number} and its 9 neighbors on each side`;
-            }
+       function makePrediction() {
+    const lastSpin = state.spins[state.spins.length - 2];
+    const currentSpin = state.spins[state.spins.length - 1];
 
-            // Check if prediction was correct
-            const isCorrect = predictedNumbers.includes(currentSpin.number);
-            
-            // Update streaks
-            if (isCorrect) {
-                state.currentStreak = 0;
-            } else {
-                state.currentStreak++;
-                if (state.currentStreak > state.maxStreak) {
-                    state.maxStreak = state.currentStreak;
-                }
-            }
+    if (!lastSpin) return;
 
-            // Store prediction
-            state.predictions.push({
-                spinNumber: state.spins.length,
-                strategy,
-                predictedNumbers,
-                actual: currentSpin.number,
-                correct: isCorrect,
-                confidence
-            });
+    let predictedNumbers, strategy, confidence, explanation;
 
-            // Update UI
-            updatePredictionDisplay(strategy, predictedNumbers, confidence, explanation);
-            updatePredictionTable();
-            highlightNumbers(predictedNumbers, state.currentStrategy === 'complementary' ? 'complementary' : 
-                           (state.currentStreak >= 4 ? 'streak-pick' : 'predicted'));
+    if (state.currentStreak >= 4) {
+        // After 4 losses, predict only the opposite center number
+        const opposite = getOppositeNumber(lastSpin.number);
+        predictedNumbers = [opposite];
+        strategy = "Single Opposite Number (streak breaker)";
+        confidence = "High";
+        explanation = `Predicting only ${opposite} after ${state.currentStreak} losses (opposite of ${lastSpin.number})`;
+    } else {
+        const originalPredictedNumber = lastSpin.number;
+        const opposite = getOppositeNumber(originalPredictedNumber);
+        predictedNumbers = getNeighborhood(opposite);
+        strategy = "Opposite Zone (19)";
+        confidence = "Medium";
+        explanation = `Predicting the 9 neighbors each side of ${opposite} (opposite of ${originalPredictedNumber})`;
+    }
+
+    const isCorrect = predictedNumbers.includes(currentSpin.number);
+
+    if (isCorrect) {
+        state.currentStreak = 0;
+    } else {
+        state.currentStreak++;
+        if (state.currentStreak > state.maxStreak) {
+            state.maxStreak = state.currentStreak;
         }
+    }
+
+    state.predictions.push({
+        spinNumber: state.spins.length,
+        strategy,
+        predictedNumbers,
+        actual: currentSpin.number,
+        correct: isCorrect,
+        confidence
+    });
+
+    updatePredictionDisplay(strategy, predictedNumbers, confidence, explanation);
+    updatePredictionTable();
+    highlightNumbers(predictedNumbers, 'predicted');
+}
+
 
         // Update history table
         function updateHistoryTable() {
