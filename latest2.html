@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Opposite+Neighbors Roulette Predictor</title>
+    <title>True Complementary Roulette Predictor</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -102,7 +102,10 @@
         .wheel-number.predicted {
             box-shadow: 0 0 0 3px yellow;
         }
-        .wheel-number.opposite {
+        .wheel-number.complementary {
+            box-shadow: 0 0 0 3px magenta;
+        }
+        .wheel-number.streak-pick {
             box-shadow: 0 0 0 3px cyan;
         }
         .correct {
@@ -156,7 +159,7 @@
     </style>
 </head>
 <body>
-    <h1>Opposite+Neighbors Roulette Predictor</h1>
+    <h1>True Complementary Roulette Predictor</h1>
     <div class="container">
         <div class="input-section">
             <h2>Add Spins</h2>
@@ -188,8 +191,8 @@
             <h2>Wheel Visualization</h2>
             <div class="wheel" id="wheel"></div>
             <div class="prediction-toggle">
-                <button id="neighborhoodBtn">Show Neighborhood</button>
-                <button id="oppositeBtn" class="active">Show Opposite+Neighbors</button>
+                <button id="neighborhoodBtn" class="active">Show Neighborhood (19)</button>
+                <button id="complementaryBtn">Show Complementary (18)</button>
             </div>
             <div class="prediction-display">
                 <h3>Current Prediction</h3>
@@ -215,13 +218,14 @@
                 <thead>
                     <tr>
                         <th>Spin</th>
+                        <th>Strategy</th>
                         <th>Prediction</th>
                         <th>Actual</th>
                         <th>Result</th>
                     </tr>
                 </thead>
                 <tbody>
-                    <tr><td colspan="4">No predictions yet</td></tr>
+                    <tr><td colspan="5">No predictions yet</td></tr>
                 </tbody>
             </table>
         </div>
@@ -242,7 +246,7 @@
             predictions: [],
             currentStreak: 0,
             maxStreak: 0,
-            useOppositeStrategy: true // Default to opposite+neighbors strategy
+            currentStrategy: 'neighborhood' // 'neighborhood' or 'complementary'
         };
 
         // DOM elements
@@ -267,7 +271,7 @@
             currentStreak: document.getElementById('currentStreak'),
             maxStreak: document.getElementById('maxStreak'),
             neighborhoodBtn: document.getElementById('neighborhoodBtn'),
-            oppositeBtn: document.getElementById('oppositeBtn')
+            complementaryBtn: document.getElementById('complementaryBtn')
         };
 
         // Initialize the wheel visualization
@@ -348,12 +352,14 @@
             return wheelLayout[(index + halfWheel) % wheelLayout.length];
         }
 
-        // Get opposite number plus its 9 neighbors each side
-        function getOppositeNeighborhood(centerNumber) {
+        // Get truly complementary numbers (only those not in original prediction)
+        function getComplementaryNumbers(centerNumber) {
+            const originalNeighborhood = getNeighborhood(centerNumber);
             const oppositeNumber = getOppositeNumber(centerNumber);
-            if (oppositeNumber === null) return [];
+            const oppositeNeighborhood = getNeighborhood(oppositeNumber);
             
-            return getNeighborhood(oppositeNumber);
+            // Only include numbers not in the original prediction
+            return oppositeNeighborhood.filter(num => !originalNeighborhood.includes(num));
         }
 
         // Add a single spin
@@ -388,19 +394,24 @@
             
             let predictedNumbers, strategy, confidence, explanation;
             
-            if (state.useOppositeStrategy) {
-                // Opposite+neighbors strategy
-                const oppositeNumber = getOppositeNumber(lastSpin.number);
-                predictedNumbers = getNeighborhood(oppositeNumber);
-                strategy = "Opposite+Neighbors";
+            if (state.currentStreak >= 4) {
+                // After 4 losses, predict only the center number
+                predictedNumbers = [lastSpin.number];
+                strategy = "Single number (streak breaker)";
                 confidence = "High";
-                explanation = `Predicting opposite of ${lastSpin.number} (${oppositeNumber}) plus 9 neighbors each side`;
+                explanation = `Predicting only ${lastSpin.number} after ${state.currentStreak} losses`;
+            } else if (state.currentStrategy === 'complementary') {
+                // Complementary strategy - predict only numbers not in original prediction
+                predictedNumbers = getComplementaryNumbers(lastSpin.number);
+                strategy = "True Complementary (18)";
+                confidence = "High";
+                explanation = `Predicting only numbers not in ${lastSpin.number}'s neighborhood`;
             } else {
-                // Original neighborhood strategy
+                // Normal operation - predict neighborhood
                 predictedNumbers = getNeighborhood(lastSpin.number);
-                strategy = "Neighborhood";
+                strategy = "Neighborhood (19)";
                 confidence = "Medium";
-                explanation = `Predicting ${lastSpin.number} plus 9 neighbors each side`;
+                explanation = `Predicting ${lastSpin.number} and its 9 neighbors on each side`;
             }
 
             // Check if prediction was correct
@@ -429,7 +440,8 @@
             // Update UI
             updatePredictionDisplay(strategy, predictedNumbers, confidence, explanation);
             updatePredictionTable();
-            highlightNumbers(predictedNumbers, state.useOppositeStrategy ? 'opposite' : 'predicted');
+            highlightNumbers(predictedNumbers, state.currentStrategy === 'complementary' ? 'complementary' : 
+                           (state.currentStreak >= 4 ? 'streak-pick' : 'predicted'));
         }
 
         // Update history table
@@ -463,7 +475,7 @@
             elements.predictionTable.innerHTML = '';
             
             if (state.predictions.length === 0) {
-                elements.predictionTable.innerHTML = '<tr><td colspan="4">No predictions yet</td></tr>';
+                elements.predictionTable.innerHTML = '<tr><td colspan="5">No predictions yet</td></tr>';
                 return;
             }
 
@@ -474,7 +486,8 @@
                 const row = document.createElement('tr');
                 row.innerHTML = `
                     <td>${pred.spinNumber}</td>
-                    <td>${pred.predictedNumbers.join(', ')} (${pred.strategy})</td>
+                    <td>${pred.strategy}</td>
+                    <td>${pred.predictedNumbers.join(', ')}</td>
                     <td>${pred.actual}</td>
                     <td class="${pred.correct ? 'correct' : 'incorrect'}">
                         ${pred.correct ? '✓' : '✗'}
@@ -489,7 +502,7 @@
         function highlightNumbers(numbers, highlightClass) {
             // Clear previous highlights
             document.querySelectorAll('.wheel-number').forEach(el => {
-                el.classList.remove('predicted', 'opposite');
+                el.classList.remove('predicted', 'complementary', 'streak-pick');
             });
             
             // Add new highlights
@@ -569,17 +582,20 @@
                 
                 // Clear wheel highlights
                 document.querySelectorAll('.wheel-number').forEach(el => {
-                    el.classList.remove('predicted', 'opposite');
+                    el.classList.remove('predicted', 'complementary', 'streak-pick');
                 });
             }
         }
 
-        // Toggle prediction strategy
-        function toggleStrategy(useOpposite) {
-            state.useOppositeStrategy = useOpposite;
-            elements.neighborhoodBtn.classList.toggle('active', !useOpposite);
-            elements.oppositeBtn.classList.toggle('active', useOpposite);
+        // Toggle between neighborhood and complementary prediction display
+        function togglePredictionDisplay(strategy) {
+            state.currentStrategy = strategy;
             
+            // Update button states
+            elements.neighborhoodBtn.classList.toggle('active', strategy === 'neighborhood');
+            elements.complementaryBtn.classList.toggle('active', strategy === 'complementary');
+            
+            // If we have spins, update the display
             if (state.spins.length > 1) {
                 makePrediction();
             }
@@ -607,8 +623,8 @@
             }
         });
 
-        elements.neighborhoodBtn.addEventListener('click', () => toggleStrategy(false));
-        elements.oppositeBtn.addEventListener('click', () => toggleStrategy(true));
+        elements.neighborhoodBtn.addEventListener('click', () => togglePredictionDisplay('neighborhood'));
+        elements.complementaryBtn.addEventListener('click', () => togglePredictionDisplay('complementary'));
 
         // Initialize the application
         window.addEventListener('load', () => {
