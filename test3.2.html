@@ -684,7 +684,7 @@
             // Check if this number was in our current selection
 if (currentSelection.length > 0) {
     const isWin = currentSelection.includes(number);
-    
+
     updateStats(number);
     updateMartingaleStats(number);
 
@@ -696,14 +696,14 @@ if (currentSelection.length > 0) {
         originalPredictionIndex = null;
     }
 
-    if (predictionLossStreak === 4) {
-        isUsingOpposite = true;
-        originalPredictionIndex = wheelLayout.indexOf(currentPrediction);
-    } else if (predictionLossStreak === 8) {
-        isUsingOpposite = false;
-        predictionLossStreak = 0;
+    if (predictionLossStreak >= 4 && (predictionLossStreak - 4) % 2 === 0) {
+        isUsingOpposite = !isUsingOpposite;
+        if (isUsingOpposite) {
+            originalPredictionIndex = wheelLayout.indexOf(currentPrediction);
+        }
     }
 }
+
 
             
             // Alternate direction for next spin
