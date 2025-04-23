@@ -416,6 +416,11 @@
                             <span>Avg Travel:</span>
                             <span id="cwAvgTravel">0</span>
                         </div>
+<div class="stats-row">
+    <span>Longest Losing Streak:</span>
+    <span id="cwLongestLosses">0</span>
+</div>
+
                     </div>
                     
                     <div class="direction-stat">
@@ -432,6 +437,11 @@
                             <span>Avg Travel:</span>
                             <span id="ccwAvgTravel">0</span>
                         </div>
+<div class="stats-row">
+    <span>Longest Losing Streak:</span>
+    <span id="ccwLongestLosses">0</span>
+</div>
+
                     </div>
                 </div>
                 
@@ -461,6 +471,9 @@
     </div>
 
     <script>
+const cwLongestLossesSpan = document.getElementById('cwLongestLosses');
+const ccwLongestLossesSpan = document.getElementById('ccwLongestLosses');
+
         // European wheel layout (single zero)
         const wheelLayout = [
             0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10, 5, 24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26
@@ -475,19 +488,24 @@
         let currentPrediction = null;
         let currentSelection = [];
         let stats = {
-            total: 0,
-            cw: {
-                wins: 0,
-                total: 0,
-                travelDistances: []
-            },
-            ccw: {
-                wins: 0,
-                total: 0,
-                travelDistances: []
-            },
-            travelPatterns: []
-        };
+    total: 0,
+    cw: {
+        wins: 0,
+        total: 0,
+        travelDistances: [],
+        currentLosingStreak: 0,
+        longestLosingStreak: 0
+    },
+    ccw: {
+        wins: 0,
+        total: 0,
+        travelDistances: [],
+        currentLosingStreak: 0,
+        longestLosingStreak: 0
+    },
+    travelPatterns: []
+};
+
 
         // Martingale system state
         let martingale = {
@@ -714,7 +732,7 @@ function getTravelDistance(fromNumber, toNumber, direction) {
 }
 
 
-function generatePrediction() {
+     function generatePrediction() {
     if (spinHistory.length < 2) {
         resetPrediction();
         return;
@@ -754,23 +772,22 @@ function generatePrediction() {
         predictedIndex = (currentIndex - travelDistance + wheelLayout.length) % wheelLayout.length;
     }
 
-    // Get the opposite number's index (18 positions away on the wheel)
-    const oppositeIndex = (predictedIndex + 18) % wheelLayout.length;
-    const mainPrediction = wheelLayout[oppositeIndex];
+    const mainPrediction = wheelLayout[predictedIndex];
 
-    // Get neighbors of the opposite number
+    // Get neighbors
     const leftNeighbors = [];
     const rightNeighbors = [];
 
     for (let i = 1; i <= neighborCount; i++) {
-        leftNeighbors.push(wheelLayout[(oppositeIndex - i + wheelLayout.length) % wheelLayout.length]);
-        rightNeighbors.push(wheelLayout[(oppositeIndex + i) % wheelLayout.length]);
+        leftNeighbors.push(wheelLayout[(predictedIndex - i + wheelLayout.length) % wheelLayout.length]);
+        rightNeighbors.push(wheelLayout[(predictedIndex + i) % wheelLayout.length]);
     }
 
     currentPrediction = mainPrediction;
     currentSelection = [mainPrediction, ...leftNeighbors, ...rightNeighbors];
     updatePredictionDisplay(mainPrediction, leftNeighbors, rightNeighbors);
 }
+
 
 
         function updatePredictionDisplay(mainNumber, leftNeighbors, rightNeighbors) {
@@ -863,45 +880,52 @@ function generatePrediction() {
         }
 
         function updateStats(number) {
-            stats.total++;
-            
-            const wasWin = currentSelection.includes(number);
-            const lastSpin = spinHistory[spinHistory.length - 1];
-            
-            if (wasWin) {
-                if (lastSpin.direction === 'cw') {
-                    stats.cw.wins++;
-                } else {
-                    stats.ccw.wins++;
-                }
-            }
-        }
+    stats.total++;
+    
+    const wasWin = currentSelection.includes(number);
+    const lastSpin = spinHistory[spinHistory.length - 1];
+    const dir = lastSpin.direction;
 
-        function updateStatsDisplay() {
-            totalSpinsSpan.textContent = stats.total;
-            
-            // CW stats
-            cwWinsSpan.textContent = stats.cw.wins;
-            const cwWinPct = stats.cw.total > 0 ? 
-                Math.round((stats.cw.wins / stats.cw.total) * 100) : 0;
-            cwWinPctSpan.textContent = `${cwWinPct}%`;
-            
-            const cwAvgTravel = stats.cw.travelDistances.length > 0 ?
-                Math.round(stats.cw.travelDistances.reduce((a, b) => a + b, 0) / 
-                          stats.cw.travelDistances.length) : 0;
-            cwAvgTravelSpan.textContent = `${cwAvgTravel}`;
-            
-            // CCW stats
-            ccwWinsSpan.textContent = stats.ccw.wins;
-            const ccwWinPct = stats.ccw.total > 0 ? 
-                Math.round((stats.ccw.wins / stats.ccw.total) * 100) : 0;
-            ccwWinPctSpan.textContent = `${ccwWinPct}%`;
-            
-            const ccwAvgTravel = stats.ccw.travelDistances.length > 0 ?
-                Math.round(stats.ccw.travelDistances.reduce((a, b) => a + b, 0) / 
-                          stats.ccw.travelDistances.length) : 0;
-            ccwAvgTravelSpan.textContent = `${ccwAvgTravel}`;
+    if (wasWin) {
+        stats[dir].wins++;
+        stats[dir].currentLosingStreak = 0; // reset streak on win
+    } else {
+        stats[dir].currentLosingStreak++;
+        if (stats[dir].currentLosingStreak > stats[dir].longestLosingStreak) {
+            stats[dir].longestLosingStreak = stats[dir].currentLosingStreak;
         }
+    }
+}
+
+
+       function updateStatsDisplay() {
+    totalSpinsSpan.textContent = stats.total;
+
+    // CW stats
+    cwWinsSpan.textContent = stats.cw.wins;
+    const cwWinPct = stats.cw.total > 0 ? 
+        Math.round((stats.cw.wins / stats.cw.total) * 100) : 0;
+    cwWinPctSpan.textContent = `${cwWinPct}%`;
+
+    const cwAvgTravel = stats.cw.travelDistances.length > 0 ?
+        Math.round(stats.cw.travelDistances.reduce((a, b) => a + b, 0) / stats.cw.travelDistances.length) : 0;
+    cwAvgTravelSpan.textContent = `${cwAvgTravel}`;
+
+    cwLongestLossesSpan.textContent = stats.cw.longestLosingStreak;
+
+    // CCW stats
+    ccwWinsSpan.textContent = stats.ccw.wins;
+    const ccwWinPct = stats.ccw.total > 0 ? 
+        Math.round((stats.ccw.wins / stats.ccw.total) * 100) : 0;
+    ccwWinPctSpan.textContent = `${ccwWinPct}%`;
+
+    const ccwAvgTravel = stats.ccw.travelDistances.length > 0 ?
+        Math.round(stats.ccw.travelDistances.reduce((a, b) => a + b, 0) / stats.ccw.travelDistances.length) : 0;
+    ccwAvgTravelSpan.textContent = `${ccwAvgTravel}`;
+
+    ccwLongestLossesSpan.textContent = stats.ccw.longestLosingStreak;
+}
+
 
   function updateTravelPatternsDisplay() {
     travelPatternsDiv.innerHTML = `
