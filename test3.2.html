@@ -1089,32 +1089,36 @@ function getTravelDistance(fromNumber, toNumber, direction) {
         }
 
         function clearHistory() {
-            if (confirm('Are you sure you want to clear all history?')) {
-                spinHistory = [];
-                currentDirection = 'cw';
-                stats = {
-                    total: 0,
-                    cw: {
-                        wins: 0,
-                        total: 0,
-                        travelDistances: []
-                    },
-                    ccw: {
-                        wins: 0,
-                        total: 0,
-                        travelDistances: []
-                    },
-                    travelPatterns: []
-                };
-                resetMartingale();
-                resetPrediction();
-                updateHistoryDisplay();
-                updateStatsDisplay();
-                updateTravelPatternsDisplay();
-                updateWheelDisplay();
-                saveToLocalStorage();
-            }
-        }
+    if (confirm('Are you sure you want to clear all history?')) {
+        spinHistory = [];
+        currentDirection = 'cw';
+        stats = {
+            total: 0,
+            cw: {
+                wins: 0,
+                total: 0,
+                travelDistances: [],
+                currentLosingStreak: 0,
+                longestLosingStreak: 0
+            },
+            ccw: {
+                wins: 0,
+                total: 0,
+                travelDistances: [],
+                currentLosingStreak: 0,
+                longestLosingStreak: 0
+            },
+            travelPatterns: []
+        };
+        resetMartingale();
+        resetPrediction();
+        updateHistoryDisplay();
+        updateStatsDisplay();
+        updateTravelPatternsDisplay();
+        updateWheelDisplay();
+        saveToLocalStorage();
+    }
+}
 
         function exportHistory() {
             if (spinHistory.length === 0) {
@@ -1201,6 +1205,13 @@ function getTravelDistance(fromNumber, toNumber, direction) {
                     ccw: { wins: 0, total: 0, travelDistances: [] },
                     travelPatterns: []
                 };
+
+// Ensure missing streak values are initialized
+if (!stats.cw.currentLosingStreak) stats.cw.currentLosingStreak = 0;
+if (!stats.cw.longestLosingStreak) stats.cw.longestLosingStreak = 0;
+if (!stats.ccw.currentLosingStreak) stats.ccw.currentLosingStreak = 0;
+if (!stats.ccw.longestLosingStreak) stats.ccw.longestLosingStreak = 0;
+
                 martingale = data.martingale || {
                     baseBet: 1,
                     currentBet: 1,
