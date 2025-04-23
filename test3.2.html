@@ -474,9 +474,6 @@
         let currentDirection = 'cw'; // cw = clockwise, ccw = counter-clockwise
         let currentPrediction = null;
         let currentSelection = [];
-        let predictionLossStreak = 0;
-        let isUsingOpposite = false;
-        let originalPredictionIndex = null;
         let stats = {
             total: 0,
             cw: {
@@ -682,29 +679,10 @@
             }
             
             // Check if this number was in our current selection
-if (currentSelection.length > 0) {
-    const isWin = currentSelection.includes(number);
-
-    updateStats(number);
-    updateMartingaleStats(number);
-
-    if (!isWin) {
-        predictionLossStreak++;
-    } else {
-        predictionLossStreak = 0;
-        isUsingOpposite = false;
-        originalPredictionIndex = null;
-    }
-
-    if (predictionLossStreak >= 4 && (predictionLossStreak - 4) % 2 === 0) {
-        isUsingOpposite = !isUsingOpposite;
-        if (isUsingOpposite) {
-            originalPredictionIndex = wheelLayout.indexOf(currentPrediction);
-        }
-    }
-}
-
-
+            if (currentSelection.length > 0) {
+                updateStats(number);
+                updateMartingaleStats(number);
+            }
             
             // Alternate direction for next spin
             currentDirection = currentDirection === 'cw' ? 'ccw' : 'cw';
@@ -736,7 +714,7 @@ function getTravelDistance(fromNumber, toNumber, direction) {
 }
 
 
-     function generatePrediction() {
+function generatePrediction() {
     if (spinHistory.length < 2) {
         resetPrediction();
         return;
@@ -769,34 +747,30 @@ function getTravelDistance(fromNumber, toNumber, direction) {
     }
 
     // Predict index by applying the OPPOSITE direction's travel distance in the CURRENT direction
-   let predictedIndex;
-if (nextDirection === 'cw') {
-    predictedIndex = (currentIndex + travelDistance) % wheelLayout.length;
-} else {
-    predictedIndex = (currentIndex - travelDistance + wheelLayout.length) % wheelLayout.length;
-}
+    let predictedIndex;
+    if (nextDirection === 'cw') {
+        predictedIndex = (currentIndex + travelDistance) % wheelLayout.length;
+    } else {
+        predictedIndex = (currentIndex - travelDistance + wheelLayout.length) % wheelLayout.length;
+    }
 
-if (isUsingOpposite) {
-    predictedIndex = (predictedIndex + Math.floor(wheelLayout.length / 2)) % wheelLayout.length;
-}
+    // Get the opposite number's index (18 positions away on the wheel)
+    const oppositeIndex = (predictedIndex + 18) % wheelLayout.length;
+    const mainPrediction = wheelLayout[oppositeIndex];
 
-
-    const mainPrediction = wheelLayout[predictedIndex];
-
-    // Get neighbors
+    // Get neighbors of the opposite number
     const leftNeighbors = [];
     const rightNeighbors = [];
 
     for (let i = 1; i <= neighborCount; i++) {
-        leftNeighbors.push(wheelLayout[(predictedIndex - i + wheelLayout.length) % wheelLayout.length]);
-        rightNeighbors.push(wheelLayout[(predictedIndex + i) % wheelLayout.length]);
+        leftNeighbors.push(wheelLayout[(oppositeIndex - i + wheelLayout.length) % wheelLayout.length]);
+        rightNeighbors.push(wheelLayout[(oppositeIndex + i) % wheelLayout.length]);
     }
 
     currentPrediction = mainPrediction;
     currentSelection = [mainPrediction, ...leftNeighbors, ...rightNeighbors];
     updatePredictionDisplay(mainPrediction, leftNeighbors, rightNeighbors);
 }
-
 
 
         function updatePredictionDisplay(mainNumber, leftNeighbors, rightNeighbors) {
