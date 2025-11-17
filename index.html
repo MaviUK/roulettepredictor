@@ -1,67 +1,732 @@
-// ---------- SIMPLE STEP-FREQUENCY PREDICTION MODEL ----------
-
-const WINDOW_STEPS = 35;        // number of most recent steps to inspect
-const THRESHOLD_COUNT = 6;      // dominant step must appear at least this many times
-const MIN_STEPS_FOR_MODEL = WINDOW_STEPS;
-
-function simplePrediction(spins) {
-  if (spins.length < 2) {
-    return { shouldBet: false, reason: "Need at least 2 spins", debug: null };
-  }
-
-  const stepsAll = buildSteps(spins);
-  if (stepsAll.length < MIN_STEPS_FOR_MODEL) {
-    return {
-      shouldBet: false,
-      reason: `Need at least ${MIN_STEPS_FOR_MODEL + 1} spins for the model`,
-      debug: null
-    };
-  }
-
-  // Take last WINDOW_STEPS steps
-  const windowSteps = stepsAll.slice(-WINDOW_STEPS);
-
-  // Count frequencies
-  const counts = new Map();
-  for (const s of windowSteps) {
-    counts.set(s, (counts.get(s) || 0) + 1);
-  }
-
-  // Find dominant step
-  let bestStep = null;
-  let bestCount = 0;
-  for (const [s, c] of counts.entries()) {
-    if (c > bestCount) {
-      bestCount = c;
-      bestStep = s;
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Roulette Step Predictor</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      margin: 0;
+      padding: 1.5rem;
+      background: #0b1020;
+      color: #f5f5f5;
     }
-  }
+    h1, h2, h3 {
+      margin-top: 0;
+      font-weight: 700;
+    }
+    h1 { font-size: 1.8rem; }
+    h2 { font-size: 1.3rem; margin-top: 1.5rem; }
+    h3 { font-size: 1.1rem; margin-top: 1rem; }
 
-  if (bestStep === null || bestCount < THRESHOLD_COUNT) {
-    return {
-      shouldBet: false,
-      reason: `No strong step pattern yet (top step appears ${bestCount}×, need ${THRESHOLD_COUNT}×)`,
-      debug: { bestStep, bestCount }
-    };
-  }
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+      gap: 1.5rem;
+    }
 
-  // Build bet: move last number by bestStep on the wheel
-  const lastNum = spins[spins.length - 1];
-  const idxLast = INDEX_OF[lastNum];
-  if (idxLast === undefined) {
-    return { shouldBet: false, reason: "Last number not on wheel", debug: null };
-  }
+    @media (max-width: 900px) {
+      .container {
+        grid-template-columns: 1fr;
+      }
+    }
 
-  const centreIdx = (idxLast + bestStep) % 37;
-  const centreNum = WHEEL_ORDER[centreIdx];
-  const neighbours = neighboursForCentre(centreNum);
+    .card {
+      background: #151a2c;
+      border-radius: 14px;
+      padding: 1.1rem 1.25rem;
+      box-shadow: 0 14px 40px rgba(0,0,0,0.4);
+      border: 1px solid rgba(255,255,255,0.04);
+    }
 
-  return {
-    shouldBet: true,
-    centreNum,
-    neighbours,
-    dominantStep: bestStep,
-    count: bestCount,
-    reason: `Step ${bestStep} appears ${bestCount}× in last ${WINDOW_STEPS} spins`
-  };
-}
+    label { display: block; margin-bottom: 0.35rem; font-size: 0.9rem; opacity: 0.9; }
+    input[type="number"], textarea {
+      width: 100%;
+      padding: 0.6rem 0.7rem;
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.15);
+      background: #0b1020;
+      color: #f5f5f5;
+      font-size: 0.95rem;
+      outline: none;
+    }
+    input[type="number"]:focus, textarea:focus {
+      border-color: #58d5ff;
+      box-shadow: 0 0 0 1px rgba(88,213,255,0.3);
+    }
+    textarea {
+      min-height: 150px;
+      resize: vertical;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0.55rem 0.9rem;
+      border-radius: 999px;
+      border: 0;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 0.9rem;
+      margin-right: 0.5rem;
+      margin-top: 0.4rem;
+      transition: transform 0.08s ease, box-shadow 0.08s ease, background 0.15s ease;
+    }
+    .btn-primary {
+      background: #ff3366;
+      color: #fff;
+      box-shadow: 0 0 0 1px rgba(255,255,255,0.05),0 10px 25px rgba(255,51,102,0.4);
+    }
+    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 14px 30px rgba(255,51,102,0.5); }
+    .btn-secondary {
+      background: #232b49;
+      color: #f5f5f5;
+    }
+    .btn-secondary:hover {
+      background: #2f385c;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.25rem 0.6rem;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .pill-good { background: rgba(0,200,140,0.15); color: #4cf3b6; }
+    .pill-bad  { background: rgba(255,120,80,0.15); color: #ffb899; }
+    .pill-neutral { background: rgba(130,150,255,0.15); color: #b3bfff; }
+
+    .section {
+      margin-top: 0.75rem;
+      padding-top: 0.75rem;
+      border-top: 1px solid rgba(255,255,255,0.06);
+    }
+
+    .list-inline {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.25rem 0.4rem;
+      margin: 0.25rem 0;
+      padding: 0;
+      list-style: none;
+      font-size: 0.9rem;
+    }
+    .list-inline li {
+      padding: 0.17rem 0.5rem;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.05);
+    }
+
+    .mono { font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.85rem; }
+
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 0.6rem;
+      margin-top: 0.4rem;
+    }
+    @media (max-width: 600px) {
+      .stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    .stat {
+      background: rgba(255,255,255,0.03);
+      border-radius: 10px;
+      padding: 0.5rem 0.6rem;
+      font-size: 0.8rem;
+    }
+    .stat span {
+      display: block;
+    }
+    .stat-label {
+      opacity: 0.7;
+      margin-bottom: 0.1rem;
+    }
+    .stat-value {
+      font-weight: 700;
+      font-size: 0.95rem;
+    }
+
+    .small {
+      font-size: 0.8rem;
+      opacity: 0.8;
+    }
+
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.3rem;
+      margin-top: 0.2rem;
+    }
+    .chip {
+      padding: 0.15rem 0.5rem;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.07);
+      font-size: 0.8rem;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Roulette Hybrid Step Predictor</h1>
+  <p class="small">
+    Enter each spin result and the model will decide <strong>BET / NO BET</strong> for the next spin and,
+    if betting, which <strong>centre number + 8 neighbours each side</strong> to cover.
+    You can also paste a long history to <strong>simulate</strong> how the model would have performed.
+  </p>
+
+  <div class="container">
+    <!-- LIVE INPUT / OUTPUT -->
+    <div class="card">
+      <h2>Live Mode</h2>
+
+      <label for="spinInput">Enter latest spin (0–36), then click "Add Spin"</label>
+      <input type="number" id="spinInput" min="0" max="36" placeholder="e.g. 23" />
+      <div>
+        <button class="btn btn-primary" id="addSpinBtn">Add Spin</button>
+        <button class="btn btn-secondary" id="resetSpinsBtn">Reset History</button>
+      </div>
+
+      <div class="section">
+        <h3>Current History</h3>
+        <div class="small" id="historyInfo">No spins yet.</div>
+        <ul class="list-inline mono" id="historyList"></ul>
+      </div>
+
+      <div class="section">
+        <h3>Next Spin Recommendation</h3>
+        <div id="recommendation">
+          <span class="pill pill-neutral">No Data</span>
+          <p class="small">Enter at least 3–4 spins to get started.</p>
+        </div>
+      </div>
+
+      <div class="section">
+        <h3>Live Stats (this session)</h3>
+        <div class="stat-grid">
+          <div class="stat">
+            <span class="stat-label">Total Bets</span>
+            <span class="stat-value" id="liveTotalBets">0</span>
+          </div>
+          <div class="stat">
+            <span class="stat-label">Wins</span>
+            <span class="stat-value" id="liveWins">0</span>
+          </div>
+          <div class="stat">
+            <span class="stat-label">Losses</span>
+            <span class="stat-value" id="liveLosses">0</span>
+          </div>
+          <div class="stat">
+            <span class="stat-label">Hit Rate</span>
+            <span class="stat-value" id="liveHitRate">–</span>
+          </div>
+          <div class="stat">
+            <span class="stat-label">Current Losing Streak</span>
+            <span class="stat-value" id="liveCurrentStreak">0</span>
+          </div>
+          <div class="stat">
+            <span class="stat-label">Worst Losing Streak</span>
+            <span class="stat-value" id="liveWorstStreak">0</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SIMULATOR -->
+    <div class="card">
+      <h2>Simulator</h2>
+      <p class="small">
+        Paste a list of spins (one per line or separated by spaces). The simulator will run the same
+        hybrid model across that history and show performance stats.
+      </p>
+      <label for="simInput">Spin sequence</label>
+      <textarea id="simInput" placeholder="Example:
+26 34 16 4 10 10 27 29 17 8 35 7 23 36 36 25 10 21 8 19 ..."></textarea>
+
+      <div>
+        <button class="btn btn-primary" id="runSimBtn">Run Simulation</button>
+        <button class="btn btn-secondary" id="clearSimBtn">Clear</button>
+      </div>
+
+      <div class="section" id="simResults" style="display:none;">
+        <h3>Simulation Results</h3>
+        <div class="stat-grid">
+          <div class="stat">
+            <span class="stat-label">Spins</span>
+            <span class="stat-value" id="simSpins">0</span>
+          </div>
+          <div class="stat">
+            <span class="stat-label">Total Bets</span>
+            <span class="stat-value" id="simTotalBets">0</span>
+          </div>
+          <div class="stat">
+            <span class="stat-label">Wins</span>
+            <span class="stat-value" id="simWins">0</span>
+          </div>
+          <div class="stat">
+            <span class="stat-label">Losses</span>
+            <span class="stat-value" id="simLosses">0</span>
+          </div>
+          <div class="stat">
+            <span class="stat-label">Hit Rate</span>
+            <span class="stat-value" id="simHitRate">–</span>
+          </div>
+          <div class="stat">
+            <span class="stat-label">Worst Losing Streak</span>
+            <span class="stat-value" id="simWorstStreak">0</span>
+          </div>
+        </div>
+        <p class="small" id="simNotes"></p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ---------- MODEL CONSTANTS ----------
+
+    const WHEEL_ORDER = [
+      0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6,
+      27, 13, 36, 11, 30, 8, 23, 10, 5, 24,
+      16, 33, 1, 20, 14, 31, 9, 22, 18, 29,
+      7, 28, 12, 35, 3, 26
+    ];
+
+    const INDEX_OF = {};
+    WHEEL_ORDER.forEach((n, i) => { INDEX_OF[n] = i; });
+
+    // Hybrid model parameters
+    const WINDOW_STEPS = 40;      // main step window
+    const MIN_STEPS_FOR_MODEL = 12; // minimum steps before we even consider
+    const THRESHOLD_WEIGHT = 7;   // minimum weighted count for dominant step
+    const MAX_DRIFT_DIFF = 5;     // max distance between dominant step and weighted mean
+    const MODE_WINDOW = 20;       // window to detect two modes
+    const MODE_RECENT = 6;        // last N steps to decide current mode
+    const MODE_MAX_DIFF = 3;      // dominant step must be close to mode
+
+    // ---------- UTILITIES ----------
+
+    function computeStep(prevNum, currNum) {
+      const iPrev = INDEX_OF[prevNum];
+      const iCurr = INDEX_OF[currNum];
+      if (iPrev === undefined || iCurr === undefined) return null;
+      return (iCurr - iPrev + 37) % 37;
+    }
+
+    function buildSteps(spins) {
+      const steps = [];
+      for (let i = 1; i < spins.length; i++) {
+        const step = computeStep(spins[i - 1], spins[i]);
+        if (step === null) return [];
+        steps.push(step);
+      }
+      return steps;
+    }
+
+    function getWeights(len) {
+      // More weight on the newest steps
+      // simplest scheme: older:1, mid:2, last 10:3, last 3:4
+      const weights = new Array(len).fill(1);
+      const last10 = Math.max(0, len - 10);
+      const last3 = Math.max(0, len - 3);
+      for (let i = last10; i < len; i++) weights[i] = 3;
+      for (let i = last3; i < len; i++) weights[i] = 4;
+      // middle chunk (between len-20 and len-10) weight 2
+      const midStart = Math.max(0, len - 20);
+      const midEnd = last10;
+      for (let i = midStart; i < midEnd; i++) {
+        weights[i] = Math.max(weights[i], 2);
+      }
+      return weights;
+    }
+
+    function weightedDominantStep(steps, weights) {
+      const counts = new Map();
+      for (let i = 0; i < steps.length; i++) {
+        const s = steps[i];
+        const w = weights[i] || 1;
+        counts.set(s, (counts.get(s) || 0) + w);
+      }
+      let bestStep = null, bestWeight = 0;
+      for (const [s, w] of counts.entries()) {
+        if (w > bestWeight) {
+          bestWeight = w;
+          bestStep = s;
+        }
+      }
+      return { step: bestStep, weight: bestWeight, counts };
+    }
+
+    function weightedMeanStep(steps, weights) {
+      let num = 0, den = 0;
+      for (let i = 0; i < steps.length; i++) {
+        const s = steps[i], w = weights[i] || 1;
+        num += s * w;
+        den += w;
+      }
+      return den === 0 ? null : num / den;
+    }
+
+    function topTwoSteps(counts) {
+      const entries = Array.from(counts.entries());
+      entries.sort((a, b) => b[1] - a[1]);
+      if (entries.length === 0) return { first: null, second: null };
+      const first = entries[0][0];
+      const second = entries.length > 1 ? entries[1][0] : null;
+      return { first, second };
+    }
+
+    // Decide which step mode we're in (A or B) using last MODE_RECENT steps
+    function decideMode(lastSteps, candidateA, candidateB) {
+      if (candidateA === null && candidateB === null) return null;
+      if (candidateB === null) return candidateA;
+
+      let closerToA = 0, closerToB = 0;
+      const n = Math.min(MODE_RECENT, lastSteps.length);
+      for (let i = lastSteps.length - n; i < lastSteps.length; i++) {
+        const s = lastSteps[i];
+        const dA = Math.abs(s - candidateA);
+        const dB = Math.abs(s - candidateB);
+        if (dA <= dB) closerToA++;
+        else closerToB++;
+      }
+      if (closerToA >= 4) return candidateA;
+      if (closerToB >= 4) return candidateB;
+      return null;
+    }
+
+    function neighboursForCentre(centreNum) {
+      const idx = INDEX_OF[centreNum];
+      if (idx === undefined) return [];
+      const nums = [];
+      for (let offset = -8; offset <= 8; offset++) {
+        const j = (idx + offset + 37) % 37;
+        nums.push(WHEEL_ORDER[j]);
+      }
+      return nums;
+    }
+
+    // ---------- HYBRID PREDICTION MODEL ----------
+
+    function hybridPrediction(spins) {
+      if (spins.length < 2) {
+        return { shouldBet: false, reason: "Need at least 2 spins", debug: null };
+      }
+
+      const stepsAll = buildSteps(spins);
+      if (stepsAll.length < MIN_STEPS_FOR_MODEL) {
+        return { shouldBet: false, reason: "Not enough step history yet", debug: null };
+      }
+
+      const winSize = Math.min(WINDOW_STEPS, stepsAll.length);
+      const windowSteps = stepsAll.slice(stepsAll.length - winSize);
+      const weights = getWeights(winSize);
+
+      // 1) Dominant step
+      const dominant = weightedDominantStep(windowSteps, weights);
+      if (dominant.step === null || dominant.weight < THRESHOLD_WEIGHT) {
+        return { shouldBet: false, reason: "No strong dominant step", debug: { dominant } };
+      }
+
+      // 2) Drift check
+      const meanStep = weightedMeanStep(windowSteps, weights);
+      if (meanStep === null || Math.abs(dominant.step - meanStep) > MAX_DRIFT_DIFF) {
+        return { shouldBet: false, reason: "Dominant step too far from mean", debug: { dominant, meanStep } };
+      }
+
+      // 3) Dual-mode mode check on last MODE_WINDOW steps
+      const modeWinSize = Math.min(MODE_WINDOW, stepsAll.length);
+      const modeWindowSteps = stepsAll.slice(stepsAll.length - modeWinSize);
+      const modeCounts = new Map();
+      for (const s of modeWindowSteps) {
+        modeCounts.set(s, (modeCounts.get(s) || 0) + 1);
+      }
+      const { first: modeA, second: modeB } = topTwoSteps(modeCounts);
+      const mode = decideMode(modeWindowSteps, modeA, modeB);
+      if (mode === null) {
+        return { shouldBet: false, reason: "No clear mode", debug: { dominant, meanStep, modeA, modeB } };
+      }
+
+      if (Math.abs(dominant.step - mode) > MODE_MAX_DIFF) {
+        return { shouldBet: false, reason: "Dominant step not aligned with current mode", debug: { dominant, meanStep, mode } };
+      }
+
+      // 4) Final bet
+      const lastNum = spins[spins.length - 1];
+      const idxLast = INDEX_OF[lastNum];
+      if (idxLast === undefined) {
+        return { shouldBet: false, reason: "Last number not on wheel", debug: null };
+      }
+      const centreIdx = (idxLast + dominant.step) % 37;
+      const centreNum = WHEEL_ORDER[centreIdx];
+      const neighbours = neighboursForCentre(centreNum);
+
+      return {
+        shouldBet: true,
+        centreNum,
+        neighbours,
+        dominantStep: dominant.step,
+        meanStep,
+        mode,
+        reason: "Pattern strong enough"
+      };
+    }
+
+    // ---------- LIVE UI LOGIC ----------
+
+    const spinsLive = [];
+    let liveTotalBets = 0;
+    let liveWins = 0;
+    let liveLosses = 0;
+    let liveCurrentLosingStreak = 0;
+    let liveWorstLosingStreak = 0;
+
+    const spinInput = document.getElementById("spinInput");
+    const addSpinBtn = document.getElementById("addSpinBtn");
+    const resetSpinsBtn = document.getElementById("resetSpinsBtn");
+    const historyInfo = document.getElementById("historyInfo");
+    const historyList = document.getElementById("historyList");
+    const recommendationDiv = document.getElementById("recommendation");
+
+    const liveTotalBetsEl = document.getElementById("liveTotalBets");
+    const liveWinsEl = document.getElementById("liveWins");
+    const liveLossesEl = document.getElementById("liveLosses");
+    const liveHitRateEl = document.getElementById("liveHitRate");
+    const liveCurrentStreakEl = document.getElementById("liveCurrentStreak");
+    const liveWorstStreakEl = document.getElementById("liveWorstStreak");
+
+    let lastPrediction = null; // for scoring wins/losses
+
+    function updateHistoryUI() {
+      if (spinsLive.length === 0) {
+        historyInfo.textContent = "No spins yet.";
+        historyList.innerHTML = "";
+        return;
+      }
+      historyInfo.textContent = `Total spins: ${spinsLive.length} (showing last 20)`;
+      const last20 = spinsLive.slice(-20);
+      historyList.innerHTML = "";
+      last20.forEach(n => {
+        const li = document.createElement("li");
+        li.textContent = n;
+        historyList.appendChild(li);
+      });
+    }
+
+    function updateStatsUI() {
+      liveTotalBetsEl.textContent = liveTotalBets;
+      liveWinsEl.textContent = liveWins;
+      liveLossesEl.textContent = liveLosses;
+      liveCurrentStreakEl.textContent = liveCurrentLosingStreak;
+      liveWorstStreakEl.textContent = liveWorstLosingStreak;
+      if (liveTotalBets === 0) {
+        liveHitRateEl.textContent = "–";
+      } else {
+        const rate = (liveWins / liveTotalBets) * 100;
+        liveHitRateEl.textContent = rate.toFixed(1) + "%";
+      }
+    }
+
+    function renderRecommendation(pred) {
+      recommendationDiv.innerHTML = "";
+      if (!pred) {
+        const pill = document.createElement("span");
+        pill.className = "pill pill-neutral";
+        pill.textContent = "No Data";
+        recommendationDiv.appendChild(pill);
+        const p = document.createElement("p");
+        p.className = "small";
+        p.textContent = "Enter more spins to get a prediction.";
+        recommendationDiv.appendChild(p);
+        return;
+      }
+
+      if (!pred.shouldBet) {
+        const pill = document.createElement("span");
+        pill.className = "pill pill-neutral";
+        pill.textContent = "NO BET";
+        recommendationDiv.appendChild(pill);
+        const p = document.createElement("p");
+        p.className = "small";
+        p.textContent = pred.reason || "Pattern not strong enough yet.";
+        recommendationDiv.appendChild(p);
+      } else {
+        const pill = document.createElement("span");
+        pill.className = "pill pill-good";
+        pill.textContent = "BET";
+        recommendationDiv.appendChild(pill);
+
+        const p1 = document.createElement("p");
+        p1.innerHTML = `Centre: <strong>${pred.centreNum}</strong> &mdash; Step: <span class="mono">${pred.dominantStep}</span>`;
+        recommendationDiv.appendChild(p1);
+
+        const p2 = document.createElement("p");
+        p2.className = "small";
+        p2.textContent = "Cover this number and its 8 neighbours each side on the wheel:";
+        recommendationDiv.appendChild(p2);
+
+        const ul = document.createElement("ul");
+        ul.className = "list-inline mono";
+        pred.neighbours.forEach(n => {
+          const li = document.createElement("li");
+          li.textContent = n;
+          ul.appendChild(li);
+        });
+        recommendationDiv.appendChild(ul);
+      }
+    }
+
+    function onAddSpin() {
+      const v = parseInt(spinInput.value, 10);
+      if (isNaN(v) || v < 0 || v > 36) {
+        alert("Please enter a valid number between 0 and 36.");
+        return;
+      }
+
+      // Score previous prediction (if any) NOW that we know the outcome
+      if (lastPrediction && lastPrediction.shouldBet) {
+        liveTotalBets++;
+        const neighbours = lastPrediction.neighbours || [];
+        const hit = neighbours.includes(v);
+        if (hit) {
+          liveWins++;
+          liveCurrentLosingStreak = 0;
+        } else {
+          liveLosses++;
+          liveCurrentLosingStreak++;
+          if (liveCurrentLosingStreak > liveWorstLosingStreak) {
+            liveWorstLosingStreak = liveCurrentLosingStreak;
+          }
+        }
+        updateStatsUI();
+      }
+
+      spinsLive.push(v);
+      spinInput.value = "";
+      updateHistoryUI();
+
+      // Compute new prediction for NEXT spin
+      const pred = hybridPrediction(spinsLive);
+      lastPrediction = pred;
+      renderRecommendation(pred);
+    }
+
+    function onResetSpins() {
+      spinsLive.length = 0;
+      lastPrediction = null;
+      liveTotalBets = 0;
+      liveWins = 0;
+      liveLosses = 0;
+      liveCurrentLosingStreak = 0;
+      liveWorstLosingStreak = 0;
+      updateHistoryUI();
+      updateStatsUI();
+      renderRecommendation(null);
+    }
+
+    addSpinBtn.addEventListener("click", onAddSpin);
+    resetSpinsBtn.addEventListener("click", onResetSpins);
+    spinInput.addEventListener("keyup", (e) => {
+      if (e.key === "Enter") onAddSpin();
+    });
+
+    // ---------- SIMULATOR LOGIC ----------
+
+    const simInput = document.getElementById("simInput");
+    const runSimBtn = document.getElementById("runSimBtn");
+    const clearSimBtn = document.getElementById("clearSimBtn");
+    const simResults = document.getElementById("simResults");
+    const simSpinsEl = document.getElementById("simSpins");
+    const simTotalBetsEl = document.getElementById("simTotalBets");
+    const simWinsEl = document.getElementById("simWins");
+    const simLossesEl = document.getElementById("simLosses");
+    const simHitRateEl = document.getElementById("simHitRate");
+    const simWorstStreakEl = document.getElementById("simWorstStreak");
+    const simNotesEl = document.getElementById("simNotes");
+
+    function parseSpinText(text) {
+      const tokens = text.split(/[\s,;]+/).filter(Boolean);
+      const arr = [];
+      for (const t of tokens) {
+        const v = parseInt(t, 10);
+        if (!isNaN(v) && v >= 0 && v <= 36) {
+          arr.push(v);
+        }
+      }
+      return arr;
+    }
+
+    function runSimulation() {
+      const spins = parseSpinText(simInput.value);
+      if (spins.length < 5) {
+        alert("Please paste at least 5 valid spins (0–36).");
+        return;
+      }
+
+      let totalBets = 0;
+      let wins = 0;
+      let losses = 0;
+      let currentStreak = 0;
+      let worstStreak = 0;
+
+      let history = [];
+      let lastPred = null;
+
+      for (let i = 0; i < spins.length; i++) {
+        const result = spins[i];
+
+        // settle bet from previous prediction
+        if (lastPred && lastPred.shouldBet) {
+          totalBets++;
+          const hit = (lastPred.neighbours || []).includes(result);
+          if (hit) {
+            wins++;
+            currentStreak = 0;
+          } else {
+            losses++;
+            currentStreak++;
+            if (currentStreak > worstStreak) worstStreak = currentStreak;
+          }
+        }
+
+        history.push(result);
+        // compute new prediction for next spin
+        lastPred = hybridPrediction(history);
+      }
+
+      simResults.style.display = "block";
+      simSpinsEl.textContent = spins.length;
+      simTotalBetsEl.textContent = totalBets;
+      simWinsEl.textContent = wins;
+      simLossesEl.textContent = losses;
+      if (totalBets === 0) {
+        simHitRateEl.textContent = "–";
+      } else {
+        simHitRateEl.textContent = (wins / totalBets * 100).toFixed(1) + "%";
+      }
+      simWorstStreakEl.textContent = worstStreak;
+      simNotesEl.textContent = "These stats are purely from this pasted sequence using the hybrid step model (direction ignored).";
+    }
+
+    function clearSimulation() {
+      simInput.value = "";
+      simResults.style.display = "none";
+    }
+
+    runSimBtn.addEventListener("click", runSimulation);
+    clearSimBtn.addEventListener("click", clearSimulation);
+
+    // initial UI
+    updateHistoryUI();
+    updateStatsUI();
+    renderRecommendation(null);
+  </script>
+</body>
+</html>
