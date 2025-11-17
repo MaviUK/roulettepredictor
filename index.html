@@ -415,69 +415,74 @@
 
     // ---------- HYBRID PREDICTION MODEL ----------
 
-    function hybridPrediction(spins) {
-      if (spins.length < 2) {
-        return { shouldBet: false, reason: "Need at least 2 spins", debug: null };
-      }
+    // ---------- SIMPLE STEP-FREQUENCY PREDICTION MODEL ----------
 
-      const stepsAll = buildSteps(spins);
-      if (stepsAll.length < MIN_STEPS_FOR_MODEL) {
-        return { shouldBet: false, reason: "Not enough step history yet", debug: null };
-      }
+const WINDOW_STEPS = 35;        // number of most recent steps to inspect
+const THRESHOLD_COUNT = 6;      // dominant step must appear at least this many times
+const MIN_STEPS_FOR_MODEL = WINDOW_STEPS;
 
-      const winSize = Math.min(WINDOW_STEPS, stepsAll.length);
-      const windowSteps = stepsAll.slice(stepsAll.length - winSize);
-      const weights = getWeights(winSize);
+function simplePrediction(spins) {
+  if (spins.length < 2) {
+    return { shouldBet: false, reason: "Need at least 2 spins", debug: null };
+  }
 
-      // 1) Dominant step
-      const dominant = weightedDominantStep(windowSteps, weights);
-      if (dominant.step === null || dominant.weight < THRESHOLD_WEIGHT) {
-        return { shouldBet: false, reason: "No strong dominant step", debug: { dominant } };
-      }
+  const stepsAll = buildSteps(spins);
+  if (stepsAll.length < MIN_STEPS_FOR_MODEL) {
+    return {
+      shouldBet: false,
+      reason: `Need at least ${MIN_STEPS_FOR_MODEL + 1} spins for the model`,
+      debug: null
+    };
+  }
 
-      // 2) Drift check
-      const meanStep = weightedMeanStep(windowSteps, weights);
-      if (meanStep === null || Math.abs(dominant.step - meanStep) > MAX_DRIFT_DIFF) {
-        return { shouldBet: false, reason: "Dominant step too far from mean", debug: { dominant, meanStep } };
-      }
+  // Take last WINDOW_STEPS steps
+  const windowSteps = stepsAll.slice(-WINDOW_STEPS);
 
-      // 3) Dual-mode mode check on last MODE_WINDOW steps
-      const modeWinSize = Math.min(MODE_WINDOW, stepsAll.length);
-      const modeWindowSteps = stepsAll.slice(stepsAll.length - modeWinSize);
-      const modeCounts = new Map();
-      for (const s of modeWindowSteps) {
-        modeCounts.set(s, (modeCounts.get(s) || 0) + 1);
-      }
-      const { first: modeA, second: modeB } = topTwoSteps(modeCounts);
-      const mode = decideMode(modeWindowSteps, modeA, modeB);
-      if (mode === null) {
-        return { shouldBet: false, reason: "No clear mode", debug: { dominant, meanStep, modeA, modeB } };
-      }
+  // Count frequencies
+  const counts = new Map();
+  for (const s of windowSteps) {
+    counts.set(s, (counts.get(s) || 0) + 1);
+  }
 
-      if (Math.abs(dominant.step - mode) > MODE_MAX_DIFF) {
-        return { shouldBet: false, reason: "Dominant step not aligned with current mode", debug: { dominant, meanStep, mode } };
-      }
-
-      // 4) Final bet
-      const lastNum = spins[spins.length - 1];
-      const idxLast = INDEX_OF[lastNum];
-      if (idxLast === undefined) {
-        return { shouldBet: false, reason: "Last number not on wheel", debug: null };
-      }
-      const centreIdx = (idxLast + dominant.step) % 37;
-      const centreNum = WHEEL_ORDER[centreIdx];
-      const neighbours = neighboursForCentre(centreNum);
-
-      return {
-        shouldBet: true,
-        centreNum,
-        neighbours,
-        dominantStep: dominant.step,
-        meanStep,
-        mode,
-        reason: "Pattern strong enough"
-      };
+  // Find dominant step
+  let bestStep = null;
+  let bestCount = 0;
+  for (const [s, c] of counts.entries()) {
+    if (c > bestCount) {
+      bestCount = c;
+      bestStep = s;
     }
+  }
+
+  if (bestStep === null || bestCount < THRESHOLD_COUNT) {
+    return {
+      shouldBet: false,
+      reason: `No strong step pattern yet (top step appears ${bestCount}×, need ${THRESHOLD_COUNT}×)`,
+      debug: { bestStep, bestCount }
+    };
+  }
+
+  // Build bet: move last number by bestStep on the wheel
+  const lastNum = spins[spins.length - 1];
+  const idxLast = INDEX_OF[lastNum];
+  if (idxLast === undefined) {
+    return { shouldBet: false, reason: "Last number not on wheel", debug: null };
+  }
+
+  const centreIdx = (idxLast + bestStep) % 37;
+  const centreNum = WHEEL_ORDER[centreIdx];
+  const neighbours = neighboursForCentre(centreNum);
+
+  return {
+    shouldBet: true,
+    centreNum,
+    neighbours,
+    dominantStep: bestStep,
+    count: bestCount,
+    reason: `Step ${bestStep} appears ${bestCount}× in last ${WINDOW_STEPS} spins`
+  };
+}
+
 
     // ---------- LIVE UI LOGIC ----------
 
@@ -730,3 +735,4 @@
   </script>
 </body>
 </html>
+
