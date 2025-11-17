@@ -408,9 +408,11 @@
 
     // ---------- SIMPLE STEP-FREQUENCY PREDICTION MODEL ----------
 
-const WINDOW_STEPS = 35;        // number of most recent steps to inspect
-const THRESHOLD_COUNT = 6;      // dominant step must appear at least this many times
-const MIN_STEPS_FOR_MODEL = WINDOW_STEPS;
+// Aggressive settings: bet almost every spin
+const WINDOW_STEPS = 20;        // look at last 20 steps
+const THRESHOLD_COUNT = 1;      // any dominant step is enough
+const MIN_STEPS_FOR_MODEL = 5;  // need at least 6 spins before we start betting
+
 
 function simplePrediction(spins) {
   if (spins.length < 2) {
@@ -445,13 +447,16 @@ function simplePrediction(spins) {
     }
   }
 
-  if (bestStep === null || bestCount < THRESHOLD_COUNT) {
-    return {
-      shouldBet: false,
-      reason: `No strong step pattern yet (top step appears ${bestCount}×, need ${THRESHOLD_COUNT}×)`,
-      debug: { bestStep, bestCount }
-    };
-  }
+if (bestStep === null) {
+  return {
+    shouldBet: false,
+    reason: "No valid step found.",
+    debug: { bestStep, bestCount }
+  };
+}
+// with THRESHOLD_COUNT = 1 and MIN_STEPS_FOR_MODEL = 5,
+// we will now bet on almost every spin once we have enough history
+
 
   // Build bet: move last number by bestStep on the wheel
   const lastNum = spins[spins.length - 1];
@@ -728,6 +733,7 @@ function simplePrediction(spins) {
   </script>
 </body>
 </html>
+
 
 
 
