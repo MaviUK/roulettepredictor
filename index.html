@@ -300,16 +300,7 @@
     ];
 
     const INDEX_OF = {};
-    WHEEL_ORDER.forEach((n, i) => { INDEX_OF[n] = i; });
-
-    // Hybrid model parameters
-    const WINDOW_STEPS = 40;      // main step window
-    const MIN_STEPS_FOR_MODEL = 12; // minimum steps before we even consider
-    const THRESHOLD_WEIGHT = 7;   // minimum weighted count for dominant step
-    const MAX_DRIFT_DIFF = 5;     // max distance between dominant step and weighted mean
-    const MODE_WINDOW = 20;       // window to detect two modes
-    const MODE_RECENT = 6;        // last N steps to decide current mode
-    const MODE_MAX_DIFF = 3;      // dominant step must be close to mode
+    WHEEL_ORDER.forEach((n, i) => { INDEX_OF[n] = i; })
 
     // ---------- UTILITIES ----------
 
@@ -737,6 +728,7 @@ function simplePrediction(spins) {
   </script>
 </body>
 </html>
+
 
 
 
