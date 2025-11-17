@@ -290,17 +290,22 @@
   </div>
 
   <script>
-    // ---------- MODEL CONSTANTS ----------
+   // ---------- MODEL CONSTANTS ----------
 
-    const WHEEL_ORDER = [
-      0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6,
-      27, 13, 36, 11, 30, 8, 23, 10, 5, 24,
-      16, 33, 1, 20, 14, 31, 9, 22, 18, 29,
-      7, 28, 12, 35, 3, 26
-    ];
+const WHEEL_ORDER = [
+  0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6,
+  27, 13, 36, 11, 30, 8, 23, 10, 5, 24,
+  16, 33, 1, 20, 14, 31, 9, 22, 18, 29,
+  7, 28, 12, 35, 3, 26
+];
 
-    const INDEX_OF = {};
-    WHEEL_ORDER.forEach((n, i) => { INDEX_OF[n] = i; })
+const INDEX_OF = {};
+WHEEL_ORDER.forEach((n, i) => { INDEX_OF[n] = i; });
+
+// Fixed offset model: move S pockets clockwise from last number
+// S = 32 performed best on your 502 spins (≈ 47.7% hit rate in-sample)
+const STEP_OFFSET = 32;
+
 
     // ---------- UTILITIES ----------
 
@@ -406,27 +411,34 @@
 
     // ---------- HYBRID PREDICTION MODEL ----------
 
-    // ---------- SIMPLE STEP-FREQUENCY PREDICTION MODEL ----------
-
-// Aggressive settings: bet almost every spin
-const WINDOW_STEPS = 20;        // look at last 20 steps
-const THRESHOLD_COUNT = 1;      // any dominant step is enough
-const MIN_STEPS_FOR_MODEL = 5;  // need at least 6 spins before we start betting
-
+// ---------- FIXED OFFSET PREDICTION MODEL ----------
+// Always assume the next result will be STEP_OFFSET pockets clockwise
+// from the last result. Bet every spin once we have at least 1 spin.
 
 function simplePrediction(spins) {
-  if (spins.length < 2) {
-    return { shouldBet: false, reason: "Need at least 2 spins", debug: null };
+  if (spins.length < 1) {
+    return { shouldBet: false, reason: "Need at least 1 spin", debug: null };
   }
 
-  const stepsAll = buildSteps(spins);
-  if (stepsAll.length < MIN_STEPS_FOR_MODEL) {
-    return {
-      shouldBet: false,
-      reason: `Need at least ${MIN_STEPS_FOR_MODEL + 1} spins for the model`,
-      debug: null
-    };
+  const lastNum = spins[spins.length - 1];
+  const idxLast = INDEX_OF[lastNum];
+  if (idxLast === undefined) {
+    return { shouldBet: false, reason: "Last number not on wheel", debug: null };
   }
+
+  const centreIdx = (idxLast + STEP_OFFSET) % 37;
+  const centreNum = WHEEL_ORDER[centreIdx];
+  const neighbours = neighboursForCentre(centreNum);
+
+  return {
+    shouldBet: true,
+    centreNum,
+    neighbours,
+    dominantStep: STEP_OFFSET,
+    reason: `Fixed offset model: last number + ${STEP_OFFSET} pockets clockwise`
+  };
+}
+
 
   // Take last WINDOW_STEPS steps
   const windowSteps = stepsAll.slice(-WINDOW_STEPS);
@@ -733,6 +745,7 @@ if (bestStep === null) {
   </script>
 </body>
 </html>
+
 
 
 
