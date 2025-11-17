@@ -704,7 +704,8 @@ function simplePrediction(spins) {
 
         history.push(result);
         // compute new prediction for next spin
-        lastPred = hybridPrediction(history);
+        lastPred = simplePrediction(history);
+
       }
 
       simResults.style.display = "block";
@@ -736,5 +737,6 @@ function simplePrediction(spins) {
   </script>
 </body>
 </html>
+
 
 
