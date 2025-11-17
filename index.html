@@ -618,7 +618,8 @@ function simplePrediction(spins) {
       updateHistoryUI();
 
       // Compute new prediction for NEXT spin
-      const pred = hybridPrediction(spinsLive);
+      const pred = simplePrediction(spinsLive);
+
       lastPrediction = pred;
       renderRecommendation(pred);
     }
@@ -735,4 +736,5 @@ function simplePrediction(spins) {
   </script>
 </body>
 </html>
+
 
