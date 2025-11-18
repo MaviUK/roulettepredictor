@@ -178,11 +178,12 @@
 
   <h1>Roulette Directional Distance Predictor</h1>
   <p class="small">
-    Model assumes spins <strong>alternate direction</strong> (CW, CCW, CW, CCW, ...). For each spin it records the
-    <strong>wheel distance</strong> travelled in that spin's direction. To predict the next spin, it takes the last
-    5 distances in <em>that same direction</em>, drops the highest and lowest if 5 are available, averages the rest,
-    and moves that many pockets from the last result in the upcoming direction. It then tells you to cover that centre
-    and its 8 neighbours each side (17 numbers).
+    Spins are assumed to <strong>alternate direction</strong> (CW, CCW, CW, CCW, ...). For each spin it records the
+    <strong>wheel distance</strong> travelled in that spin's direction. To predict the next spin, it:
+    <br />• Finds the last up to 5 distances in the <em>same direction as the upcoming spin</em>,
+    <br />• Uses a <strong>recency-weighted, trimmed average</strong> blended with the <strong>mode</strong> (most common distance),
+    <br />• Moves that many pockets from the last result in the upcoming direction,
+    <br />• Tells you to cover that centre and its 8 neighbours each side (17 numbers).
   </p>
 
   <div class="container">
@@ -318,8 +319,8 @@
     const INDEX_OF = {};
     WHEEL_ORDER.forEach((n, i) => { INDEX_OF[n] = i; });
 
-    const HALF_SECTOR = 8;    // neighbours each side
-    const MAX_DIR_DISTANCES = 5; // last up to 5 distances per direction
+    const HALF_SECTOR = 8;          // neighbours each side
+    const MAX_DIR_DISTANCES = 5;    // last up to 5 distances per direction
 
     // ---------- UTILITIES ----------
 
@@ -376,7 +377,7 @@
       return arr;
     }
 
-    // ---------- DIRECTIONAL-DISTANCE PREDICTION MODEL ----------
+    // ---------- EXPANDED DIRECTIONAL-DISTANCE PREDICTION MODEL ----------
 
     function simplePrediction(spins) {
       if (spins.length < 2) {
@@ -409,21 +410,60 @@
         };
       }
 
-      // Take last up to 5 distances in that direction
+      // Take last up to 5 distances in that direction (oldest -> newest)
       let lastDistances = dirDistances.slice(-MAX_DIR_DISTANCES);
+      const m = lastDistances.length;
 
-      // If we have 5, do trimmed mean (drop min & max). If 3–4, normal mean.
-      let usedDistances;
-      if (lastDistances.length >= 5) {
-        const sorted = [...lastDistances].sort((a, b) => a - b);
-        usedDistances = sorted.slice(1, sorted.length - 1); // drop extremes
-      } else {
-        usedDistances = lastDistances;
+      // --- frequency / mode ---
+      const freq = new Map();
+      lastDistances.forEach(d => {
+        freq.set(d, (freq.get(d) || 0) + 1);
+      });
+      let modeStep = null;
+      let modeCount = 0;
+      // if tie, prefer the one that appears latest
+      for (let i = lastDistances.length - 1; i >= 0; i--) {
+        const d = lastDistances[i];
+        const c = freq.get(d) || 0;
+        if (c > modeCount || (c === modeCount && modeStep === null)) {
+          modeCount = c;
+          modeStep = d;
+        }
       }
 
-      const sum = usedDistances.reduce((acc, v) => acc + v, 0);
-      const avg = sum / usedDistances.length;
-      const stepPred = Math.round(avg) % 37;
+      // --- recency-weighted average ---
+      // weights: 1,2,...,m for oldest->newest
+      let sumW = 0;
+      let sumWD = 0;
+      for (let i = 0; i < m; i++) {
+        const w = i + 1;
+        sumW += w;
+        sumWD += w * lastDistances[i];
+      }
+      const weightedAvg = sumWD / sumW;
+
+      // --- trimmed mean if enough points ---
+      let baseAvg;
+      if (m >= 4) {
+        const sorted = [...lastDistances].sort((a, b) => a - b);
+        const trimmed = sorted.slice(1, sorted.length - 1); // drop min & max
+        const tSum = trimmed.reduce((acc, v) => acc + v, 0);
+        baseAvg = tSum / trimmed.length;
+      } else {
+        baseAvg = weightedAvg;
+      }
+
+      // --- blend baseAvg with mode ---
+      let blended;
+      if (modeStep !== null) {
+        // 70% towards the smoothed average, 30% towards the mode
+        blended = 0.7 * baseAvg + 0.3 * modeStep;
+      } else {
+        blended = baseAvg;
+      }
+
+      let stepPred = Math.round(blended) % 37;
+      if (stepPred < 0) stepPred += 37;
 
       let centreIdx;
       if (upcomingDir === "CW") {
@@ -440,7 +480,7 @@
         centreNum,
         neighbours,
         dominantStep: stepPred,
-        reason: `Upcoming direction ${upcomingDir}. Using last ${usedDistances.length} distances in that direction (trimmed/mean).`
+        reason: `Upcoming direction ${upcomingDir}. Using last ${m} distances in that direction with recency-weighted, trimmed mean and mode blend.`
       };
     }
 
@@ -451,7 +491,7 @@
     let liveWins = 0;
     let liveLosses = 0;
     let liveCurrentLosingStreak = 0;
-    let liveWorstLosingStreak = 0;
+    let liveWorstStreak = 0;
 
     const spinInput = document.getElementById("spinInput");
     const addSpinBtn = document.getElementById("addSpinBtn");
@@ -491,7 +531,7 @@
       liveWinsEl.textContent = liveWins;
       liveLossesEl.textContent = liveLosses;
       liveCurrentStreakEl.textContent = liveCurrentLosingStreak;
-      liveWorstStreakEl.textContent = liveWorstLosingStreak;
+      liveWorstStreakEl.textContent = liveWorstStreak;
       if (liveTotalBets === 0) {
         liveHitRateEl.textContent = "–";
       } else {
@@ -591,7 +631,6 @@
       liveWins = 0;
       liveLosses = 0;
       liveCurrentLosingStreak = 0;
-      liveWorstLreak = 0;
       liveWorstStreak = 0;
       updateHistoryUI();
       updateStatsUI();
@@ -744,7 +783,7 @@
       }
       simWorstStreakEl.textContent = worstStreak;
       simNotesEl.textContent =
-        `Directional-distance model: alternating CW/CCW, using last up to ${MAX_DIR_DISTANCES} distances per direction with trimmed mean.`;
+        `Expanded directional-distance model: alternating CW/CCW, using last up to ${MAX_DIR_DISTANCES} distances per direction with recency-weighted, trimmed mean + mode blend.`;
     }
 
     function clearSimulation() {
