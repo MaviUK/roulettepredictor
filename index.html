@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Roulette Step Predictor</title>
+  <title>Roulette Directional Distance Predictor</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
     * { box-sizing: border-box; }
@@ -176,11 +176,13 @@
 </head>
 <body>
 
-  <h1>Roulette Step Predictor</h1>
+  <h1>Roulette Directional Distance Predictor</h1>
   <p class="small">
-    Original step-frequency model (direction ignored): looks at the last 35 wheel steps,
-    and only bets when one step repeats at least 6 times. When it bets, it chooses a centre number
-    and tells you to cover it and its 8 neighbours each side (17 numbers).
+    Model assumes spins <strong>alternate direction</strong> (CW, CCW, CW, CCW, ...). For each spin it records the
+    <strong>wheel distance</strong> travelled in that spin's direction. To predict the next spin, it takes the last
+    5 distances in <em>that same direction</em>, drops the highest and lowest if 5 are available, averages the rest,
+    and moves that many pockets from the last result in the upcoming direction. It then tells you to cover that centre
+    and its 8 neighbours each side (17 numbers).
   </p>
 
   <div class="container">
@@ -206,7 +208,7 @@
         <h3>Next Spin Recommendation</h3>
         <div id="recommendation">
           <span class="pill pill-neutral">No Data</span>
-          <p class="small">Enter at least 36 spins or bulk-load history to get started.</p>
+          <p class="small">Enter some spins or bulk-load history to get started.</p>
         </div>
       </div>
 
@@ -259,7 +261,7 @@
       <h2>Simulator</h2>
       <p class="small">
         Paste a list of spins (one per line or separated by spaces). The simulator will run the
-        same step-frequency model across that history and show performance stats.
+        same directional-distance model across that history and show performance stats.
       </p>
       <label for="simInput">Spin sequence</label>
       <textarea id="simInput" placeholder="Example:
@@ -316,40 +318,50 @@
     const INDEX_OF = {};
     WHEEL_ORDER.forEach((n, i) => { INDEX_OF[n] = i; });
 
-    // Original simple step-frequency model (direction ignored)
-    const WINDOW_STEPS = 35;         // last 35 steps
-    const THRESHOLD_COUNT = 6;       // dominant step must appear at least 6 times
-    const MIN_STEPS_FOR_MODEL = WINDOW_STEPS; // require at least 35 steps -> 36 spins
+    const HALF_SECTOR = 8;    // neighbours each side
+    const MAX_DIR_DISTANCES = 5; // last up to 5 distances per direction
 
     // ---------- UTILITIES ----------
-
-    function computeStep(prevNum, currNum) {
-      const iPrev = INDEX_OF[prevNum];
-      const iCurr = INDEX_OF[currNum];
-      if (iPrev === undefined || iCurr === undefined) return null;
-      // clockwise step
-      return (iCurr - iPrev + 37) % 37;
-    }
-
-    function buildSteps(spins) {
-      const steps = [];
-      for (let i = 1; i < spins.length; i++) {
-        const step = computeStep(spins[i - 1], spins[i]);
-        if (step === null) return [];
-        steps.push(step);
-      }
-      return steps;
-    }
 
     function neighboursForCentre(centreNum) {
       const idx = INDEX_OF[centreNum];
       if (idx === undefined) return [];
       const nums = [];
-      for (let offset = -8; offset <= 8; offset++) {
+      for (let offset = -HALF_SECTOR; offset <= HALF_SECTOR; offset++) {
         const j = (idx + offset + 37) % 37;
         nums.push(WHEEL_ORDER[j]);
       }
       return nums;
+    }
+
+    // direction pattern: assume spin index 0 = CW, 1 = CCW, 2 = CW, ...
+    function directionForIndex(i) {
+      return i % 2 === 0 ? "CW" : "CCW";
+    }
+
+    // Build directional distances from full spin history.
+    // distances = [{dir: "CW"|"CCW", dist: number}, ...] for spins i>=1
+    function buildDirectionalDistances(spins) {
+      const distances = [];
+      if (spins.length < 2) return distances;
+
+      for (let i = 1; i < spins.length; i++) {
+        const prev = spins[i - 1];
+        const curr = spins[i];
+        const idxPrev = INDEX_OF[prev];
+        const idxCurr = INDEX_OF[curr];
+        if (idxPrev === undefined || idxCurr === undefined) continue;
+
+        const dir = directionForIndex(i); // direction of spin i
+        let dist;
+        if (dir === "CW") {
+          dist = (idxCurr - idxPrev + 37) % 37;
+        } else {
+          dist = (idxPrev - idxCurr + 37) % 37;
+        }
+        distances.push({ dir, dist });
+      }
+      return distances;
     }
 
     function parseSpinText(text) {
@@ -364,57 +376,62 @@
       return arr;
     }
 
-    // ---------- ORIGINAL STEP-FREQUENCY PREDICTION MODEL ----------
+    // ---------- DIRECTIONAL-DISTANCE PREDICTION MODEL ----------
 
     function simplePrediction(spins) {
       if (spins.length < 2) {
         return { shouldBet: false, reason: "Need at least 2 spins", debug: null };
       }
 
-      const stepsAll = buildSteps(spins);
-      if (stepsAll.length < MIN_STEPS_FOR_MODEL) {
-        return {
-          shouldBet: false,
-          reason: `Need at least ${MIN_STEPS_FOR_MODEL + 1} spins for the model`,
-          debug: null
-        };
-      }
-
-      // Take last WINDOW_STEPS steps
-      const windowSteps = stepsAll.slice(-WINDOW_STEPS);
-
-      // Count frequency of each step
-      const counts = new Map();
-      for (const s of windowSteps) {
-        counts.set(s, (counts.get(s) || 0) + 1);
-      }
-
-      // Find dominant step
-      let bestStep = null;
-      let bestCount = 0;
-      for (const [s, c] of counts.entries()) {
-        if (c > bestCount) {
-          bestCount = c;
-          bestStep = s;
-        }
-      }
-
-      if (bestStep === null || bestCount < THRESHOLD_COUNT) {
-        return {
-          shouldBet: false,
-          reason: `No strong step pattern yet (top step appears ${bestCount}×, need ${THRESHOLD_COUNT}×)`,
-          debug: { bestStep, bestCount }
-        };
-      }
-
-      // Build bet: move last number by bestStep on the wheel
       const lastNum = spins[spins.length - 1];
       const idxLast = INDEX_OF[lastNum];
       if (idxLast === undefined) {
         return { shouldBet: false, reason: "Last number not on wheel", debug: null };
       }
 
-      const centreIdx = (idxLast + bestStep) % 37;
+      // Build distances with directions for all past spins
+      const distances = buildDirectionalDistances(spins);
+
+      // Direction of upcoming spin
+      const nextIndex = spins.length; // 0-based index of next spin
+      const upcomingDir = directionForIndex(nextIndex);
+
+      // Filter distances for this direction
+      const dirDistances = distances
+        .filter(d => d.dir === upcomingDir)
+        .map(d => d.dist);
+
+      if (dirDistances.length < 3) {
+        return {
+          shouldBet: false,
+          reason: `Need at least 3 distances in ${upcomingDir} direction (have ${dirDistances.length})`,
+          debug: { upcomingDir, dirDistances }
+        };
+      }
+
+      // Take last up to 5 distances in that direction
+      let lastDistances = dirDistances.slice(-MAX_DIR_DISTANCES);
+
+      // If we have 5, do trimmed mean (drop min & max). If 3–4, normal mean.
+      let usedDistances;
+      if (lastDistances.length >= 5) {
+        const sorted = [...lastDistances].sort((a, b) => a - b);
+        usedDistances = sorted.slice(1, sorted.length - 1); // drop extremes
+      } else {
+        usedDistances = lastDistances;
+      }
+
+      const sum = usedDistances.reduce((acc, v) => acc + v, 0);
+      const avg = sum / usedDistances.length;
+      const stepPred = Math.round(avg) % 37;
+
+      let centreIdx;
+      if (upcomingDir === "CW") {
+        centreIdx = (idxLast + stepPred + 37) % 37;
+      } else {
+        centreIdx = (idxLast - stepPred + 37) % 37;
+      }
+
       const centreNum = WHEEL_ORDER[centreIdx];
       const neighbours = neighboursForCentre(centreNum);
 
@@ -422,9 +439,8 @@
         shouldBet: true,
         centreNum,
         neighbours,
-        dominantStep: bestStep,
-        count: bestCount,
-        reason: `Step ${bestStep} appears ${bestCount}× in last ${WINDOW_STEPS} steps`
+        dominantStep: stepPred,
+        reason: `Upcoming direction ${upcomingDir}. Using last ${usedDistances.length} distances in that direction (trimmed/mean).`
       };
     }
 
@@ -575,6 +591,7 @@
       liveWins = 0;
       liveLosses = 0;
       liveCurrentLosingStreak = 0;
+      liveWorstLreak = 0;
       liveWorstStreak = 0;
       updateHistoryUI();
       updateStatsUI();
@@ -679,8 +696,8 @@
 
     function runSimulation() {
       const spins = parseSpinText(simInput.value);
-      if (spins.length < MIN_STEPS_FOR_MODEL + 1) {
-        alert(`Please paste at least ${MIN_STEPS_FOR_MODEL + 1} valid spins (0–36).`);
+      if (spins.length < 2) {
+        alert("Please paste at least 2 valid spins (0–36).");
         return;
       }
 
@@ -727,7 +744,7 @@
       }
       simWorstStreakEl.textContent = worstStreak;
       simNotesEl.textContent =
-        `Step-frequency model: last ${WINDOW_STEPS} steps, dominant step must appear at least ${THRESHOLD_COUNT} times.`;
+        `Directional-distance model: alternating CW/CCW, using last up to ${MAX_DIR_DISTANCES} distances per direction with trimmed mean.`;
     }
 
     function clearSimulation() {
