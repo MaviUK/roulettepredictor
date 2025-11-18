@@ -59,7 +59,7 @@
       box-shadow: 0 0 0 1px rgba(88,213,255,0.3);
     }
     textarea {
-      min-height: 150px;
+      min-height: 120px;
       resize: vertical;
     }
 
@@ -176,11 +176,11 @@
 </head>
 <body>
 
-  <h1>Roulette Hybrid Step Predictor</h1>
+  <h1>Roulette Step Predictor</h1>
   <p class="small">
-    Enter each spin result and the model will decide <strong>BET / NO BET</strong> for the next spin and,
-    if betting, which <strong>centre number + 8 neighbours each side</strong> to cover.
-    You can also paste a long history to <strong>simulate</strong> how the model would have performed.
+    Original step-frequency model (direction ignored): looks at the last 35 wheel steps,
+    and only bets when one step repeats at least 6 times. When it bets, it chooses a centre number
+    and tells you to cover it and its 8 neighbours each side (17 numbers).
   </p>
 
   <div class="container">
@@ -205,7 +205,7 @@
         <h3>Next Spin Recommendation</h3>
         <div id="recommendation">
           <span class="pill pill-neutral">No Data</span>
-          <p class="small">Enter at least 3–4 spins to get started.</p>
+          <p class="small">Enter at least 36 spins or bulk-load history to get started.</p>
         </div>
       </div>
 
@@ -238,14 +238,27 @@
           </div>
         </div>
       </div>
+
+      <div class="section">
+        <h3>Bulk Load Spins</h3>
+        <p class="small">
+          Paste up to 500 past spins (0–36), separated by spaces, commas, or new lines.
+          This will replace your current live history and re-score all bets.
+        </p>
+        <textarea id="bulkLiveInput" placeholder="Example:
+26 34 16 4 10 10 27 29 17 8 35 7 23 ..."></textarea>
+        <div>
+          <button class="btn btn-primary" id="loadBulkLiveBtn">Load Into Live Model</button>
+        </div>
+      </div>
     </div>
 
     <!-- SIMULATOR -->
     <div class="card">
       <h2>Simulator</h2>
       <p class="small">
-        Paste a list of spins (one per line or separated by spaces). The simulator will run the same
-        hybrid model across that history and show performance stats.
+        Paste a list of spins (one per line or separated by spaces). The simulator will run the
+        same step-frequency model across that history and show performance stats.
       </p>
       <label for="simInput">Spin sequence</label>
       <textarea id="simInput" placeholder="Example:
@@ -289,380 +302,424 @@
     </div>
   </div>
 
- <script>
-  // ---------- MODEL CONSTANTS ----------
+  <script>
+    // ---------- MODEL CONSTANTS ----------
 
-  const WHEEL_ORDER = [
-    0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6,
-    27, 13, 36, 11, 30, 8, 23, 10, 5, 24,
-    16, 33, 1, 20, 14, 31, 9, 22, 18, 29,
-    7, 28, 12, 35, 3, 26
-  ];
+    const WHEEL_ORDER = [
+      0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6,
+      27, 13, 36, 11, 30, 8, 23, 10, 5, 24,
+      16, 33, 1, 20, 14, 31, 9, 22, 18, 29,
+      7, 28, 12, 35, 3, 26
+    ];
 
-  const INDEX_OF = {};
-  WHEEL_ORDER.forEach((n, i) => { INDEX_OF[n] = i; });
+    const INDEX_OF = {};
+    WHEEL_ORDER.forEach((n, i) => { INDEX_OF[n] = i; });
 
-  // Original simple step-frequency model (direction ignored)
-  const WINDOW_STEPS = 35;        // last 35 steps
-  const THRESHOLD_COUNT = 6;      // dominant step must appear at least 6 times
-  const MIN_STEPS_FOR_MODEL = WINDOW_STEPS; // require at least 35 steps -> 36 spins
+    // Original simple step-frequency model (direction ignored)
+    const WINDOW_STEPS = 35;         // last 35 steps
+    const THRESHOLD_COUNT = 6;       // dominant step must appear at least 6 times
+    const MIN_STEPS_FOR_MODEL = WINDOW_STEPS; // require at least 35 steps -> 36 spins
 
-  // ---------- UTILITIES ----------
+    // ---------- UTILITIES ----------
 
-  function computeStep(prevNum, currNum) {
-    const iPrev = INDEX_OF[prevNum];
-    const iCurr = INDEX_OF[currNum];
-    if (iPrev === undefined || iCurr === undefined) return null;
-    // clockwise step
-    return (iCurr - iPrev + 37) % 37;
-  }
-
-  function buildSteps(spins) {
-    const steps = [];
-    for (let i = 1; i < spins.length; i++) {
-      const step = computeStep(spins[i - 1], spins[i]);
-      if (step === null) return [];
-      steps.push(step);
-    }
-    return steps;
-  }
-
-  function neighboursForCentre(centreNum) {
-    const idx = INDEX_OF[centreNum];
-    if (idx === undefined) return [];
-    const nums = [];
-    for (let offset = -8; offset <= 8; offset++) {
-      const j = (idx + offset + 37) % 37;
-      nums.push(WHEEL_ORDER[j]);
-    }
-    return nums;
-  }
-
-  // ---------- ORIGINAL STEP-FREQUENCY PREDICTION MODEL ----------
-
-  function simplePrediction(spins) {
-    if (spins.length < 2) {
-      return { shouldBet: false, reason: "Need at least 2 spins", debug: null };
+    function computeStep(prevNum, currNum) {
+      const iPrev = INDEX_OF[prevNum];
+      const iCurr = INDEX_OF[currNum];
+      if (iPrev === undefined || iCurr === undefined) return null;
+      // clockwise step
+      return (iCurr - iPrev + 37) % 37;
     }
 
-    const stepsAll = buildSteps(spins);
-    if (stepsAll.length < MIN_STEPS_FOR_MODEL) {
-      return {
-        shouldBet: false,
-        reason: `Need at least ${MIN_STEPS_FOR_MODEL + 1} spins for the model`,
-        debug: null
-      };
-    }
-
-    // Take last WINDOW_STEPS steps
-    const windowSteps = stepsAll.slice(-WINDOW_STEPS);
-
-    // Count frequency of each step
-    const counts = new Map();
-    for (const s of windowSteps) {
-      counts.set(s, (counts.get(s) || 0) + 1);
-    }
-
-    // Find dominant step
-    let bestStep = null;
-    let bestCount = 0;
-    for (const [s, c] of counts.entries()) {
-      if (c > bestCount) {
-        bestCount = c;
-        bestStep = s;
+    function buildSteps(spins) {
+      const steps = [];
+      for (let i = 1; i < spins.length; i++) {
+        const step = computeStep(spins[i - 1], spins[i]);
+        if (step === null) return [];
+        steps.push(step);
       }
+      return steps;
     }
 
-    if (bestStep === null || bestCount < THRESHOLD_COUNT) {
-      return {
-        shouldBet: false,
-        reason: `No strong step pattern yet (top step appears ${bestCount}×, need ${THRESHOLD_COUNT}×)`,
-        debug: { bestStep, bestCount }
-      };
+    function neighboursForCentre(centreNum) {
+      const idx = INDEX_OF[centreNum];
+      if (idx === undefined) return [];
+      const nums = [];
+      for (let offset = -8; offset <= 8; offset++) {
+        const j = (idx + offset + 37) % 37;
+        nums.push(WHEEL_ORDER[j]);
+      }
+      return nums;
     }
 
-    // Build bet: move last number by bestStep on the wheel
-    const lastNum = spins[spins.length - 1];
-    const idxLast = INDEX_OF[lastNum];
-    if (idxLast === undefined) {
-      return { shouldBet: false, reason: "Last number not on wheel", debug: null };
-    }
-
-    const centreIdx = (idxLast + bestStep) % 37;
-    const centreNum = WHEEL_ORDER[centreIdx];
-    const neighbours = neighboursForCentre(centreNum);
-
-    return {
-      shouldBet: true,
-      centreNum,
-      neighbours,
-      dominantStep: bestStep,
-      count: bestCount,
-      reason: `Step ${bestStep} appears ${bestCount}× in last ${WINDOW_STEPS} steps`
-    };
-  }
-
-  // ---------- LIVE UI LOGIC ----------
-
-  const spinsLive = [];
-  let liveTotalBets = 0;
-  let liveWins = 0;
-  let liveLosses = 0;
-  let liveCurrentLosingStreak = 0;
-  let liveWorstLosingStreak = 0;
-
-  const spinInput = document.getElementById("spinInput");
-  const addSpinBtn = document.getElementById("addSpinBtn");
-  const resetSpinsBtn = document.getElementById("resetSpinsBtn");
-  const historyInfo = document.getElementById("historyInfo");
-  const historyList = document.getElementById("historyList");
-  const recommendationDiv = document.getElementById("recommendation");
-
-  const liveTotalBetsEl = document.getElementById("liveTotalBets");
-  const liveWinsEl = document.getElementById("liveWins");
-  const liveLossesEl = document.getElementById("liveLosses");
-  const liveHitRateEl = document.getElementById("liveHitRate");
-  const liveCurrentStreakEl = document.getElementById("liveCurrentStreak");
-  const liveWorstStreakEl = document.getElementById("liveWorstStreak");
-
-  let lastPrediction = null; // for scoring wins/losses
-
-  function updateHistoryUI() {
-    if (spinsLive.length === 0) {
-      historyInfo.textContent = "No spins yet.";
-      historyList.innerHTML = "";
-      return;
-    }
-    historyInfo.textContent = `Total spins: ${spinsLive.length} (showing last 20)`;
-    const last20 = spinsLive.slice(-20);
-    historyList.innerHTML = "";
-    last20.forEach(n => {
-      const li = document.createElement("li");
-      li.textContent = n;
-      historyList.appendChild(li);
-    });
-  }
-
-  function updateStatsUI() {
-    liveTotalBetsEl.textContent = liveTotalBets;
-    liveWinsEl.textContent = liveWins;
-    liveLossesEl.textContent = liveLosses;
-    liveCurrentStreakEl.textContent = liveCurrentLosingStreak;
-    liveWorstStreakEl.textContent = liveWorstLosingStreak;
-    if (liveTotalBets === 0) {
-      liveHitRateEl.textContent = "–";
-    } else {
-      const rate = (liveWins / liveTotalBets) * 100;
-      liveHitRateEl.textContent = rate.toFixed(1) + "%";
-    }
-  }
-
-  function renderRecommendation(pred) {
-    recommendationDiv.innerHTML = "";
-    if (!pred) {
-      const pill = document.createElement("span");
-      pill.className = "pill pill-neutral";
-      pill.textContent = "No Data";
-      recommendationDiv.appendChild(pill);
-      const p = document.createElement("p");
-      p.className = "small";
-      p.textContent = "Enter more spins to get a prediction.";
-      recommendationDiv.appendChild(p);
-      return;
-    }
-
-    if (!pred.shouldBet) {
-      const pill = document.createElement("span");
-      pill.className = "pill pill-neutral";
-      pill.textContent = "NO BET";
-      recommendationDiv.appendChild(pill);
-      const p = document.createElement("p");
-      p.className = "small";
-      p.textContent = pred.reason || "Pattern not strong enough yet.";
-      recommendationDiv.appendChild(p);
-    } else {
-      const pill = document.createElement("span");
-      pill.className = "pill pill-good";
-      pill.textContent = "BET";
-      recommendationDiv.appendChild(pill);
-
-      const p1 = document.createElement("p");
-      p1.innerHTML = `Centre: <strong>${pred.centreNum}</strong> &mdash; Step: <span class="mono">${pred.dominantStep}</span>`;
-      recommendationDiv.appendChild(p1);
-
-      const p2 = document.createElement("p");
-      p2.className = "small";
-      p2.textContent = "Cover this number and its 8 neighbours each side on the wheel:";
-      recommendationDiv.appendChild(p2);
-
-      const ul = document.createElement("ul");
-      ul.className = "list-inline mono";
-      pred.neighbours.forEach(n => {
-        const li = document.createElement("li");
-        li.textContent = n;
-        ul.appendChild(li);
-      });
-      recommendationDiv.appendChild(ul);
-    }
-  }
-
-  function onAddSpin() {
-    const v = parseInt(spinInput.value, 10);
-    if (isNaN(v) || v < 0 || v > 36) {
-      alert("Please enter a valid number between 0 and 36.");
-      return;
-    }
-
-    // Score previous prediction (if any) NOW that we know the outcome
-    if (lastPrediction && lastPrediction.shouldBet) {
-      liveTotalBets++;
-      const neighbours = lastPrediction.neighbours || [];
-      const hit = neighbours.includes(v);
-      if (hit) {
-        liveWins++;
-        liveCurrentLosingStreak = 0;
-      } else {
-        liveLosses++;
-        liveCurrentLosingStreak++;
-        if (liveCurrentLosingStreak > liveWorstLosingStreak) {
-          liveWorstLosingStreak = liveCurrentLosingStreak;
+    function parseSpinText(text) {
+      const tokens = text.split(/[\s,;]+/).filter(Boolean);
+      const arr = [];
+      for (const t of tokens) {
+        const v = parseInt(t, 10);
+        if (!isNaN(v) && v >= 0 && v <= 36) {
+          arr.push(v);
         }
       }
-      updateStatsUI();
+      return arr;
     }
 
-    spinsLive.push(v);
-    spinInput.value = "";
-    updateHistoryUI();
+    // ---------- ORIGINAL STEP-FREQUENCY PREDICTION MODEL ----------
 
-    // Compute new prediction for NEXT spin
-    const pred = simplePrediction(spinsLive);
-    lastPrediction = pred;
-    renderRecommendation(pred);
-  }
+    function simplePrediction(spins) {
+      if (spins.length < 2) {
+        return { shouldBet: false, reason: "Need at least 2 spins", debug: null };
+      }
 
-  function onResetSpins() {
-    spinsLive.length = 0;
-    lastPrediction = null;
-    liveTotalBets = 0;
-    liveWins = 0;
-    liveLosses = 0;
-    liveCurrentLosingStreak = 0;
-    liveWorstLosingStreak = 0;
+      const stepsAll = buildSteps(spins);
+      if (stepsAll.length < MIN_STEPS_FOR_MODEL) {
+        return {
+          shouldBet: false,
+          reason: `Need at least ${MIN_STEPS_FOR_MODEL + 1} spins for the model`,
+          debug: null
+        };
+      }
+
+      // Take last WINDOW_STEPS steps
+      const windowSteps = stepsAll.slice(-WINDOW_STEPS);
+
+      // Count frequency of each step
+      const counts = new Map();
+      for (const s of windowSteps) {
+        counts.set(s, (counts.get(s) || 0) + 1);
+      }
+
+      // Find dominant step
+      let bestStep = null;
+      let bestCount = 0;
+      for (const [s, c] of counts.entries()) {
+        if (c > bestCount) {
+          bestCount = c;
+          bestStep = s;
+        }
+      }
+
+      if (bestStep === null || bestCount < THRESHOLD_COUNT) {
+        return {
+          shouldBet: false,
+          reason: `No strong step pattern yet (top step appears ${bestCount}×, need ${THRESHOLD_COUNT}×)`,
+          debug: { bestStep, bestCount }
+        };
+      }
+
+      // Build bet: move last number by bestStep on the wheel
+      const lastNum = spins[spins.length - 1];
+      const idxLast = INDEX_OF[lastNum];
+      if (idxLast === undefined) {
+        return { shouldBet: false, reason: "Last number not on wheel", debug: null };
+      }
+
+      const centreIdx = (idxLast + bestStep) % 37;
+      const centreNum = WHEEL_ORDER[centreIdx];
+      const neighbours = neighboursForCentre(centreNum);
+
+      return {
+        shouldBet: true,
+        centreNum,
+        neighbours,
+        dominantStep: bestStep,
+        count: bestCount,
+        reason: `Step ${bestStep} appears ${bestCount}× in last ${WINDOW_STEPS} steps`
+      };
+    }
+
+    // ---------- LIVE UI LOGIC ----------
+
+    const spinsLive = [];
+    let liveTotalBets = 0;
+    let liveWins = 0;
+    let liveLosses = 0;
+    let liveCurrentLosingStreak = 0;
+    let liveWorstLosingStreak = 0;
+
+    const spinInput = document.getElementById("spinInput");
+    const addSpinBtn = document.getElementById("addSpinBtn");
+    const resetSpinsBtn = document.getElementById("resetSpinsBtn");
+    const historyInfo = document.getElementById("historyInfo");
+    const historyList = document.getElementById("historyList");
+    const recommendationDiv = document.getElementById("recommendation");
+
+    const liveTotalBetsEl = document.getElementById("liveTotalBets");
+    const liveWinsEl = document.getElementById("liveWins");
+    const liveLossesEl = document.getElementById("liveLosses");
+    const liveHitRateEl = document.getElementById("liveHitRate");
+    const liveCurrentStreakEl = document.getElementById("liveCurrentStreak");
+    const liveWorstStreakEl = document.getElementById("liveWorstStreak");
+
+    let lastPrediction = null; // for scoring wins/losses
+
+    function updateHistoryUI() {
+      if (spinsLive.length === 0) {
+        historyInfo.textContent = "No spins yet.";
+        historyList.innerHTML = "";
+        return;
+      }
+      historyInfo.textContent = `Total spins: ${spinsLive.length} (showing last 20)`;
+      const last20 = spinsLive.slice(-20);
+      historyList.innerHTML = "";
+      last20.forEach(n => {
+        const li = document.createElement("li");
+        li.textContent = n;
+        historyList.appendChild(li);
+      });
+    }
+
+    function updateStatsUI() {
+      liveTotalBetsEl.textContent = liveTotalBets;
+      liveWinsEl.textContent = liveWins;
+      liveLossesEl.textContent = liveLosses;
+      liveCurrentStreakEl.textContent = liveCurrentLosingStreak;
+      liveWorstStreakEl.textContent = liveWorstLosingStreak;
+      if (liveTotalBets === 0) {
+        liveHitRateEl.textContent = "–";
+      } else {
+        const rate = (liveWins / liveTotalBets) * 100;
+        liveHitRateEl.textContent = rate.toFixed(1) + "%";
+      }
+    }
+
+    function renderRecommendation(pred) {
+      recommendationDiv.innerHTML = "";
+      if (!pred) {
+        const pill = document.createElement("span");
+        pill.className = "pill pill-neutral";
+        pill.textContent = "No Data";
+        recommendationDiv.appendChild(pill);
+        const p = document.createElement("p");
+        p.className = "small";
+        p.textContent = "Enter more spins to get a prediction.";
+        recommendationDiv.appendChild(p);
+        return;
+      }
+
+      if (!pred.shouldBet) {
+        const pill = document.createElement("span");
+        pill.className = "pill pill-neutral";
+        pill.textContent = "NO BET";
+        recommendationDiv.appendChild(pill);
+        const p = document.createElement("p");
+        p.className = "small";
+        p.textContent = pred.reason || "Pattern not strong enough yet.";
+        recommendationDiv.appendChild(p);
+      } else {
+        const pill = document.createElement("span");
+        pill.className = "pill pill-good";
+        pill.textContent = "BET";
+        recommendationDiv.appendChild(pill);
+
+        const p1 = document.createElement("p");
+        p1.innerHTML = `Centre: <strong>${pred.centreNum}</strong> &mdash; Step: <span class="mono">${pred.dominantStep}</span>`;
+        recommendationDiv.appendChild(p1);
+
+        const p2 = document.createElement("p");
+        p2.className = "small";
+        p2.textContent = "Cover this number and its 8 neighbours each side on the wheel:";
+        recommendationDiv.appendChild(p2);
+
+        const ul = document.createElement("ul");
+        ul.className = "list-inline mono";
+        pred.neighbours.forEach(n => {
+          const li = document.createElement("li");
+          li.textContent = n;
+          ul.appendChild(li);
+        });
+        recommendationDiv.appendChild(ul);
+      }
+    }
+
+    function onAddSpin() {
+      const v = parseInt(spinInput.value, 10);
+      if (isNaN(v) || v < 0 || v > 36) {
+        alert("Please enter a valid number between 0 and 36.");
+        return;
+      }
+
+      // Score previous prediction (if any) NOW that we know the outcome
+      if (lastPrediction && lastPrediction.shouldBet) {
+        liveTotalBets++;
+        const neighbours = lastPrediction.neighbours || [];
+        const hit = neighbours.includes(v);
+        if (hit) {
+          liveWins++;
+          liveCurrentLosingStreak = 0;
+        } else {
+          liveLosses++;
+          liveCurrentLosingStreak++;
+          if (liveCurrentLosingStreak > liveWorstStreak) {
+            liveWorstStreak = liveCurrentLosingStreak;
+          }
+        }
+        updateStatsUI();
+      }
+
+      spinsLive.push(v);
+      spinInput.value = "";
+      updateHistoryUI();
+
+      // Compute new prediction for NEXT spin
+      const pred = simplePrediction(spinsLive);
+      lastPrediction = pred;
+      renderRecommendation(pred);
+    }
+
+    function onResetSpins() {
+      spinsLive.length = 0;
+      lastPrediction = null;
+      liveTotalBets = 0;
+      liveWins = 0;
+      liveLosses = 0;
+      liveCurrentLosingStreak = 0;
+      liveWorstStreak = 0;
+      updateHistoryUI();
+      updateStatsUI();
+      renderRecommendation(null);
+    }
+
+    addSpinBtn.addEventListener("click", onAddSpin);
+    resetSpinsBtn.addEventListener("click", onResetSpins);
+    spinInput.addEventListener("keyup", (e) => {
+      if (e.key === "Enter") onAddSpin();
+    });
+
+    // ---------- BULK LOAD INTO LIVE MODE ----------
+
+    const bulkLiveInput = document.getElementById("bulkLiveInput");
+    const loadBulkLiveBtn = document.getElementById("loadBulkLiveBtn");
+
+    loadBulkLiveBtn.addEventListener("click", () => {
+      const spins = parseSpinText(bulkLiveInput.value);
+      if (spins.length < 2) {
+        alert("Please paste at least 2 valid spins (0–36).");
+        return;
+      }
+
+      // Reset all live stats
+      spinsLive.length = 0;
+      liveTotalBets = 0;
+      liveWins = 0;
+      liveLosses = 0;
+      liveCurrentLosingStreak = 0;
+      liveWorstStreak = 0;
+
+      let history = [];
+      let lastPredLocal = null;
+
+      for (let i = 0; i < spins.length; i++) {
+        const result = spins[i];
+
+        // settle bet from previous prediction
+        if (lastPredLocal && lastPredLocal.shouldBet) {
+          liveTotalBets++;
+          const hit = (lastPredLocal.neighbours || []).includes(result);
+          if (hit) {
+            liveWins++;
+            liveCurrentLosingStreak = 0;
+          } else {
+            liveLosses++;
+            liveCurrentLosingStreak++;
+            if (liveCurrentLosingStreak > liveWorstStreak) {
+              liveWorstStreak = liveCurrentLosingStreak;
+            }
+          }
+        }
+
+        history.push(result);
+        spinsLive.push(result);
+        lastPredLocal = simplePrediction(history);
+      }
+
+      lastPrediction = lastPredLocal;
+
+      updateHistoryUI();
+      updateStatsUI();
+      renderRecommendation(lastPredLocal);
+
+      alert(`Loaded ${spins.length} spins into Live Mode.`);
+    });
+
+    // ---------- SIMULATOR LOGIC ----------
+
+    const simInput = document.getElementById("simInput");
+    const runSimBtn = document.getElementById("runSimBtn");
+    const clearSimBtn = document.getElementById("clearSimBtn");
+    const simResults = document.getElementById("simResults");
+    const simSpinsEl = document.getElementById("simSpins");
+    const simTotalBetsEl = document.getElementById("simTotalBets");
+    const simWinsEl = document.getElementById("simWins");
+    const simLossesEl = document.getElementById("simLosses");
+    const simHitRateEl = document.getElementById("simHitRate");
+    const simWorstStreakEl = document.getElementById("simWorstStreak");
+    const simNotesEl = document.getElementById("simNotes");
+
+    function runSimulation() {
+      const spins = parseSpinText(simInput.value);
+      if (spins.length < MIN_STEPS_FOR_MODEL + 1) {
+        alert(`Please paste at least ${MIN_STEPS_FOR_MODEL + 1} valid spins (0–36).`);
+        return;
+      }
+
+      let totalBets = 0;
+      let wins = 0;
+      let losses = 0;
+      let currentStreak = 0;
+      let worstStreak = 0;
+
+      let history = [];
+      let lastPred = null;
+
+      for (let i = 0; i < spins.length; i++) {
+        const result = spins[i];
+
+        // settle bet from previous prediction
+        if (lastPred && lastPred.shouldBet) {
+          totalBets++;
+          const hit = (lastPred.neighbours || []).includes(result);
+          if (hit) {
+            wins++;
+            currentStreak = 0;
+          } else {
+            losses++;
+            currentStreak++;
+            if (currentStreak > worstStreak) worstStreak = currentStreak;
+          }
+        }
+
+        history.push(result);
+        // compute new prediction for next spin
+        lastPred = simplePrediction(history);
+      }
+
+      simResults.style.display = "block";
+      simSpinsEl.textContent = spins.length;
+      simTotalBetsEl.textContent = totalBets;
+      simWinsEl.textContent = wins;
+      simLossesEl.textContent = losses;
+      if (totalBets === 0) {
+        simHitRateEl.textContent = "–";
+      } else {
+        simHitRateEl.textContent = (wins / totalBets * 100).toFixed(1) + "%";
+      }
+      simWorstStreakEl.textContent = worstStreak;
+      simNotesEl.textContent =
+        `Step-frequency model: last ${WINDOW_STEPS} steps, dominant step must appear at least ${THRESHOLD_COUNT} times.`;
+    }
+
+    function clearSimulation() {
+      simInput.value = "";
+      simResults.style.display = "none";
+    }
+
+    runSimBtn.addEventListener("click", runSimulation);
+    clearSimBtn.addEventListener("click", clearSimulation);
+
+    // initial UI
     updateHistoryUI();
     updateStatsUI();
     renderRecommendation(null);
-  }
-
-  addSpinBtn.addEventListener("click", onAddSpin);
-  resetSpinsBtn.addEventListener("click", onResetSpins);
-  spinInput.addEventListener("keyup", (e) => {
-    if (e.key === "Enter") onAddSpin();
-  });
-
-  // ---------- SIMULATOR LOGIC ----------
-
-  const simInput = document.getElementById("simInput");
-  const runSimBtn = document.getElementById("runSimBtn");
-  const clearSimBtn = document.getElementById("clearSimBtn");
-  const simResults = document.getElementById("simResults");
-  const simSpinsEl = document.getElementById("simSpins");
-  const simTotalBetsEl = document.getElementById("simTotalBets");
-  const simWinsEl = document.getElementById("simWins");
-  const simLossesEl = document.getElementById("simLosses");
-  const simHitRateEl = document.getElementById("simHitRate");
-  const simWorstStreakEl = document.getElementById("simWorstStreak");
-  const simNotesEl = document.getElementById("simNotes");
-
-  function parseSpinText(text) {
-    const tokens = text.split(/[\s,;]+/).filter(Boolean);
-    const arr = [];
-    for (const t of tokens) {
-      const v = parseInt(t, 10);
-      if (!isNaN(v) && v >= 0 && v <= 36) {
-        arr.push(v);
-      }
-    }
-    return arr;
-  }
-
-  function runSimulation() {
-    const spins = parseSpinText(simInput.value);
-    if (spins.length < MIN_STEPS_FOR_MODEL + 1) {
-      alert(`Please paste at least ${MIN_STEPS_FOR_MODEL + 1} valid spins (0–36).`);
-      return;
-    }
-
-    let totalBets = 0;
-    let wins = 0;
-    let losses = 0;
-    let currentStreak = 0;
-    let worstStreak = 0;
-
-    let history = [];
-    let lastPred = null;
-
-    for (let i = 0; i < spins.length; i++) {
-      const result = spins[i];
-
-      // settle bet from previous prediction
-      if (lastPred && lastPred.shouldBet) {
-        totalBets++;
-        const hit = (lastPred.neighbours || []).includes(result);
-        if (hit) {
-          wins++;
-          currentStreak = 0;
-        } else {
-          losses++;
-          currentStreak++;
-          if (currentStreak > worstStreak) worstStreak = currentStreak;
-        }
-      }
-
-      history.push(result);
-      // compute new prediction for next spin
-      lastPred = simplePrediction(history);
-    }
-
-    simResults.style.display = "block";
-    simSpinsEl.textContent = spins.length;
-    simTotalBetsEl.textContent = totalBets;
-    simWinsEl.textContent = wins;
-    simLossesEl.textContent = losses;
-    if (totalBets === 0) {
-      simHitRateEl.textContent = "–";
-    } else {
-      simHitRateEl.textContent = (wins / totalBets * 100).toFixed(1) + "%";
-    }
-    simWorstStreakEl.textContent = worstStreak;
-    simNotesEl.textContent =
-      `Original step-frequency model: last ${WINDOW_STEPS} steps, dominant step ≥ ${THRESHOLD_COUNT} occurrences.`;
-  }
-
-  function clearSimulation() {
-    simInput.value = "";
-    simResults.style.display = "none";
-  }
-
-  runSimBtn.addEventListener("click", runSimulation);
-  clearSimBtn.addEventListener("click", clearSimulation);
-
-  // initial UI
-  updateHistoryUI();
-  updateStatsUI();
-  renderRecommendation(null);
-</script>
-
-
-
+  </script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
