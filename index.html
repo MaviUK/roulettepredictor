@@ -343,9 +343,9 @@
     const INDEX_OF = {};
     WHEEL_ORDER.forEach((n, i) => { INDEX_OF[n] = i; });
 
-    const HALF_SECTOR = 8;             // neighbours each side
-    const MAX_DIR_DISTANCES = 5;       // last up to 5 distances per direction
-    const LOSS_RESET_MARTINGALE = 11;  // reset stake after 11 consecutive losing bets
+    const HALF_SECTOR = 8;          // neighbours each side
+    const MAX_DIR_DISTANCES = 5;    // last up to 5 distances per direction
+    const LOSS_RESET_MARTINGALE = 11; // reset stake after 11 consecutive losing bets
 
     // ---------- UTILITIES ----------
 
@@ -360,27 +360,25 @@
       return nums;
     }
 
-    // direction pattern: spin 1 = CW, 2 = CCW, 3 = CW, ...
-    // we pass in 1-based spin number here
-    function directionForIndex(spinNumber) {
-      return (spinNumber % 2 === 1) ? "CW" : "CCW";
+    // direction pattern: assume spin index 0 = CW, 1 = CCW, 2 = CW, ...
+    function directionForIndex(i) {
+      return i % 2 === 0 ? "CW" : "CCW";
     }
 
     // Build directional distances from full spin history.
-    // distances = [{dir: "CW"|"CCW", dist: number}, ...] for spins t >= 2
-    // Spin t is 1-based: t = 1,2,3,...
+    // distances = [{dir: "CW"|"CCW", dist: number}, ...] for spins i>=1
     function buildDirectionalDistances(spins) {
       const distances = [];
       if (spins.length < 2) return distances;
 
-      for (let t = 2; t <= spins.length; t++) {
-        const prev = spins[t - 2]; // s_{t-1}
-        const curr = spins[t - 1]; // s_t
+      for (let i = 1; i < spins.length; i++) {
+        const prev = spins[i - 1];
+        const curr = spins[i];
         const idxPrev = INDEX_OF[prev];
         const idxCurr = INDEX_OF[curr];
         if (idxPrev === undefined || idxCurr === undefined) continue;
 
-        const dir = directionForIndex(t); // direction of spin t
+        const dir = directionForIndex(i); // direction of spin i
         let dist;
         if (dir === "CW") {
           dist = (idxCurr - idxPrev + 37) % 37;
@@ -416,7 +414,7 @@
       return sign + x.toFixed(2);
     }
 
-    // ---------- DIRECTIONAL-DISTANCE PREDICTION MODEL WITH LOSS MODE ----------
+    // ---------- EXPANDED DIRECTIONAL-DISTANCE PREDICTION MODEL WITH LOSS MODE ----------
 
     // losingStreak = current consecutive losses BEFORE the next spin
     function simplePrediction(spins, losingStreak = 0) {
@@ -433,9 +431,9 @@
       // Build distances with directions for all past spins
       const distances = buildDirectionalDistances(spins);
 
-      // Direction of upcoming spin: spin number = spins.length + 1 (1-based)
-      const nextSpinNumber = spins.length + 1;
-      const upcomingDir = directionForIndex(nextSpinNumber);
+      // Direction of upcoming spin
+      const nextIndex = spins.length; // 0-based index of next spin
+      const upcomingDir = directionForIndex(nextIndex);
 
       // Filter distances for this direction
       const dirDistances = distances
@@ -505,7 +503,7 @@
       let stepPred = Math.round(blended) % 37;
       if (stepPred < 0) stepPred += 37;
 
-      // Base centre index (before loss-mode flip)
+      // Base centre index (no loss mode)
       let baseCentreIdx;
       if (upcomingDir === "CW") {
         baseCentreIdx = (idxLast + stepPred + 37) % 37;
@@ -513,19 +511,22 @@
         baseCentreIdx = (idxLast - stepPred + 37) % 37;
       }
 
-      // ----- LOSS MODE: flip to opposite wheel side in 4-loss blocks -----
+      // ----- LOSS MODE: flip to opposite wheel side after 4+ losses -----
       // Block index = floor(losingStreak / 4)
       // block 0 (0–3 losses)  => normal
       // block 1 (4–7 losses)  => opposite
       // block 2 (8–11 losses) => normal
       // block 3 (12–15)       => opposite, etc.
-      const block = Math.floor(losingStreak / 4);
       let centreIdx = baseCentreIdx;
       let modeLabel = "normal";
 
-      if (block % 2 === 1) {
-        centreIdx = (baseCentreIdx + 18) % 37; // roughly opposite side
-        modeLabel = "opposite";
+      if (losingStreak >= 4) {
+        const block = Math.floor(losingStreak / 4);
+        if (block % 2 === 1) {
+          // opposite mode: shift 18 pockets on the wheel
+          centreIdx = (baseCentreIdx + 18) % 37;
+          modeLabel = "opposite";
+        }
       }
 
       const centreNum = WHEEL_ORDER[centreIdx];
