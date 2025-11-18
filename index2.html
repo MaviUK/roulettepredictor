@@ -1,0 +1,973 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Roulette Directional Distance Predictor</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      margin: 0;
+      padding: 1.5rem;
+      background: #0b1020;
+      color: #f5f5f5;
+    }
+    h1, h2, h3 {
+      margin-top: 0;
+      font-weight: 700;
+    }
+    h1 { font-size: 1.8rem; }
+    h2 { font-size: 1.3rem; margin-top: 1.5rem; }
+    h3 { font-size: 1.1rem; margin-top: 1rem; }
+
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+      gap: 1.5rem;
+    }
+
+    @media (max-width: 900px) {
+      .container { grid-template-columns: 1fr; }
+    }
+
+    .card {
+      background: #151a2c;
+      border-radius: 14px;
+      padding: 1.1rem 1.25rem;
+      box-shadow: 0 14px 40px rgba(0,0,0,0.4);
+      border: 1px solid rgba(255,255,255,0.04);
+    }
+
+    label { display: block; margin-bottom: 0.35rem; font-size: 0.9rem; opacity: 0.9; }
+    input[type="number"], textarea {
+      width: 100%;
+      padding: 0.6rem 0.7rem;
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.15);
+      background: #0b1020;
+      color: #f5f5f5;
+      font-size: 0.95rem;
+      outline: none;
+    }
+    input[type="number"]:focus, textarea:focus {
+      border-color: #58d5ff;
+      box-shadow: 0 0 0 1px rgba(88,213,255,0.3);
+    }
+    textarea {
+      min-height: 120px;
+      resize: vertical;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0.55rem 0.9rem;
+      border-radius: 999px;
+      border: 0;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 0.9rem;
+      margin-right: 0.5rem;
+      margin-top: 0.4rem;
+      transition: transform 0.08s ease, box-shadow 0.08s ease, background 0.15s ease;
+    }
+    .btn-primary {
+      background: #ff3366;
+      color: #fff;
+      box-shadow: 0 0 0 1px rgba(255,255,255,0.05),0 10px 25px rgba(255,51,102,0.4);
+    }
+    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 14px 30px rgba(255,51,102,0.5); }
+    .btn-secondary {
+      background: #232b49;
+      color: #f5f5f5;
+    }
+    .btn-secondary:hover { background: #2f385c; }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.25rem 0.6rem;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .pill-good { background: rgba(0,200,140,0.15); color: #4cf3b6; }
+    .pill-bad  { background: rgba(255,120,80,0.15); color: #ffb899; }
+    .pill-neutral { background: rgba(130,150,255,0.15); color: #b3bfff; }
+
+    .section {
+      margin-top: 0.75rem;
+      padding-top: 0.75rem;
+      border-top: 1px solid rgba(255,255,255,0.06);
+    }
+
+    .list-inline {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.25rem 0.4rem;
+      margin: 0.25rem 0;
+      padding: 0;
+      list-style: none;
+      font-size: 0.9rem;
+    }
+    .list-inline li {
+      padding: 0.17rem 0.5rem;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.05);
+    }
+
+    .mono { font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.85rem; }
+
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 0.6rem;
+      margin-top: 0.4rem;
+    }
+    @media (max-width: 600px) {
+      .stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    .stat {
+      background: rgba(255,255,255,0.03);
+      border-radius: 10px;
+      padding: 0.5rem 0.6rem;
+      font-size: 0.8rem;
+    }
+    .stat span { display: block; }
+    .stat-label { opacity: 0.7; margin-bottom: 0.1rem; }
+    .stat-value { font-weight: 700; font-size: 0.95rem; }
+
+    .small { font-size: 0.8rem; opacity: 0.8; }
+
+    .top-control {
+      max-width: 1100px;
+      margin: 0 auto 1rem auto;
+    }
+    .top-control-inner {
+      background: #151a2c;
+      border-radius: 14px;
+      padding: 0.9rem 1rem;
+      border: 1px solid rgba(255,255,255,0.06);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+    }
+    .top-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      align-items: center;
+    }
+    .top-row label {
+      margin-bottom: 0.1rem;
+    }
+    .inline-input {
+      max-width: 160px;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Roulette Directional Distance Predictor</h1>
+  <p class="small">
+    Spins are assumed to <strong>alternate direction</strong> (CW, CCW, CW, CCW, ...). For each spin it records the
+    <strong>wheel distance</strong> travelled in that spin's direction. To predict the next spin, it uses a
+    <strong>directional distance model</strong> plus:
+    <br />• Last up to 5 distances in the upcoming direction,
+    <br />• Recency-weighted, trimmed mean blended with the mode,
+    <br />• A <strong>loss mode</strong> that flips to the opposite side of the wheel after blocks of 4 losses,
+    <br />• A <strong>Martingale</strong> on stake per number, resetting to base after 11 consecutive losses.
+  </p>
+
+  <div class="top-control">
+    <div class="top-control-inner">
+      <div class="top-row">
+        <div class="inline-input">
+          <label for="baseUnitInput">Base stake per number</label>
+          <input type="number" id="baseUnitInput" min="0.01" step="0.01" value="1" />
+        </div>
+        <p class="small">
+          This is the <strong>initial stake per number</strong> for both Live and Simulator. Martingale doubles it on each losing bet,
+          and after <strong>11 consecutive losing bets</strong> it resets to this base amount.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <div class="container">
+    <!-- LIVE INPUT / OUTPUT -->
+    <div class="card">
+      <h2>Live Mode</h2>
+
+      <label for="spinInput">Enter latest spin (0–36), then click "Add Spin"</label>
+      <input type="number" id="spinInput" min="0" max="36" placeholder="e.g. 23" />
+      <div>
+        <button class="btn btn-primary" id="addSpinBtn">Add Spin</button>
+        <button class="btn btn-secondary" id="resetSpinsBtn">Reset History</button>
+        <button class="btn btn-secondary" id="exportSpinsBtn">Export Session</button>
+      </div>
+
+      <div class="section">
+        <h3>Current History</h3>
+        <div class="small" id="historyInfo">No spins yet.</div>
+        <ul class="list-inline mono" id="historyList"></ul>
+      </div>
+
+      <div class="section">
+        <h3>Next Spin Recommendation</h3>
+        <div id="recommendation">
+          <span class="pill pill-neutral">No Data</span>
+          <p class="small">Enter some spins or bulk-load history to get started.</p>
+        </div>
+      </div>
+
+      <div class="section">
+        <h3>Live Stats (this session)</h3>
+        <div class="stat-grid">
+          <div class="stat">
+            <span class="stat-label">Total Bets</span>
+            <span class="stat-value" id="liveTotalBets">0</span>
+          </div>
+          <div class="stat">
+            <span class="stat-label">Wins</span>
+            <span class="stat-value" id="liveWins">0</span>
+          </div>
+          <div class="stat">
+            <span class="stat-label">Losses</span>
+            <span class="stat-value" id="liveLosses">0</span>
+          </div>
+          <div class="stat">
+            <span class="stat-label">Hit Rate</span>
+            <span class="stat-value" id="liveHitRate">–</span>
+          </div>
+          <div class="stat">
+            <span class="stat-label">Current Losing Streak</span>
+            <span class="stat-value" id="liveCurrentStreak">0</span>
+          </div>
+          <div class="stat">
+            <span class="stat-label">Worst Losing Streak</span>
+            <span class="stat-value" id="liveWorstStreak">0</span>
+          </div>
+          <div class="stat">
+            <span class="stat-label">Profit / Loss</span>
+            <span class="stat-value" id="liveProfit">+0.00</span>
+          </div>
+          <div class="stat">
+            <span class="stat-label">Current Stake / Number</span>
+            <span class="stat-value" id="liveStakePerNumber">–</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h3>Bulk Load Spins</h3>
+        <p class="small">
+          Paste up to 500 past spins (0–36), separated by spaces, commas, or new lines.
+          This will replace your current live history and re-score all bets with the current base stake.
+        </p>
+        <textarea id="bulkLiveInput" placeholder="Example:
+26 34 16 4 10 10 27 29 17 8 35 7 23 ..."></textarea>
+        <div>
+          <button class="btn btn-primary" id="loadBulkLiveBtn">Load Into Live Model</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- SIMULATOR -->
+    <div class="card">
+      <h2>Simulator</h2>
+      <p class="small">
+        Paste a list of spins (one per line or separated by spaces). The simulator will run the
+        same model + Martingale across that history and show performance stats.
+      </p>
+      <label for="simInput">Spin sequence</label>
+      <textarea id="simInput" placeholder="Example:
+26 34 16 4 10 10 27 29 17 8 35 7 23 36 36 25 10 21 8 19 ..."></textarea>
+
+      <div>
+        <button class="btn btn-primary" id="runSimBtn">Run Simulation</button>
+        <button class="btn btn-secondary" id="clearSimBtn">Clear</button>
+      </div>
+
+      <div class="section" id="simResults" style="display:none;">
+        <h3>Simulation Results</h3>
+        <div class="stat-grid">
+          <div class="stat">
+            <span class="stat-label">Spins</span>
+            <span class="stat-value" id="simSpins">0</span>
+          </div>
+          <div class="stat">
+            <span class="stat-label">Total Bets</span>
+            <span class="stat-value" id="simTotalBets">0</span>
+          </div>
+          <div class="stat">
+            <span class="stat-label">Wins</span>
+            <span class="stat-value" id="simWins">0</span>
+          </div>
+          <div class="stat">
+            <span class="stat-label">Losses</span>
+            <span class="stat-value" id="simLosses">0</span>
+          </div>
+          <div class="stat">
+            <span class="stat-label">Hit Rate</span>
+            <span class="stat-value" id="simHitRate">–</span>
+          </div>
+          <div class="stat">
+            <span class="stat-label">Worst Losing Streak</span>
+            <span class="stat-value" id="simWorstStreak">0</span>
+          </div>
+          <div class="stat">
+            <span class="stat-label">Profit / Loss</span>
+            <span class="stat-value" id="simProfit">+0.00</span>
+          </div>
+        </div>
+        <p class="small" id="simNotes"></p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ---------- MODEL CONSTANTS ----------
+
+    const WHEEL_ORDER = [
+      0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6,
+      27, 13, 36, 11, 30, 8, 23, 10, 5, 24,
+      16, 33, 1, 20, 14, 31, 9, 22, 18, 29,
+      7, 28, 12, 35, 3, 26
+    ];
+
+    const INDEX_OF = {};
+    WHEEL_ORDER.forEach((n, i) => { INDEX_OF[n] = i; });
+
+    const HALF_SECTOR = 8;             // neighbours each side
+    const MAX_DIR_DISTANCES = 5;       // last up to 5 distances per direction
+    const LOSS_RESET_MARTINGALE = 11;  // reset stake after 11 consecutive losing bets
+
+    // ---------- UTILITIES ----------
+
+    function neighboursForCentre(centreNum) {
+      const idx = INDEX_OF[centreNum];
+      if (idx === undefined) return [];
+      const nums = [];
+      for (let offset = -HALF_SECTOR; offset <= HALF_SECTOR; offset++) {
+        const j = (idx + offset + 37) % 37;
+        nums.push(WHEEL_ORDER[j]);
+      }
+      return nums;
+    }
+
+    // direction pattern: spin 1 = CW, 2 = CCW, 3 = CW, ...
+    // we pass in 1-based spin number here
+    function directionForIndex(spinNumber) {
+      return (spinNumber % 2 === 1) ? "CW" : "CCW";
+    }
+
+    // Build directional distances from full spin history.
+    // distances = [{dir: "CW"|"CCW", dist: number}, ...] for spins t >= 2
+    // Spin t is 1-based: t = 1,2,3,...
+    function buildDirectionalDistances(spins) {
+      const distances = [];
+      if (spins.length < 2) return distances;
+
+      for (let t = 2; t <= spins.length; t++) {
+        const prev = spins[t - 2]; // s_{t-1}
+        const curr = spins[t - 1]; // s_t
+        const idxPrev = INDEX_OF[prev];
+        const idxCurr = INDEX_OF[curr];
+        if (idxPrev === undefined || idxCurr === undefined) continue;
+
+        const dir = directionForIndex(t); // direction of spin t
+        let dist;
+        if (dir === "CW") {
+          dist = (idxCurr - idxPrev + 37) % 37;
+        } else {
+          dist = (idxPrev - idxCurr + 37) % 37;
+        }
+        distances.push({ dir, dist });
+      }
+      return distances;
+    }
+
+    function parseSpinText(text) {
+      const tokens = text.split(/[\s,;]+/).filter(Boolean);
+      const arr = [];
+      for (const t of tokens) {
+        const v = parseInt(t, 10);
+        if (!isNaN(v) && v >= 0 && v <= 36) {
+          arr.push(v);
+        }
+      }
+      return arr;
+    }
+
+    function getBaseUnit() {
+      const input = document.getElementById("baseUnitInput");
+      const v = parseFloat(input.value);
+      if (!isNaN(v) && v > 0) return v;
+      return 1;
+    }
+
+    function formatMoney(x) {
+      const sign = x >= 0 ? "+" : "";
+      return sign + x.toFixed(2);
+    }
+
+    // ---------- DIRECTIONAL-DISTANCE PREDICTION MODEL WITH LOSS MODE ----------
+
+    // losingStreak = current consecutive losses BEFORE the next spin
+    function simplePrediction(spins, losingStreak = 0) {
+      if (spins.length < 2) {
+        return { shouldBet: false, reason: "Need at least 2 spins", debug: null };
+      }
+
+      const lastNum = spins[spins.length - 1];
+      const idxLast = INDEX_OF[lastNum];
+      if (idxLast === undefined) {
+        return { shouldBet: false, reason: "Last number not on wheel", debug: null };
+      }
+
+      // Build distances with directions for all past spins
+      const distances = buildDirectionalDistances(spins);
+
+      // Direction of upcoming spin: spin number = spins.length + 1 (1-based)
+      const nextSpinNumber = spins.length + 1;
+      const upcomingDir = directionForIndex(nextSpinNumber);
+
+      // Filter distances for this direction
+      const dirDistances = distances
+        .filter(d => d.dir === upcomingDir)
+        .map(d => d.dist);
+
+      if (dirDistances.length < 3) {
+        return {
+          shouldBet: false,
+          reason: `Need at least 3 distances in ${upcomingDir} direction (have ${dirDistances.length})`,
+          debug: { upcomingDir, dirDistances }
+        };
+      }
+
+      // Take last up to 5 distances in that direction (oldest -> newest)
+      let lastDistances = dirDistances.slice(-MAX_DIR_DISTANCES);
+      const m = lastDistances.length;
+
+      // --- frequency / mode ---
+      const freq = new Map();
+      lastDistances.forEach(d => {
+        freq.set(d, (freq.get(d) || 0) + 1);
+      });
+      let modeStep = null;
+      let modeCount = 0;
+      // if tie, prefer the one that appears latest
+      for (let i = lastDistances.length - 1; i >= 0; i--) {
+        const d = lastDistances[i];
+        const c = freq.get(d) || 0;
+        if (c > modeCount || (c === modeCount && modeStep === null)) {
+          modeCount = c;
+          modeStep = d;
+        }
+      }
+
+      // --- recency-weighted average ---
+      // weights: 1,2,...,m for oldest->newest
+      let sumW = 0;
+      let sumWD = 0;
+      for (let i = 0; i < m; i++) {
+        const w = i + 1;
+        sumW += w;
+        sumWD += w * lastDistances[i];
+      }
+      const weightedAvg = sumWD / sumW;
+
+      // --- trimmed mean if enough points ---
+      let baseAvg;
+      if (m >= 4) {
+        const sorted = [...lastDistances].sort((a, b) => a - b);
+        const trimmed = sorted.slice(1, sorted.length - 1); // drop min & max
+        const tSum = trimmed.reduce((acc, v) => acc + v, 0);
+        baseAvg = tSum / trimmed.length;
+      } else {
+        baseAvg = weightedAvg;
+      }
+
+      // --- blend baseAvg with mode ---
+      let blended;
+      if (modeStep !== null) {
+        // 70% towards the smoothed average, 30% towards the mode
+        blended = 0.7 * baseAvg + 0.3 * modeStep;
+      } else {
+        blended = baseAvg;
+      }
+
+      let stepPred = Math.round(blended) % 37;
+      if (stepPred < 0) stepPred += 37;
+
+      // Base centre index (before loss-mode flip)
+      let baseCentreIdx;
+      if (upcomingDir === "CW") {
+        baseCentreIdx = (idxLast + stepPred + 37) % 37;
+      } else {
+        baseCentreIdx = (idxLast - stepPred + 37) % 37;
+      }
+
+      // ----- LOSS MODE: flip to opposite wheel side in 4-loss blocks -----
+      // Block index = floor(losingStreak / 4)
+      // block 0 (0–3 losses)  => normal
+      // block 1 (4–7 losses)  => opposite
+      // block 2 (8–11 losses) => normal
+      // block 3 (12–15)       => opposite, etc.
+      const block = Math.floor(losingStreak / 4);
+      let centreIdx = baseCentreIdx;
+      let modeLabel = "normal";
+
+      if (block % 2 === 1) {
+        centreIdx = (baseCentreIdx + 18) % 37; // roughly opposite side
+        modeLabel = "opposite";
+      }
+
+      const centreNum = WHEEL_ORDER[centreIdx];
+      const neighbours = neighboursForCentre(centreNum);
+
+      return {
+        shouldBet: true,
+        centreNum,
+        neighbours,
+        dominantStep: stepPred,
+        mode: modeLabel,
+        losingStreakUsed: losingStreak,
+        reason: `Upcoming direction ${upcomingDir}. Using last ${m} distances in that direction with recency-weighted, trimmed mean + mode blend. Mode: ${modeLabel} (losing streak ${losingStreak}).`
+      };
+    }
+
+    // ---------- LIVE UI LOGIC + MARTINGALE ----------
+
+    const spinsLive = [];
+    let liveTotalBets = 0;
+    let liveWins = 0;
+    let liveLosses = 0;
+    let liveCurrentLosingStreak = 0;
+    let liveWorstStreak = 0;
+
+    // Martingale state for live mode
+    let liveProfit = 0;                  // total P&L
+    let liveStakePerNumber = null;       // current stake per number
+    let liveMartingaleLossCount = 0;     // consecutive losing bets for stake reset
+
+    const spinInput = document.getElementById("spinInput");
+    const addSpinBtn = document.getElementById("addSpinBtn");
+    const resetSpinsBtn = document.getElementById("resetSpinsBtn");
+    const exportSpinsBtn = document.getElementById("exportSpinsBtn");
+    const historyInfo = document.getElementById("historyInfo");
+    const historyList = document.getElementById("historyList");
+    const recommendationDiv = document.getElementById("recommendation");
+
+    const liveTotalBetsEl = document.getElementById("liveTotalBets");
+    const liveWinsEl = document.getElementById("liveWins");
+    const liveLossesEl = document.getElementById("liveLosses");
+    const liveHitRateEl = document.getElementById("liveHitRate");
+    const liveCurrentStreakEl = document.getElementById("liveCurrentStreak");
+    const liveWorstStreakEl = document.getElementById("liveWorstStreak");
+    const liveProfitEl = document.getElementById("liveProfit");
+    const liveStakePerNumberEl = document.getElementById("liveStakePerNumber");
+
+    let lastPrediction = null; // for scoring wins/losses
+
+    function updateHistoryUI() {
+      if (spinsLive.length === 0) {
+        historyInfo.textContent = "No spins yet.";
+        historyList.innerHTML = "";
+        return;
+      }
+      historyInfo.textContent = `Total spins: ${spinsLive.length} (showing last 20)`;
+      const last20 = spinsLive.slice(-20);
+      historyList.innerHTML = "";
+      last20.forEach(n => {
+        const li = document.createElement("li");
+        li.textContent = n;
+        historyList.appendChild(li);
+      });
+    }
+
+    function updateStatsUI() {
+      liveTotalBetsEl.textContent = liveTotalBets;
+      liveWinsEl.textContent = liveWins;
+      liveLossesEl.textContent = liveLosses;
+      liveCurrentStreakEl.textContent = liveCurrentLosingStreak;
+      liveWorstStreakEl.textContent = liveWorstStreak;
+      if (liveTotalBets === 0) {
+        liveHitRateEl.textContent = "–";
+      } else {
+        const rate = (liveWins / liveTotalBets) * 100;
+        liveHitRateEl.textContent = rate.toFixed(1) + "%";
+      }
+      liveProfitEl.textContent = formatMoney(liveProfit);
+      if (liveStakePerNumber == null) {
+        liveStakePerNumberEl.textContent = "–";
+      } else {
+        liveStakePerNumberEl.textContent = liveStakePerNumber.toFixed(2);
+      }
+    }
+
+    function renderRecommendation(pred) {
+      recommendationDiv.innerHTML = "";
+      if (!pred) {
+        const pill = document.createElement("span");
+        pill.className = "pill pill-neutral";
+        pill.textContent = "No Data";
+        recommendationDiv.appendChild(pill);
+        const p = document.createElement("p");
+        p.className = "small";
+        p.textContent = "Enter more spins to get a prediction.";
+        recommendationDiv.appendChild(p);
+        return;
+      }
+
+      if (!pred.shouldBet) {
+        const pill = document.createElement("span");
+        pill.className = "pill pill-neutral";
+        pill.textContent = "NO BET";
+        recommendationDiv.appendChild(pill);
+        const p = document.createElement("p");
+        p.className = "small";
+        p.textContent = pred.reason || "Pattern not strong enough yet.";
+        recommendationDiv.appendChild(p);
+      } else {
+        const pill = document.createElement("span");
+        pill.className = "pill pill-good";
+        pill.textContent = "BET";
+        recommendationDiv.appendChild(pill);
+
+        const p1 = document.createElement("p");
+        p1.innerHTML =
+          `Centre: <strong>${pred.centreNum}</strong>` +
+          ` &mdash; Step: <span class="mono">${pred.dominantStep}</span>` +
+          (pred.mode ? ` &mdash; Mode: <span class="mono">${pred.mode}</span>` : "");
+        recommendationDiv.appendChild(p1);
+
+        const p2 = document.createElement("p");
+        p2.className = "small";
+        p2.textContent = "Cover this number and its 8 neighbours each side on the wheel (17 numbers):";
+        recommendationDiv.appendChild(p2);
+
+        const ul = document.createElement("ul");
+        ul.className = "list-inline mono";
+        pred.neighbours.forEach(n => {
+          const li = document.createElement("li");
+          li.textContent = n;
+          ul.appendChild(li);
+        });
+        recommendationDiv.appendChild(ul);
+
+        if (pred.reason) {
+          const p3 = document.createElement("p");
+          p3.className = "small";
+          p3.textContent = pred.reason;
+          recommendationDiv.appendChild(p3);
+        }
+      }
+    }
+
+    function onAddSpin() {
+      const v = parseInt(spinInput.value, 10);
+      if (isNaN(v) || v < 0 || v > 36) {
+        alert("Please enter a valid number between 0 and 36.");
+        return;
+      }
+
+      const baseUnit = getBaseUnit();
+
+      // Score previous prediction (if any) NOW that we know the outcome
+      if (lastPrediction && lastPrediction.shouldBet) {
+        liveTotalBets++;
+
+        const neighbours = lastPrediction.neighbours || [];
+        const numbersCovered = neighbours.length;
+        const stakePerNumberNow = (liveStakePerNumber == null) ? baseUnit : liveStakePerNumber;
+        const totalStake = stakePerNumberNow * numbersCovered;
+
+        const hit = neighbours.includes(v);
+        if (hit) {
+          // roulette: 35:1 payout => return 36x stake on the winning number
+          const winReturn = stakePerNumberNow * 36;
+          const profit = winReturn - totalStake;
+          liveProfit += profit;
+
+          liveWins++;
+          liveCurrentLosingStreak = 0;
+          liveMartingaleLossCount = 0;
+          liveStakePerNumber = baseUnit; // reset on win
+        } else {
+          liveLosses++;
+          liveCurrentLosingStreak++;
+          if (liveCurrentLosingStreak > liveWorstStreak) {
+            liveWorstStreak = liveCurrentLosingStreak;
+          }
+
+          // lose stake
+          liveProfit -= totalStake;
+
+          // martingale loss tracking
+          liveMartingaleLossCount += 1;
+
+          if (liveMartingaleLossCount >= LOSS_RESET_MARTINGALE) {
+            // reset stake after 11 consecutive losses
+            liveStakePerNumber = baseUnit;
+            liveMartingaleLossCount = 0;
+          } else {
+            // double per-number stake for next bet
+            liveStakePerNumber = stakePerNumberNow * 2;
+          }
+        }
+        updateStatsUI();
+      }
+
+      spinsLive.push(v);
+      spinInput.value = "";
+      updateHistoryUI();
+
+      // Compute new prediction for NEXT spin, using current losing streak
+      const pred = simplePrediction(spinsLive, liveCurrentLosingStreak);
+      lastPrediction = pred;
+      renderRecommendation(pred);
+    }
+
+    function onResetSpins() {
+      spinsLive.length = 0;
+      lastPrediction = null;
+      liveTotalBets = 0;
+      liveWins = 0;
+      liveLosses = 0;
+      liveCurrentLosingStreak = 0;
+      liveWorstStreak = 0;
+      liveProfit = 0;
+      liveStakePerNumber = null;
+      liveMartingaleLossCount = 0;
+      updateHistoryUI();
+      updateStatsUI();
+      renderRecommendation(null);
+    }
+
+    function onExportSpins() {
+      if (spinsLive.length === 0) {
+        alert("No spins to export yet.");
+        return;
+      }
+      const text = spinsLive.join("\n");
+      const blob = new Blob([text], { type: "text/plain" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "roulette_spins_session.txt";
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }, 0);
+    }
+
+    addSpinBtn.addEventListener("click", onAddSpin);
+    resetSpinsBtn.addEventListener("click", onResetSpins);
+    exportSpinsBtn.addEventListener("click", onExportSpins);
+    spinInput.addEventListener("keyup", (e) => {
+      if (e.key === "Enter") onAddSpin();
+    });
+
+    // ---------- BULK LOAD INTO LIVE MODE ----------
+
+    const bulkLiveInput = document.getElementById("bulkLiveInput");
+    const loadBulkLiveBtn = document.getElementById("loadBulkLiveBtn");
+
+    loadBulkLiveBtn.addEventListener("click", () => {
+      const spins = parseSpinText(bulkLiveInput.value);
+      if (spins.length < 2) {
+        alert("Please paste at least 2 valid spins (0–36).");
+        return;
+      }
+
+      const baseUnit = getBaseUnit();
+
+      // Reset all live stats
+      spinsLive.length = 0;
+      liveTotalBets = 0;
+      liveWins = 0;
+      liveLosses = 0;
+      liveCurrentLosingStreak = 0;
+      liveWorstStreak = 0;
+      liveProfit = 0;
+      liveStakePerNumber = null;
+      liveMartingaleLossCount = 0;
+
+      let history = [];
+      let lastPredLocal = null;
+
+      for (let i = 0; i < spins.length; i++) {
+        const result = spins[i];
+
+        // settle bet from previous prediction
+        if (lastPredLocal && lastPredLocal.shouldBet) {
+          liveTotalBets++;
+
+          const neighbours = lastPredLocal.neighbours || [];
+          const numbersCovered = neighbours.length;
+          const stakePerNumberNow = (liveStakePerNumber == null) ? baseUnit : liveStakePerNumber;
+          const totalStake = stakePerNumberNow * numbersCovered;
+
+          const hit = neighbours.includes(result);
+
+          if (hit) {
+            const winReturn = stakePerNumberNow * 36;
+            const profit = winReturn - totalStake;
+            liveProfit += profit;
+
+            liveWins++;
+            liveCurrentLosingStreak = 0;
+            liveMartingaleLossCount = 0;
+            liveStakePerNumber = baseUnit;
+          } else {
+            liveLosses++;
+            liveCurrentLosingStreak++;
+            if (liveCurrentLosingStreak > liveWorstStreak) {
+              liveWorstStreak = liveCurrentLosingStreak;
+            }
+            liveProfit -= totalStake;
+
+            liveMartingaleLossCount += 1;
+            if (liveMartingaleLossCount >= LOSS_RESET_MARTINGALE) {
+              liveStakePerNumber = baseUnit;
+              liveMartingaleLossCount = 0;
+            } else {
+              liveStakePerNumber = stakePerNumberNow * 2;
+            }
+          }
+        }
+
+        history.push(result);
+        spinsLive.push(result);
+        lastPredLocal = simplePrediction(history, liveCurrentLosingStreak);
+      }
+
+      lastPrediction = lastPredLocal;
+
+      updateHistoryUI();
+      updateStatsUI();
+      renderRecommendation(lastPredLocal);
+
+      alert(`Loaded ${spins.length} spins into Live Mode.`);
+    });
+
+    // ---------- SIMULATOR LOGIC + MARTINGALE ----------
+
+    const simInput = document.getElementById("simInput");
+    const runSimBtn = document.getElementById("runSimBtn");
+    const clearSimBtn = document.getElementById("clearSimBtn");
+    const simResults = document.getElementById("simResults");
+    const simSpinsEl = document.getElementById("simSpins");
+    const simTotalBetsEl = document.getElementById("simTotalBets");
+    const simWinsEl = document.getElementById("simWins");
+    const simLossesEl = document.getElementById("simLosses");
+    const simHitRateEl = document.getElementById("simHitRate");
+    const simWorstStreakEl = document.getElementById("simWorstStreak");
+    const simProfitEl = document.getElementById("simProfit");
+    const simNotesEl = document.getElementById("simNotes");
+
+    function runSimulation() {
+      const spins = parseSpinText(simInput.value);
+      if (spins.length < 2) {
+        alert("Please paste at least 2 valid spins (0–36).");
+        return;
+      }
+
+      const baseUnit = getBaseUnit();
+
+      let totalBets = 0;
+      let wins = 0;
+      let losses = 0;
+      let currentStreak = 0;
+      let worstStreak = 0;
+
+      let simProfit = 0;
+      let stakePerNumber = null;
+      let martingaleLossCount = 0;
+
+      let history = [];
+      let lastPred = null;
+
+      for (let i = 0; i < spins.length; i++) {
+        const result = spins[i];
+
+        // settle bet from previous prediction
+        if (lastPred && lastPred.shouldBet) {
+          totalBets++;
+
+          const neighbours = lastPred.neighbours || [];
+          const numbersCovered = neighbours.length;
+          const stakeNow = (stakePerNumber == null) ? baseUnit : stakePerNumber;
+          const totalStake = stakeNow * numbersCovered;
+
+          const hit = neighbours.includes(result);
+          if (hit) {
+            const winReturn = stakeNow * 36;
+            const profit = winReturn - totalStake;
+            simProfit += profit;
+
+            wins++;
+            currentStreak = 0;
+            martingaleLossCount = 0;
+            stakePerNumber = baseUnit;
+          } else {
+            losses++;
+            currentStreak++;
+            if (currentStreak > worstStreak) worstStreak = currentStreak;
+
+            simProfit -= totalStake;
+
+            martingaleLossCount += 1;
+            if (martingaleLossCount >= LOSS_RESET_MARTINGALE) {
+              stakePerNumber = baseUnit;
+              martingaleLossCount = 0;
+            } else {
+              stakePerNumber = stakeNow * 2;
+            }
+          }
+        }
+
+        history.push(result);
+        // compute new prediction for next spin, using current losing streak
+        lastPred = simplePrediction(history, currentStreak);
+      }
+
+      simResults.style.display = "block";
+      simSpinsEl.textContent = spins.length;
+      simTotalBetsEl.textContent = totalBets;
+      simWinsEl.textContent = wins;
+      simLossesEl.textContent = losses;
+      if (totalBets === 0) {
+        simHitRateEl.textContent = "–";
+      } else {
+        simHitRateEl.textContent = (wins / totalBets * 100).toFixed(1) + "%";
+      }
+      simWorstStreakEl.textContent = worstStreak;
+      simProfitEl.textContent = formatMoney(simProfit);
+      simNotesEl.textContent =
+        `Model: directional distances with loss mode + Martingale per number (base ${baseUnit}, doubles on each losing bet, resets after ${LOSS_RESET_MARTINGALE} consecutive losses).`;
+    }
+
+    function clearSimulation() {
+      simInput.value = "";
+      simResults.style.display = "none";
+    }
+
+    runSimBtn.addEventListener("click", runSimulation);
+    clearSimBtn.addEventListener("click", clearSimulation);
+
+    // initial UI
+    updateHistoryUI();
+    updateStatsUI();
+    renderRecommendation(null);
+  </script>
+</body>
+</html>
