@@ -193,6 +193,7 @@
       <div>
         <button class="btn btn-primary" id="addSpinBtn">Add Spin</button>
         <button class="btn btn-secondary" id="resetSpinsBtn">Reset History</button>
+        <button class="btn btn-secondary" id="exportSpinsBtn">Export Session</button>
       </div>
 
       <div class="section">
@@ -439,6 +440,7 @@
     const spinInput = document.getElementById("spinInput");
     const addSpinBtn = document.getElementById("addSpinBtn");
     const resetSpinsBtn = document.getElementById("resetSpinsBtn");
+    const exportSpinsBtn = document.getElementById("exportSpinsBtn");
     const historyInfo = document.getElementById("historyInfo");
     const historyList = document.getElementById("historyList");
     const recommendationDiv = document.getElementById("recommendation");
@@ -579,8 +581,28 @@
       renderRecommendation(null);
     }
 
+    function onExportSpins() {
+      if (spinsLive.length === 0) {
+        alert("No spins to export yet.");
+        return;
+      }
+      const text = spinsLive.join("\n");
+      const blob = new Blob([text], { type: "text/plain" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "roulette_spins_session.txt";
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }, 0);
+    }
+
     addSpinBtn.addEventListener("click", onAddSpin);
     resetSpinsBtn.addEventListener("click", onResetSpins);
+    exportSpinsBtn.addEventListener("click", onExportSpins);
     spinInput.addEventListener("keyup", (e) => {
       if (e.key === "Enter") onAddSpin();
     });
