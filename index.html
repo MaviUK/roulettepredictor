@@ -302,9 +302,9 @@
   const INDEX_OF = {};
   WHEEL_ORDER.forEach((n, i) => { INDEX_OF[n] = i; });
 
-  // Fixed offset model: move S pockets clockwise from last number
-  // You can change STEP_OFFSET (0–36) and re-run the simulator.
-  const STEP_OFFSET = 32;
+  const HALF_SECTOR = 8;               // neighbours each side
+  const MIN_SPINS_FOR_MODEL = 10;      // wait for at least this many spins
+  const LAMBDA_GLOBAL = 0.5;           // weight for global step distribution in smoothing
 
   // ---------- UTILITIES ----------
 
@@ -312,27 +312,84 @@
     const idx = INDEX_OF[centreNum];
     if (idx === undefined) return [];
     const nums = [];
-    for (let offset = -8; offset <= 8; offset++) {
+    for (let offset = -HALF_SECTOR; offset <= HALF_SECTOR; offset++) {
       const j = (idx + offset + 37) % 37;
       nums.push(WHEEL_ORDER[j]);
     }
     return nums;
   }
 
-  // ---------- FIXED OFFSET PREDICTION MODEL ----------
+  // Build step transition counts from the whole history
+  // rowCounts[fromIdx][step] = how many times we saw that step from that number
+  // globalCounts[step] = total across all fromIdx
+  function buildStepTransitions(spins) {
+    const rowCounts = Array.from({ length: 37 }, () => new Array(37).fill(0));
+    const globalCounts = new Array(37).fill(0);
+
+    for (let i = 1; i < spins.length; i++) {
+      const prev = spins[i - 1];
+      const curr = spins[i];
+      const idxPrev = INDEX_OF[prev];
+      const idxCurr = INDEX_OF[curr];
+      if (idxPrev === undefined || idxCurr === undefined) continue;
+
+      const step = (idxCurr - idxPrev + 37) % 37;
+      rowCounts[idxPrev][step]++;
+      globalCounts[step]++;
+    }
+
+    return { rowCounts, globalCounts };
+  }
+
+  function pickBestStep(lastIdx, rowCounts, globalCounts) {
+    const row = rowCounts[lastIdx];
+    if (!row) return null;
+
+    let bestStep = null;
+    let bestScore = -Infinity;
+
+    for (let step = 0; step < 37; step++) {
+      const localCount = row[step];
+      const globalCount = globalCounts[step];
+      const score = localCount + LAMBDA_GLOBAL * globalCount;
+      if (score > bestScore) {
+        bestScore = score;
+        bestStep = step;
+      }
+    }
+
+    return bestStep;
+  }
+
+  // ---------- MARKOV STEP PREDICTION MODEL ----------
 
   function simplePrediction(spins) {
-    if (spins.length < 1) {
-      return { shouldBet: false, reason: "Need at least 1 spin", debug: null };
+    if (spins.length < MIN_SPINS_FOR_MODEL) {
+      return {
+        shouldBet: false,
+        reason: `Need at least ${MIN_SPINS_FOR_MODEL} spins to estimate transitions`,
+        debug: null
+      };
     }
 
     const lastNum = spins[spins.length - 1];
-    const idxLast = INDEX_OF[lastNum];
-    if (idxLast === undefined) {
+    const lastIdx = INDEX_OF[lastNum];
+    if (lastIdx === undefined) {
       return { shouldBet: false, reason: "Last number not on wheel", debug: null };
     }
 
-    const centreIdx = (idxLast + STEP_OFFSET) % 37;
+    const { rowCounts, globalCounts } = buildStepTransitions(spins);
+
+    const bestStep = pickBestStep(lastIdx, rowCounts, globalCounts);
+    if (bestStep === null) {
+      return {
+        shouldBet: false,
+        reason: "No valid step found",
+        debug: null
+      };
+    }
+
+    const centreIdx = (lastIdx + bestStep) % 37;
     const centreNum = WHEEL_ORDER[centreIdx];
     const neighbours = neighboursForCentre(centreNum);
 
@@ -340,8 +397,8 @@
       shouldBet: true,
       centreNum,
       neighbours,
-      dominantStep: STEP_OFFSET,
-      reason: `Fixed offset model: last number + ${STEP_OFFSET} pockets clockwise`
+      dominantStep: bestStep,
+      reason: `Markov step model: best step from ${lastNum} is ${bestStep}`
     };
   }
 
@@ -491,7 +548,7 @@
     liveWins = 0;
     liveLosses = 0;
     liveCurrentLosingStreak = 0;
-    liveWorstLosingStreak = 0;
+    liveWorstStreak = 0;
     updateHistoryUI();
     updateStatsUI();
     renderRecommendation(null);
@@ -531,8 +588,8 @@
 
   function runSimulation() {
     const spins = parseSpinText(simInput.value);
-    if (spins.length < 5) {
-      alert("Please paste at least 5 valid spins (0–36).");
+    if (spins.length < MIN_SPINS_FOR_MODEL + 1) {
+      alert(`Please paste at least ${MIN_SPINS_FOR_MODEL + 1} valid spins (0–36).`);
       return;
     }
 
@@ -579,7 +636,7 @@
     }
     simWorstStreakEl.textContent = worstStreak;
     simNotesEl.textContent =
-      "These stats are purely from this pasted sequence using the fixed-offset model (direction ignored).";
+      `Markov step model: uses all past transitions P(next step | last number) with global smoothing λ=${LAMBDA_GLOBAL}.`;
   }
 
   function clearSimulation() {
@@ -596,8 +653,10 @@
   renderRecommendation(null);
 </script>
 
+
 </body>
 </html>
+
 
 
 
