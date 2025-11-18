@@ -30,9 +30,7 @@
     }
 
     @media (max-width: 900px) {
-      .container {
-        grid-template-columns: 1fr;
-      }
+      .container { grid-template-columns: 1fr; }
     }
 
     .card {
@@ -87,9 +85,7 @@
       background: #232b49;
       color: #f5f5f5;
     }
-    .btn-secondary:hover {
-      background: #2f385c;
-    }
+    .btn-secondary:hover { background: #2f385c; }
 
     .pill {
       display: inline-flex;
@@ -143,22 +139,11 @@
       padding: 0.5rem 0.6rem;
       font-size: 0.8rem;
     }
-    .stat span {
-      display: block;
-    }
-    .stat-label {
-      opacity: 0.7;
-      margin-bottom: 0.1rem;
-    }
-    .stat-value {
-      font-weight: 700;
-      font-size: 0.95rem;
-    }
+    .stat span { display: block; }
+    .stat-label { opacity: 0.7; margin-bottom: 0.1rem; }
+    .stat-value { font-weight: 700; font-size: 0.95rem; }
 
-    .small {
-      font-size: 0.8rem;
-      opacity: 0.8;
-    }
+    .small { font-size: 0.8rem; opacity: 0.8; }
 
     .chips {
       display: flex;
@@ -182,6 +167,8 @@
     <strong>wheel distance</strong> travelled in that spin's direction. To predict the next spin, it:
     <br />• Finds the last up to 5 distances in the <em>same direction as the upcoming spin</em>,
     <br />• Uses a <strong>recency-weighted, trimmed average</strong> blended with the <strong>mode</strong> (most common distance),
+    <br />• If the current losing streak reaches <strong>4+</strong>, it switches the prediction to the
+    <strong>opposite side of the wheel</strong> (and flips back after another 4 losses),
     <br />• Moves that many pockets from the last result in the upcoming direction,
     <br />• Tells you to cover that centre and its 8 neighbours each side (17 numbers).
   </p>
@@ -377,9 +364,10 @@
       return arr;
     }
 
-    // ---------- EXPANDED DIRECTIONAL-DISTANCE PREDICTION MODEL ----------
+    // ---------- EXPANDED DIRECTIONAL-DISTANCE PREDICTION MODEL WITH LOSS MODE ----------
 
-    function simplePrediction(spins) {
+    // losingStreak = current consecutive losses BEFORE the next spin
+    function simplePrediction(spins, losingStreak = 0) {
       if (spins.length < 2) {
         return { shouldBet: false, reason: "Need at least 2 spins", debug: null };
       }
@@ -465,11 +453,30 @@
       let stepPred = Math.round(blended) % 37;
       if (stepPred < 0) stepPred += 37;
 
-      let centreIdx;
+      // Base centre index (no loss mode)
+      let baseCentreIdx;
       if (upcomingDir === "CW") {
-        centreIdx = (idxLast + stepPred + 37) % 37;
+        baseCentreIdx = (idxLast + stepPred + 37) % 37;
       } else {
-        centreIdx = (idxLast - stepPred + 37) % 37;
+        baseCentreIdx = (idxLast - stepPred + 37) % 37;
+      }
+
+      // ----- LOSS MODE: flip to opposite wheel side after 4+ losses -----
+      // Block index = floor(losingStreak / 4)
+      // block 0 (0–3 losses)  => normal
+      // block 1 (4–7 losses)  => opposite
+      // block 2 (8–11 losses) => normal
+      // block 3 (12–15)       => opposite, etc.
+      let centreIdx = baseCentreIdx;
+      let modeLabel = "normal";
+
+      if (losingStreak >= 4) {
+        const block = Math.floor(losingStreak / 4);
+        if (block % 2 === 1) {
+          // opposite mode: shift 18 pockets on the wheel
+          centreIdx = (baseCentreIdx + 18) % 37;
+          modeLabel = "opposite";
+        }
       }
 
       const centreNum = WHEEL_ORDER[centreIdx];
@@ -480,7 +487,9 @@
         centreNum,
         neighbours,
         dominantStep: stepPred,
-        reason: `Upcoming direction ${upcomingDir}. Using last ${m} distances in that direction with recency-weighted, trimmed mean and mode blend.`
+        mode: modeLabel,
+        losingStreakUsed: losingStreak,
+        reason: `Upcoming direction ${upcomingDir}. Using last ${m} distances in that direction with recency-weighted, trimmed mean + mode blend. Mode: ${modeLabel} (losing streak ${losingStreak}).`
       };
     }
 
@@ -570,7 +579,10 @@
         recommendationDiv.appendChild(pill);
 
         const p1 = document.createElement("p");
-        p1.innerHTML = `Centre: <strong>${pred.centreNum}</strong> &mdash; Step: <span class="mono">${pred.dominantStep}</span>`;
+        p1.innerHTML =
+          `Centre: <strong>${pred.centreNum}</strong>` +
+          ` &mdash; Step: <span class="mono">${pred.dominantStep}</span>` +
+          (pred.mode ? ` &mdash; Mode: <span class="mono">${pred.mode}</span>` : "");
         recommendationDiv.appendChild(p1);
 
         const p2 = document.createElement("p");
@@ -586,6 +598,13 @@
           ul.appendChild(li);
         });
         recommendationDiv.appendChild(ul);
+
+        if (pred.reason) {
+          const p3 = document.createElement("p");
+          p3.className = "small";
+          p3.textContent = pred.reason;
+          recommendationDiv.appendChild(p3);
+        }
       }
     }
 
@@ -618,8 +637,8 @@
       spinInput.value = "";
       updateHistoryUI();
 
-      // Compute new prediction for NEXT spin
-      const pred = simplePrediction(spinsLive);
+      // Compute new prediction for NEXT spin, using current losing streak
+      const pred = simplePrediction(spinsLive, liveCurrentLosingStreak);
       lastPrediction = pred;
       renderRecommendation(pred);
     }
@@ -707,7 +726,7 @@
 
         history.push(result);
         spinsLive.push(result);
-        lastPredLocal = simplePrediction(history);
+        lastPredLocal = simplePrediction(history, liveCurrentLosingStreak);
       }
 
       lastPrediction = lastPredLocal;
@@ -767,8 +786,8 @@
         }
 
         history.push(result);
-        // compute new prediction for next spin
-        lastPred = simplePrediction(history);
+        // compute new prediction for next spin, using current losing streak
+        lastPred = simplePrediction(history, currentStreak);
       }
 
       simResults.style.display = "block";
@@ -783,7 +802,7 @@
       }
       simWorstStreakEl.textContent = worstStreak;
       simNotesEl.textContent =
-        `Expanded directional-distance model: alternating CW/CCW, using last up to ${MAX_DIR_DISTANCES} distances per direction with recency-weighted, trimmed mean + mode blend.`;
+        `Expanded directional-distance model with loss mode: alternating CW/CCW, last up to ${MAX_DIR_DISTANCES} distances per direction, recency-weighted trimmed mean + mode blend, flips to opposite side after each block of 4 consecutive losses.`;
     }
 
     function clearSimulation() {
