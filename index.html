@@ -289,7 +289,7 @@
     </div>
   </div>
 
-  <script>
+ <script>
   // ---------- MODEL CONSTANTS ----------
 
   const WHEEL_ORDER = [
@@ -302,94 +302,93 @@
   const INDEX_OF = {};
   WHEEL_ORDER.forEach((n, i) => { INDEX_OF[n] = i; });
 
-  const HALF_SECTOR = 8;               // neighbours each side
-  const MIN_SPINS_FOR_MODEL = 10;      // wait for at least this many spins
-  const LAMBDA_GLOBAL = 0.5;           // weight for global step distribution in smoothing
+  // Original simple step-frequency model (direction ignored)
+  const WINDOW_STEPS = 35;        // last 35 steps
+  const THRESHOLD_COUNT = 6;      // dominant step must appear at least 6 times
+  const MIN_STEPS_FOR_MODEL = WINDOW_STEPS; // require at least 35 steps -> 36 spins
 
   // ---------- UTILITIES ----------
+
+  function computeStep(prevNum, currNum) {
+    const iPrev = INDEX_OF[prevNum];
+    const iCurr = INDEX_OF[currNum];
+    if (iPrev === undefined || iCurr === undefined) return null;
+    // clockwise step
+    return (iCurr - iPrev + 37) % 37;
+  }
+
+  function buildSteps(spins) {
+    const steps = [];
+    for (let i = 1; i < spins.length; i++) {
+      const step = computeStep(spins[i - 1], spins[i]);
+      if (step === null) return [];
+      steps.push(step);
+    }
+    return steps;
+  }
 
   function neighboursForCentre(centreNum) {
     const idx = INDEX_OF[centreNum];
     if (idx === undefined) return [];
     const nums = [];
-    for (let offset = -HALF_SECTOR; offset <= HALF_SECTOR; offset++) {
+    for (let offset = -8; offset <= 8; offset++) {
       const j = (idx + offset + 37) % 37;
       nums.push(WHEEL_ORDER[j]);
     }
     return nums;
   }
 
-  // Build step transition counts from the whole history
-  // rowCounts[fromIdx][step] = how many times we saw that step from that number
-  // globalCounts[step] = total across all fromIdx
-  function buildStepTransitions(spins) {
-    const rowCounts = Array.from({ length: 37 }, () => new Array(37).fill(0));
-    const globalCounts = new Array(37).fill(0);
+  // ---------- ORIGINAL STEP-FREQUENCY PREDICTION MODEL ----------
 
-    for (let i = 1; i < spins.length; i++) {
-      const prev = spins[i - 1];
-      const curr = spins[i];
-      const idxPrev = INDEX_OF[prev];
-      const idxCurr = INDEX_OF[curr];
-      if (idxPrev === undefined || idxCurr === undefined) continue;
-
-      const step = (idxCurr - idxPrev + 37) % 37;
-      rowCounts[idxPrev][step]++;
-      globalCounts[step]++;
+  function simplePrediction(spins) {
+    if (spins.length < 2) {
+      return { shouldBet: false, reason: "Need at least 2 spins", debug: null };
     }
 
-    return { rowCounts, globalCounts };
-  }
+    const stepsAll = buildSteps(spins);
+    if (stepsAll.length < MIN_STEPS_FOR_MODEL) {
+      return {
+        shouldBet: false,
+        reason: `Need at least ${MIN_STEPS_FOR_MODEL + 1} spins for the model`,
+        debug: null
+      };
+    }
 
-  function pickBestStep(lastIdx, rowCounts, globalCounts) {
-    const row = rowCounts[lastIdx];
-    if (!row) return null;
+    // Take last WINDOW_STEPS steps
+    const windowSteps = stepsAll.slice(-WINDOW_STEPS);
 
+    // Count frequency of each step
+    const counts = new Map();
+    for (const s of windowSteps) {
+      counts.set(s, (counts.get(s) || 0) + 1);
+    }
+
+    // Find dominant step
     let bestStep = null;
-    let bestScore = -Infinity;
-
-    for (let step = 0; step < 37; step++) {
-      const localCount = row[step];
-      const globalCount = globalCounts[step];
-      const score = localCount + LAMBDA_GLOBAL * globalCount;
-      if (score > bestScore) {
-        bestScore = score;
-        bestStep = step;
+    let bestCount = 0;
+    for (const [s, c] of counts.entries()) {
+      if (c > bestCount) {
+        bestCount = c;
+        bestStep = s;
       }
     }
 
-    return bestStep;
-  }
-
-  // ---------- MARKOV STEP PREDICTION MODEL ----------
-
-  function simplePrediction(spins) {
-    if (spins.length < MIN_SPINS_FOR_MODEL) {
+    if (bestStep === null || bestCount < THRESHOLD_COUNT) {
       return {
         shouldBet: false,
-        reason: `Need at least ${MIN_SPINS_FOR_MODEL} spins to estimate transitions`,
-        debug: null
+        reason: `No strong step pattern yet (top step appears ${bestCount}×, need ${THRESHOLD_COUNT}×)`,
+        debug: { bestStep, bestCount }
       };
     }
 
+    // Build bet: move last number by bestStep on the wheel
     const lastNum = spins[spins.length - 1];
-    const lastIdx = INDEX_OF[lastNum];
-    if (lastIdx === undefined) {
+    const idxLast = INDEX_OF[lastNum];
+    if (idxLast === undefined) {
       return { shouldBet: false, reason: "Last number not on wheel", debug: null };
     }
 
-    const { rowCounts, globalCounts } = buildStepTransitions(spins);
-
-    const bestStep = pickBestStep(lastIdx, rowCounts, globalCounts);
-    if (bestStep === null) {
-      return {
-        shouldBet: false,
-        reason: "No valid step found",
-        debug: null
-      };
-    }
-
-    const centreIdx = (lastIdx + bestStep) % 37;
+    const centreIdx = (idxLast + bestStep) % 37;
     const centreNum = WHEEL_ORDER[centreIdx];
     const neighbours = neighboursForCentre(centreNum);
 
@@ -398,7 +397,8 @@
       centreNum,
       neighbours,
       dominantStep: bestStep,
-      reason: `Markov step model: best step from ${lastNum} is ${bestStep}`
+      count: bestCount,
+      reason: `Step ${bestStep} appears ${bestCount}× in last ${WINDOW_STEPS} steps`
     };
   }
 
@@ -548,7 +548,7 @@
     liveWins = 0;
     liveLosses = 0;
     liveCurrentLosingStreak = 0;
-    liveWorstStreak = 0;
+    liveWorstLosingStreak = 0;
     updateHistoryUI();
     updateStatsUI();
     renderRecommendation(null);
@@ -588,8 +588,8 @@
 
   function runSimulation() {
     const spins = parseSpinText(simInput.value);
-    if (spins.length < MIN_SPINS_FOR_MODEL + 1) {
-      alert(`Please paste at least ${MIN_SPINS_FOR_MODEL + 1} valid spins (0–36).`);
+    if (spins.length < MIN_STEPS_FOR_MODEL + 1) {
+      alert(`Please paste at least ${MIN_STEPS_FOR_MODEL + 1} valid spins (0–36).`);
       return;
     }
 
@@ -636,7 +636,7 @@
     }
     simWorstStreakEl.textContent = worstStreak;
     simNotesEl.textContent =
-      `Markov step model: uses all past transitions P(next step | last number) with global smoothing λ=${LAMBDA_GLOBAL}.`;
+      `Original step-frequency model: last ${WINDOW_STEPS} steps, dominant step ≥ ${THRESHOLD_COUNT} occurrences.`;
   }
 
   function clearSimulation() {
@@ -654,8 +654,10 @@
 </script>
 
 
+
 </body>
 </html>
+
 
 
 
