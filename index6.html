@@ -1067,12 +1067,119 @@ const totalWorstStreakCell = document.getElementById("totalWorstStreakCell");
 const totalProfitCell = document.getElementById("totalProfitCell");
 
 
-    function parseCsv(text) {
-      const lines = text.split(/\r?\n/).filter(line => line.trim() !== "");
-      return lines.map(line => line.split(/,|\t/)); // basic CSV/TSV split
+   function parseCsv(text) {
+  const lines = text.split(/\r?\n/).filter(line => line.trim() !== "");
+  return lines.map(line => line.split(/,|\t/)); // basic CSV/TSV split
+}
+
+runDayCsvBtn.addEventListener("click", () => {
+  const file = dayCsvInput.files && dayCsvInput.files[0];
+  if (!file) {
+    alert("Please choose a CSV file to upload.");
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const text = e.target.result;
+    const rows = parseCsv(text);
+    if (rows.length === 0) {
+      alert("CSV file appears to be empty.");
+      return;
     }
 
-   reader.readAsText(file);
+    const headers = rows[0];
+    const numCols = headers.length;
+
+    // collect spins column-by-column
+    const columnsSpins = Array.from({ length: numCols }, () => []);
+
+    for (let r = 1; r < rows.length; r++) {
+      const row = rows[r];
+      for (let c = 0; c < numCols; c++) {
+        const cell = (row[c] || "").trim();
+        if (!cell) continue;
+        const v = parseInt(cell, 10);
+        if (!isNaN(v) && v >= 0 && v <= 36) {
+          columnsSpins[c].push(v);
+        }
+      }
+    }
+
+    const baseUnit = getBaseUnit();
+    let rowsHtml = "";
+    let anyDay = false;
+
+    // totals
+    let totalSpins = 0;
+    let totalBets = 0;
+    let totalWins = 0;
+    let totalLosses = 0;
+    let totalProfit = 0;
+    let globalWorstStreak = 0;
+
+    for (let c = 0; c < numCols; c++) {
+      const spins = columnsSpins[c];
+      const dayName = headers[c] && headers[c].trim() ? headers[c].trim() : `Day ${c + 1}`;
+      if (spins.length < 2) {
+        // skip empty or trivial columns
+        continue;
+      }
+      const res = simulateSpinsArray(spins, baseUnit);
+      if (!res) continue;
+      anyDay = true;
+
+      const hitText = res.totalBets ? res.hitRate.toFixed(1) + "%" : "–";
+
+      // accumulate totals
+      totalSpins += res.spinsCount;
+      totalBets += res.totalBets;
+      totalWins += res.wins;
+      totalLosses += res.losses;
+      totalProfit += res.profit;
+      if (res.worstStreak > globalWorstStreak) {
+        globalWorstStreak = res.worstStreak;
+      }
+
+      rowsHtml += `
+        <tr>
+          <td>${dayName}</td>
+          <td>${res.spinsCount}</td>
+          <td>${res.totalBets}</td>
+          <td>${res.wins}</td>
+          <td>${res.losses}</td>
+          <td>${hitText}</td>
+          <td>${res.worstStreak}</td>
+          <td>${formatMoney(res.profit)}</td>
+        </tr>
+      `;
+    }
+
+    if (!anyDay) {
+      alert("No columns with at least 2 valid spins were found in the CSV.");
+      return;
+    }
+
+    // fill table body
+    dayCsvTbody.innerHTML = rowsHtml;
+
+    // fill totals row
+    const totalHitRate = totalBets ? (totalWins / totalBets) * 100 : null;
+
+    totalSpinsCell.textContent = totalSpins;
+    totalBetsCell.textContent = totalBets;
+    totalWinsCell.textContent = totalWins;
+    totalLossesCell.textContent = totalLosses;
+    totalHitRateCell.textContent = totalHitRate === null ? "–" : totalHitRate.toFixed(1) + "%";
+    totalWorstStreakCell.textContent = globalWorstStreak;
+    totalProfitCell.textContent = formatMoney(totalProfit);
+
+    dayCsvResultsDiv.style.display = "block";
+  };
+
+  reader.readAsText(file);
+});
+
 
     // initial UI
     updateHistoryUI();
