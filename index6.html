@@ -358,20 +358,33 @@
         <div id="dayCsvResults" style="display:none; margin-top:0.75rem;">
           <h3>Day Breakdown</h3>
           <table class="mono">
-            <thead>
-              <tr>
-                <th>Day</th>
-                <th>Spins</th>
-                <th>Total Bets</th>
-                <th>Wins</th>
-                <th>Losses</th>
-                <th>Hit %</th>
-                <th>Worst Losing Streak</th>
-                <th>P&amp;L</th>
-              </tr>
-            </thead>
-            <tbody id="dayCsvTbody"></tbody>
-          </table>
+  <thead>
+    <tr>
+      <th>Day</th>
+      <th>Spins</th>
+      <th>Total Bets</th>
+      <th>Wins</th>
+      <th>Losses</th>
+      <th>Hit %</th>
+      <th>Worst Losing Streak</th>
+      <th>P&amp;L</th>
+    </tr>
+  </thead>
+  <tbody id="dayCsvTbody"></tbody>
+  <tfoot>
+    <tr id="dayCsvTotalRow">
+      <td><strong>TOTAL</strong></td>
+      <td id="totalSpinsCell"></td>
+      <td id="totalBetsCell"></td>
+      <td id="totalWinsCell"></td>
+      <td id="totalLossesCell"></td>
+      <td id="totalHitRateCell"></td>
+      <td id="totalWorstStreakCell"></td>
+      <td id="totalProfitCell"></td>
+    </tr>
+  </tfoot>
+</table>
+
         </div>
       </div>
     </div>
@@ -1040,91 +1053,26 @@
     // ---------- DAY-BY-DAY CSV SIMULATION ----------
 
     const dayCsvInput = document.getElementById("dayCsvInput");
-    const runDayCsvBtn = document.getElementById("runDayCsvBtn");
-    const dayCsvResultsDiv = document.getElementById("dayCsvResults");
-    const dayCsvTbody = document.getElementById("dayCsvTbody");
+const runDayCsvBtn = document.getElementById("runDayCsvBtn");
+const dayCsvResultsDiv = document.getElementById("dayCsvResults");
+const dayCsvTbody = document.getElementById("dayCsvTbody");
+
+// NEW: total cells
+const totalSpinsCell = document.getElementById("totalSpinsCell");
+const totalBetsCell = document.getElementById("totalBetsCell");
+const totalWinsCell = document.getElementById("totalWinsCell");
+const totalLossesCell = document.getElementById("totalLossesCell");
+const totalHitRateCell = document.getElementById("totalHitRateCell");
+const totalWorstStreakCell = document.getElementById("totalWorstStreakCell");
+const totalProfitCell = document.getElementById("totalProfitCell");
+
 
     function parseCsv(text) {
       const lines = text.split(/\r?\n/).filter(line => line.trim() !== "");
       return lines.map(line => line.split(/,|\t/)); // basic CSV/TSV split
     }
 
-    runDayCsvBtn.addEventListener("click", () => {
-      const file = dayCsvInput.files && dayCsvInput.files[0];
-      if (!file) {
-        alert("Please choose a CSV file to upload.");
-        return;
-      }
-
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const text = e.target.result;
-        const rows = parseCsv(text);
-        if (rows.length === 0) {
-          alert("CSV file appears to be empty.");
-          return;
-        }
-
-        const headers = rows[0];
-        const numCols = headers.length;
-
-        // collect spins column-by-column
-        const columnsSpins = Array.from({ length: numCols }, () => []);
-
-        for (let r = 1; r < rows.length; r++) {
-          const row = rows[r];
-          for (let c = 0; c < numCols; c++) {
-            const cell = (row[c] || "").trim();
-            if (!cell) continue;
-            const v = parseInt(cell, 10);
-            if (!isNaN(v) && v >= 0 && v <= 36) {
-              columnsSpins[c].push(v);
-            }
-          }
-        }
-
-        const baseUnit = getBaseUnit();
-        let rowsHtml = "";
-        let anyDay = false;
-
-        for (let c = 0; c < numCols; c++) {
-          const spins = columnsSpins[c];
-          const dayName = headers[c] && headers[c].trim() ? headers[c].trim() : `Day ${c + 1}`;
-          if (spins.length < 2) {
-            // skip empty or trivial columns
-            continue;
-          }
-          const res = simulateSpinsArray(spins, baseUnit);
-          if (!res) continue;
-          anyDay = true;
-
-          const hitText = res.totalBets ? res.hitRate.toFixed(1) + "%" : "–";
-
-          rowsHtml += `
-            <tr>
-              <td>${dayName}</td>
-              <td>${res.spinsCount}</td>
-              <td>${res.totalBets}</td>
-              <td>${res.wins}</td>
-              <td>${res.losses}</td>
-              <td>${hitText}</td>
-              <td>${res.worstStreak}</td>
-              <td>${formatMoney(res.profit)}</td>
-            </tr>
-          `;
-        }
-
-        if (!anyDay) {
-          alert("No columns with at least 2 valid spins were found in the CSV.");
-          return;
-        }
-
-        dayCsvTbody.innerHTML = rowsHtml;
-        dayCsvResultsDiv.style.display = "block";
-      };
-
-      reader.readAsText(file);
-    });
+   reader.readAsText(file);
 
     // initial UI
     updateHistoryUI();
