@@ -195,11 +195,12 @@
   <p class="small">
     Spins are assumed to <strong>alternate direction</strong> (CW, CCW, CW, CCW, ...). For each spin it records the
     <strong>wheel distance</strong> travelled in that spin's direction. To predict the next spin, it uses a
-    <strong>Callan–Symanzik style directional distance model</strong> with pattern detection:
+    <strong>Callan–Symanzik style directional distance model</strong>:
     <br />• Uses the last 3 distances in the upcoming direction,
-    <br />• Detects trending vs zig-zag regimes and adjusts the formula,
-    <br />• Predicts the next step as S₄ based on drift β and curvature γ,
-    <br />• Flips that result to the <strong>opposite pocket</strong> on the wheel,
+    <br />• Computes drift β and curvature γ,
+    <br />• Predicts the next step as S₄ = S₃ + a(n)β + b(n)γ, where a and b depend on how much history we have in that direction,
+    <br />• <strong>No loss mode</strong> (no opposite side flipping blocks),
+    <br />• Then flips the resulting centre to the opposite pocket on the wheel (18 pockets away),
     <br />• A <strong>Martingale</strong> on stake per number, resetting to base after 11 consecutive losses.
   </p>
 
@@ -407,12 +408,8 @@
     WHEEL_ORDER.forEach((n, i) => { INDEX_OF[n] = i; });
 
     const HALF_SECTOR = 8;              // neighbours each side (17 numbers total)
-    const MAX_DIR_DISTANCES = 5;        // not used directly but kept for reference
+    const MAX_DIR_DISTANCES = 5;        // not used directly, kept for compatibility
     const LOSS_RESET_MARTINGALE = 11;   // reset stake after 11 consecutive losing bets
-
-    // Pattern / volatility thresholds (tweak these to be looser or tighter)
-    const VOL_SPREAD_THRESHOLD = 18;      // max(S1..S3) - min(S1..S3) above this = chaotic
-    const GAMMA_ABS_THRESHOLD  = 14;      // |gamma| above this + big spread = NO BET
 
     // ---------- UTILITIES ----------
 
@@ -433,6 +430,7 @@
     }
 
     // Build directional distances from full spin history.
+    // distances = [{dir: "CW"|"CCW", dist: number}, ...] for spins i>=1
     function buildDirectionalDistances(spins) {
       const distances = [];
       if (spins.length < 2) return distances;
@@ -480,7 +478,29 @@
       return sign + x.toFixed(2);
     }
 
-    // ---------- CALLAN–SYMANSIK STYLE PREDICTOR (OPPOSITE NUMBER + PATTERNS) ----------
+    // ---------- DYNAMIC COEFFICIENTS FOR CS MODEL ----------
+
+    // a(n) and b(n) depend on how many distances we have
+    // in this direction. With few points: more aggressive (higher a).
+    // With many points: more conservative (a down, b slightly up).
+    function computeCsCoefficients(nDistances) {
+      // we only call this when nDistances >= 3
+      const n = Math.max(3, Math.min(nDistances, 20)); // clamp 3..20
+      const t = n - 3;          // 0..17
+      const frac = t / 17;      // 0..1
+
+      const aStart = 0.85;
+      const aEnd   = 0.45;
+      const bStart = 0.15;
+      const bEnd   = 0.25;
+
+      const a = aStart + (aEnd - aStart) * frac;
+      const b = bStart + (bEnd - bStart) * frac;
+
+      return { a, b };
+    }
+
+    // ---------- CALLAN–SYMANSIK STYLE PREDICTOR (WITH OPPOSITE NUMBER + DYNAMIC COEFFS) ----------
 
     function csPrediction(spins) {
       if (spins.length < 4) {
@@ -521,47 +541,14 @@
       const S3 = dirDistances[dirDistances.length - 1];
 
       // Drift & curvature
-      const beta  = S3 - S2;
+      const beta = S3 - S2;
       const gamma = (S3 - S2) - (S2 - S1);
 
-      // Volatility / regime-change guard
-      const spread = Math.max(S1, S2, S3) - Math.min(S1, S2, S3);
-      if (spread >= VOL_SPREAD_THRESHOLD && Math.abs(gamma) >= GAMMA_ABS_THRESHOLD) {
-        return {
-          shouldBet: false,
-          reason: "Distances look chaotic (big swings & curvature) – skipping this spin.",
-          debug: { upcomingDir, S1, S2, S3, beta, gamma, spread }
-        };
-      }
+      // Dynamic coefficients based on how many distances we have
+      const { a, b } = computeCsCoefficients(dirDistances.length);
 
-      // Detect pattern regime
-      let regime = "mixed";
-      if ((S1 < S2 && S2 < S3) || (S1 > S2 && S2 > S3)) {
-        regime = "trend";
-      } else if ((S1 < S2 && S2 > S3) || (S1 > S2 && S2 < S3)) {
-        regime = "zigzag";
-      }
-
-      let S4;
-      let a, b;
-
-      if (regime === "zigzag") {
-        // Oscillating / back-and-forth: trust the last realised distance
-        a = 0.0;
-        b = 0.0;
-        S4 = S3;
-      } else if (regime === "trend") {
-        // Strong trend: lean harder into β and γ
-        a = 0.8;
-        b = 0.4;
-        S4 = S3 + a * beta + b * gamma;
-      } else {
-        // Mixed / flat regime: original blend
-        a = 0.65;
-        b = 0.35;
-        S4 = S3 + a * beta + b * gamma;
-      }
-
+      // Predict next step
+      let S4 = S3 + a * beta + b * gamma;
       S4 = Math.round(S4) % 37;
       if (S4 < 0) S4 += 37;
 
@@ -573,7 +560,7 @@
         baseCentreIdx = (idxLast - S4 + 37) % 37;
       }
 
-      // Flip to the exact opposite pocket on the wheel
+      // Flip to the exact opposite pocket on the wheel (18 pockets away)
       const oppositeIdx = (baseCentreIdx + 18) % 37;
       const centreNum = WHEEL_ORDER[oppositeIdx];
       const neighbours = neighboursForCentre(centreNum);
@@ -583,16 +570,15 @@
         centreNum,
         neighbours,
         dominantStep: S4,
-        reason: `CS flow (${regime} regime: S4 from S1,S2,S3 with β,γ), then flipped to the opposite side of the wheel.`,
+        reason: `CS flow with dynamic coefficients a(n), b(n) based on ${dirDistances.length} distances, then flipped to the opposite side of the wheel (18 pockets).`,
         debug: {
           upcomingDir,
-          regime,
           S1, S2, S3,
           beta, gamma,
-          spread,
           S4,
           baseCentreIdx,
-          oppositeIdx
+          oppositeIdx,
+          a, b
         }
       };
     }
@@ -1032,7 +1018,7 @@
       simWorstStreakEl.textContent = res.worstStreak;
       simProfitEl.textContent = formatMoney(res.profit);
       simNotesEl.textContent =
-        `Model: pattern-aware Callan–Symanzik directional distances (trend / zigzag regimes, opposite-pocket centre) + Martingale per number (base ${baseUnit}, doubles on each losing bet, resets after ${LOSS_RESET_MARTINGALE} consecutive losses).`;
+        `Model: Callan–Symanzik style directional distances with dynamic coefficients + opposite-wheel correction + Martingale per number (base ${baseUnit}, doubles on each losing bet, resets after ${LOSS_RESET_MARTINGALE} consecutive losses).`;
     }
 
     function clearSimulation() {
