@@ -200,7 +200,7 @@
     <br />• Computes drift β and curvature γ,
     <br />• Predicts the next step as S₄ = S₃ + aβ + bγ,
     <br />• Flips that result to the <strong>opposite pocket</strong> on the wheel,
-    <br />• Applies a <strong>volatility filter</strong> – skips bets when recent distances are too scattered,
+    <br />• Adds a <strong>session stop-loss</strong> to cap worst days,
     <br />• A <strong>Martingale</strong> on stake per number, resetting to base after 11 consecutive losses.
   </p>
 
@@ -408,12 +408,10 @@
     WHEEL_ORDER.forEach((n, i) => { INDEX_OF[n] = i; });
 
     const HALF_SECTOR = 8;              // neighbours each side (17 numbers total)
-    const MAX_DIR_DISTANCES = 5;        // kept for future use
     const LOSS_RESET_MARTINGALE = 11;   // reset stake after 11 consecutive losing bets
 
-    // Volatility filter: if last 3 distances in the direction span more than this,
-    // we skip the bet. 15 ≈ half the wheel.
-    const VOL_SPREAD_THRESHOLD = 15;
+    // Session stop-loss: when profit <= -STOP_LOSS_MULT * baseUnit, stop betting
+    const STOP_LOSS_MULT = 200;
 
     // ---------- UTILITIES ----------
 
@@ -434,7 +432,6 @@
     }
 
     // Build directional distances from full spin history.
-    // distances = [{dir: "CW"|"CCW", dist: number}, ...] for spins i>=1
     function buildDirectionalDistances(spins) {
       const distances = [];
       if (spins.length < 2) return distances;
@@ -482,7 +479,7 @@
       return sign + x.toFixed(2);
     }
 
-    // ---------- CALLAN–SYMANSIK STYLE PREDICTOR (OPPOSITE NUMBER + VOL FILTER) ----------
+    // ---------- CALLAN–SYMANSIK STYLE PREDICTOR (OPPOSITE NUMBER) ----------
 
     function csPrediction(spins) {
       if (spins.length < 4) {
@@ -522,18 +519,6 @@
       const S2 = dirDistances[dirDistances.length - 2];
       const S3 = dirDistances[dirDistances.length - 1];
 
-      // --- Volatility filter: if distances are too spread out, skip bet ---
-      const dMin = Math.min(S1, S2, S3);
-      const dMax = Math.max(S1, S2, S3);
-      const spread = dMax - dMin;
-      if (spread > VOL_SPREAD_THRESHOLD) {
-        return {
-          shouldBet: false,
-          reason: `Recent ${upcomingDir} distances are too volatile (spread ${spread} > ${VOL_SPREAD_THRESHOLD}).`,
-          debug: { upcomingDir, S1, S2, S3, spread }
-        };
-      }
-
       // Drift & curvature
       const beta = S3 - S2;
       const gamma = (S3 - S2) - (S2 - S1);
@@ -565,20 +550,19 @@
         centreNum,
         neighbours,
         dominantStep: S4,
-        reason: `CS flow (S4 = S3 + ${a}β + ${b}γ), flipped to opposite pocket and passed volatility filter (spread ${spread}).`,
+        reason: `CS flow (S4 = S3 + ${a}β + ${b}γ), flipped to the opposite side of the wheel (18 pockets).`,
         debug: {
           upcomingDir,
           S1, S2, S3,
           beta, gamma,
           S4,
           baseCentreIdx,
-          oppositeIdx,
-          spread
+          oppositeIdx
         }
       };
     }
 
-    // ---------- LIVE UI LOGIC + MARTINGALE ----------
+    // ---------- LIVE UI LOGIC + MARTINGALE + STOP-LOSS ----------
 
     const spinsLive = [];
     let liveTotalBets = 0;
@@ -610,6 +594,7 @@
     const liveStakePerNumberEl = document.getElementById("liveStakePerNumber");
 
     let lastPrediction = null; // for scoring wins/losses
+    let liveStopHit = false;
 
     function updateHistoryUI() {
       if (spinsLive.length === 0) {
@@ -713,6 +698,7 @@
       }
 
       const baseUnit = getBaseUnit();
+      const stopLossLevel = -STOP_LOSS_MULT * baseUnit;
 
       // Score previous prediction (if any) NOW that we know the outcome
       if (lastPrediction && lastPrediction.shouldBet) {
@@ -758,7 +744,21 @@
       spinInput.value = "";
       updateHistoryUI();
 
-      const pred = csPrediction(spinsLive);
+      // Check stop-loss
+      if (liveProfit <= stopLossLevel) {
+        liveStopHit = true;
+      }
+
+      let pred;
+      if (liveStopHit) {
+        pred = {
+          shouldBet: false,
+          reason: `Session stop-loss hit at ${formatMoney(liveProfit)} (limit ${formatMoney(stopLossLevel)}).`
+        };
+      } else {
+        pred = csPrediction(spinsLive);
+      }
+
       lastPrediction = pred;
       renderRecommendation(pred);
     }
@@ -774,6 +774,7 @@
       liveProfit = 0;
       liveStakePerNumber = null;
       liveMartingaleLossCount = 0;
+      liveStopHit = false;
       updateHistoryUI();
       updateStatsUI();
       renderRecommendation(null);
@@ -818,6 +819,7 @@
       }
 
       const baseUnit = getBaseUnit();
+      const stopLossLevel = -STOP_LOSS_MULT * baseUnit;
 
       // Reset all live stats
       spinsLive.length = 0;
@@ -829,6 +831,7 @@
       liveProfit = 0;
       liveStakePerNumber = null;
       liveMartingaleLossCount = 0;
+      liveStopHit = false;
 
       let history = [];
       let lastPredLocal = null;
@@ -875,7 +878,13 @@
 
         history.push(result);
         spinsLive.push(result);
-        lastPredLocal = csPrediction(history);
+
+        if (liveProfit <= stopLossLevel) {
+          liveStopHit = true;
+          lastPredLocal = { shouldBet: false, reason: `Session stop-loss hit at ${formatMoney(liveProfit)}.` };
+        } else {
+          lastPredLocal = csPrediction(history);
+        }
       }
 
       lastPrediction = lastPredLocal;
@@ -887,12 +896,14 @@
       alert(`Loaded ${spins.length} spins into Live Mode.`);
     });
 
-    // ---------- SIMULATOR SHARED LOGIC + MARTINGALE ----------
+    // ---------- SIMULATOR SHARED LOGIC + MARTINGALE + STOP-LOSS ----------
 
     function simulateSpinsArray(spins, baseUnit) {
       if (spins.length < 2) {
         return null;
       }
+
+      const stopLossLevel = -STOP_LOSS_MULT * baseUnit;
 
       let totalBets = 0;
       let wins = 0;
@@ -906,6 +917,7 @@
 
       let history = [];
       let lastPred = null;
+      let stopHit = false;
 
       for (let i = 0; i < spins.length; i++) {
         const result = spins[i];
@@ -946,7 +958,13 @@
         }
 
         history.push(result);
-        lastPred = csPrediction(history);
+
+        if (simProfit <= stopLossLevel) {
+          stopHit = true;
+          lastPred = { shouldBet: false, reason: `Session stop-loss hit at ${formatMoney(simProfit)}.` };
+        } else {
+          lastPred = csPrediction(history);
+        }
       }
 
       const hitRate = totalBets ? (wins / totalBets) * 100 : null;
@@ -1004,7 +1022,7 @@
       simWorstStreakEl.textContent = res.worstStreak;
       simProfitEl.textContent = formatMoney(res.profit);
       simNotesEl.textContent =
-        `Model: Callan–Symanzik style directional distances with opposite-pocket centre, volatility filter, and Martingale per number (base ${baseUnit}, doubles on each losing bet, resets after ${LOSS_RESET_MARTINGALE} consecutive losses).`;
+        `Model: Callan–Symanzik style directional distances with opposite-pocket centre, Martingale per number (base ${baseUnit}, doubles on loss, resets after ${LOSS_RESET_MARTINGALE} losses), and session stop-loss at ${STOP_LOSS_MULT}× base stake.`;
     }
 
     function clearSimulation() {
