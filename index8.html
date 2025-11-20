@@ -198,8 +198,8 @@
     <strong>Callan–Symanzik style directional distance model</strong>:
     <br />• Uses the last 3 distances in the upcoming direction,
     <br />• Computes drift β and curvature γ,
-    <br />• Predicts the next step as S₄ = S₃ + a(n)β + b(n)γ, where a and b depend on how much history we have in that direction,
-    <br />• <strong>No loss mode</strong> (no opposite side flipping blocks),
+    <br />• Predicts the next step as S₄ = S₃ + a(β,γ)β + b(β,γ)γ, where a and b depend on how “volatile” those steps are,
+    <br />• <strong>No loss mode</strong> blocks,
     <br />• Then flips the resulting centre to the opposite pocket on the wheel (18 pockets away),
     <br />• A <strong>Martingale</strong> on stake per number, resetting to base after 11 consecutive losses.
   </p>
@@ -478,29 +478,29 @@
       return sign + x.toFixed(2);
     }
 
-    // ---------- DYNAMIC COEFFICIENTS FOR CS MODEL ----------
+    // ---------- VOLATILITY-BASED COEFFICIENTS FOR CS MODEL ----------
 
-    // a(n) and b(n) depend on how many distances we have
-    // in this direction. With few points: more aggressive (higher a).
-    // With many points: more conservative (a down, b slightly up).
-    function computeCsCoefficients(nDistances) {
-      // we only call this when nDistances >= 3
-      const n = Math.max(3, Math.min(nDistances, 20)); // clamp 3..20
-      const t = n - 3;          // 0..17
-      const frac = t / 17;      // 0..1
+    // a(β,γ) and b(β,γ) depend on how “wild” the last three distances are.
+    // We use vol = |β| + |γ| and step through three regimes:
+    // - Low vol: push harder with drift/curvature
+    // - Medium vol: original 0.65 / 0.35
+    // - High vol: dampen the move
+    function computeCsCoefficients(beta, gamma) {
+      const vol = Math.abs(beta) + Math.abs(gamma);
 
-      const aStart = 0.85;
-      const aEnd   = 0.45;
-      const bStart = 0.15;
-      const bEnd   = 0.25;
-
-      const a = aStart + (aEnd - aStart) * frac;
-      const b = bStart + (bEnd - bStart) * frac;
-
-      return { a, b };
+      if (vol <= 10) {
+        // stable pattern
+        return { a: 0.75, b: 0.40 };
+      } else if (vol <= 20) {
+        // “normal” volatility
+        return { a: 0.65, b: 0.35 };
+      } else {
+        // choppy, big swings
+        return { a: 0.50, b: 0.25 };
+      }
     }
 
-    // ---------- CALLAN–SYMANSIK STYLE PREDICTOR (WITH OPPOSITE NUMBER + DYNAMIC COEFFS) ----------
+    // ---------- CALLAN–SYMANSIK STYLE PREDICTOR (WITH OPPOSITE NUMBER + VOLATILITY COEFFS) ----------
 
     function csPrediction(spins) {
       if (spins.length < 4) {
@@ -544,8 +544,8 @@
       const beta = S3 - S2;
       const gamma = (S3 - S2) - (S2 - S1);
 
-      // Dynamic coefficients based on how many distances we have
-      const { a, b } = computeCsCoefficients(dirDistances.length);
+      // Volatility-based coefficients
+      const { a, b } = computeCsCoefficients(beta, gamma);
 
       // Predict next step
       let S4 = S3 + a * beta + b * gamma;
@@ -570,7 +570,7 @@
         centreNum,
         neighbours,
         dominantStep: S4,
-        reason: `CS flow with dynamic coefficients a(n), b(n) based on ${dirDistances.length} distances, then flipped to the opposite side of the wheel (18 pockets).`,
+        reason: `CS flow with volatility-based coefficients a(β,γ), b(β,γ) (vol = |β|+|γ|), then flipped to the opposite side of the wheel (18 pockets).`,
         debug: {
           upcomingDir,
           S1, S2, S3,
@@ -1018,7 +1018,7 @@
       simWorstStreakEl.textContent = res.worstStreak;
       simProfitEl.textContent = formatMoney(res.profit);
       simNotesEl.textContent =
-        `Model: Callan–Symanzik style directional distances with dynamic coefficients + opposite-wheel correction + Martingale per number (base ${baseUnit}, doubles on each losing bet, resets after ${LOSS_RESET_MARTINGALE} consecutive losses).`;
+        `Model: Callan–Symanzik directional distances with volatility-based coefficients + opposite-wheel correction + Martingale per number (base ${baseUnit}, doubles on each losing bet, resets after ${LOSS_RESET_MARTINGALE} consecutive losses).`;
     }
 
     function clearSimulation() {
