@@ -198,10 +198,9 @@
     <strong>Callan–Symanzik style directional distance model</strong>:
     <br />• Uses the last 3 distances in the upcoming direction,
     <br />• Computes drift β and curvature γ,
-    <br />• Predicts the next step as S₄ = S₃ + a·β + b·γ,
-    <br />• <strong>a and b scale with how many past distances we have in that direction</strong>
-    (more history ⇒ more aggressive),
-    <br />• No loss mode blocks; then flipped to the opposite pocket on the wheel (18 pockets),
+    <br />• Predicts S₄ = S₃ + a·β + b·γ,
+    <br />• a,b grow as we accumulate more distances in that direction,
+    <br />• Then flips the base prediction to the <strong>opposite pocket on the wheel</strong> (18 pockets away),
     <br />• A <strong>Martingale</strong> on stake per number, resetting to base after 11 consecutive losses.
   </p>
 
@@ -478,7 +477,7 @@
       return sign + x.toFixed(2);
     }
 
-    // ---------- CALLAN–SYMANZIK STYLE PREDICTOR (OPPOSITE WHEEL + HISTORY-BASED a,b) ----------
+    // ---------- CS-STYLE PREDICTOR (OPPOSITE WHEEL + HISTORY-BASED a,b) ----------
 
     function csPrediction(spins) {
       if (spins.length < 4) {
@@ -529,10 +528,10 @@
       const nDir = dirDistances.length;
       let scale;
 
-      // Simple scaling:
-      // - 3–5 distances: scale ~0.5 (conservative)
-      // - 6–15 distances: smoothly ramp from 0.5 -> 1.2
-      // - >15 distances: cap at 1.2 (more aggressive)
+      // History-based scaling:
+      // 3–5 distances: conservative
+      // 6–15: ramp up
+      // >15: capped at 1.2
       if (nDir <= 5) {
         scale = 0.5;
       } else if (nDir <= 15) {
@@ -558,7 +557,7 @@
         baseCentreIdx = (idxLast - S4 + 37) % 37;
       }
 
-      // Flip to the exact opposite pocket on the wheel
+      // Flip to the exact opposite pocket on the wheel (18 pockets)
       const oppositeIdx = (baseCentreIdx + 18) % 37;
       const centreNum = WHEEL_ORDER[oppositeIdx];
       const neighbours = neighboursForCentre(centreNum);
@@ -568,7 +567,7 @@
         centreNum,
         neighbours,
         dominantStep: S4,
-        reason: `CS flow with history-scaled coefficients (a,b grow with number of past distances in ${upcomingDir}), then flipped to opposite side (18 pockets).`,
+        reason: `CS flow with history-scaled coefficients in ${upcomingDir}, then flipped 18 pockets to the opposite side.`,
         debug: {
           upcomingDir,
           S1, S2, S3,
@@ -1019,7 +1018,7 @@
       simWorstStreakEl.textContent = res.worstStreak;
       simProfitEl.textContent = formatMoney(res.profit);
       simNotesEl.textContent =
-        `Model D: CS directional distances with history-scaled coefficients + opposite-wheel correction + Martingale per number (base ${baseUnit}, doubles on each losing bet, resets after ${LOSS_RESET_MARTINGALE} consecutive losses).`;
+        `Model D (opposite): CS directional distances with history-scaled coefficients + opposite-pocket correction + Martingale per number (base ${baseUnit}, doubles on each losing bet, resets after ${LOSS_RESET_MARTINGALE} consecutive losses).`;
     }
 
     function clearSimulation() {
