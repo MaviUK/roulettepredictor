@@ -198,9 +198,9 @@
     <strong>Callan–Symanzik style directional distance model</strong>:
     <br />• Uses the last 3 distances in the upcoming direction,
     <br />• Computes drift β and curvature γ,
-    <br />• Predicts the next step as S₄ = S₃ + a(β,γ)β + b(β,γ)γ, where a and b depend on how “volatile” those steps are,
-    <br />• <strong>No loss mode</strong> blocks,
-    <br />• Then flips the resulting centre to the opposite pocket on the wheel (18 pockets away),
+    <br />• Predicts the next step as S₄ = S₃ + a·β + b·γ,
+    <br />• <strong>a, b adapt based on recent hit/miss performance of the model</strong>,
+    <br />• No block-based loss mode; then flips the resulting centre to the opposite pocket on the wheel (18 pockets),
     <br />• A <strong>Martingale</strong> on stake per number, resetting to base after 11 consecutive losses.
   </p>
 
@@ -408,7 +408,6 @@
     WHEEL_ORDER.forEach((n, i) => { INDEX_OF[n] = i; });
 
     const HALF_SECTOR = 8;              // neighbours each side (17 numbers total)
-    const MAX_DIR_DISTANCES = 5;        // not used directly, kept for compatibility
     const LOSS_RESET_MARTINGALE = 11;   // reset stake after 11 consecutive losing bets
 
     // ---------- UTILITIES ----------
@@ -478,31 +477,53 @@
       return sign + x.toFixed(2);
     }
 
-    // ---------- VOLATILITY-BASED COEFFICIENTS FOR CS MODEL ----------
+    // ---------- PERFORMANCE-AWARE COEFFICIENTS (MODEL C) ----------
 
-    // a(β,γ) and b(β,γ) depend on how “wild” the last three distances are.
-    // We use vol = |β| + |γ| and step through three regimes:
-    // - Low vol: push harder with drift/curvature
-    // - Medium vol: original 0.65 / 0.35
-    // - High vol: dampen the move
-    function computeCsCoefficients(beta, gamma) {
-      const vol = Math.abs(beta) + Math.abs(gamma);
+    // recentOutcomes: array of booleans (true = hit, false = miss) for previous bets of THIS model.
+    // We look at a short window of recent performance and move a, b accordingly.
+    function computeCsCoefficients(beta, gamma, recentOutcomes) {
+      // default neutral coefficients
+      let a = 0.65;
+      let b = 0.35;
 
-      if (vol <= 10) {
-        // stable pattern
-        return { a: 0.75, b: 0.40 };
-      } else if (vol <= 20) {
-        // “normal” volatility
-        return { a: 0.65, b: 0.35 };
-      } else {
-        // choppy, big swings
-        return { a: 0.50, b: 0.25 };
+      if (!recentOutcomes || recentOutcomes.length === 0) {
+        return { a, b, winRate: null, losingStreak: 0 };
       }
+
+      const window = recentOutcomes.slice(-20); // last up to 20 bets
+      const wins = window.reduce((acc, x) => acc + (x ? 1 : 0), 0);
+      const winRate = wins / window.length;
+
+      let losingStreak = 0;
+      for (let i = window.length - 1; i >= 0; i--) {
+        if (!window[i]) losingStreak++;
+        else break;
+      }
+
+      // Simple regime logic:
+      // - If model is hot (winRate high AND no big recent losing streak) -> be more aggressive.
+      // - If model is cold (winRate low OR big recent losing streak) -> be conservative.
+      if (winRate >= 0.60 && losingStreak <= 2) {
+        // hot run
+        a = 0.80;
+        b = 0.45;
+      } else if (winRate <= 0.40 || losingStreak >= 6) {
+        // cold / struggling
+        a = 0.50;
+        b = 0.25;
+      } else {
+        // middle ground
+        a = 0.65;
+        b = 0.35;
+      }
+
+      return { a, b, winRate, losingStreak };
     }
 
-    // ---------- CALLAN–SYMANSIK STYLE PREDICTOR (WITH OPPOSITE NUMBER + VOLATILITY COEFFS) ----------
+    // ---------- CALLAN–SYMANZIK STYLE PREDICTOR (OPPOSITE WHEEL + PERFORMANCE-BASED a,b) ----------
 
-    function csPrediction(spins) {
+    // recentOutcomes is optional (can be undefined/empty for early spins)
+    function csPrediction(spins, recentOutcomes) {
       if (spins.length < 4) {
         return {
           shouldBet: false,
@@ -544,8 +565,8 @@
       const beta = S3 - S2;
       const gamma = (S3 - S2) - (S2 - S1);
 
-      // Volatility-based coefficients
-      const { a, b } = computeCsCoefficients(beta, gamma);
+      // Performance-aware coefficients
+      const { a, b, winRate, losingStreak } = computeCsCoefficients(beta, gamma, recentOutcomes);
 
       // Predict next step
       let S4 = S3 + a * beta + b * gamma;
@@ -560,7 +581,7 @@
         baseCentreIdx = (idxLast - S4 + 37) % 37;
       }
 
-      // Flip to the exact opposite pocket on the wheel (18 pockets away)
+      // Flip to the exact opposite pocket on the wheel
       const oppositeIdx = (baseCentreIdx + 18) % 37;
       const centreNum = WHEEL_ORDER[oppositeIdx];
       const neighbours = neighboursForCentre(centreNum);
@@ -570,7 +591,7 @@
         centreNum,
         neighbours,
         dominantStep: S4,
-        reason: `CS flow with volatility-based coefficients a(β,γ), b(β,γ) (vol = |β|+|γ|), then flipped to the opposite side of the wheel (18 pockets).`,
+        reason: `CS flow with performance-aware coefficients (a,b) based on recent model hit/miss, then flipped to the opposite side of the wheel (18 pockets).`,
         debug: {
           upcomingDir,
           S1, S2, S3,
@@ -578,7 +599,9 @@
           S4,
           baseCentreIdx,
           oppositeIdx,
-          a, b
+          a, b,
+          winRate,
+          losingStreak
         }
       };
     }
@@ -596,6 +619,9 @@
     let liveProfit = 0;                  // total P&L
     let liveStakePerNumber = null;       // current stake per number
     let liveMartingaleLossCount = 0;     // consecutive losing bets for stake reset
+
+    // Track recent model performance (true = hit, false = miss) in live mode
+    let liveRecentOutcomes = [];
 
     const spinInput = document.getElementById("spinInput");
     const addSpinBtn = document.getElementById("addSpinBtn");
@@ -710,6 +736,13 @@
       }
     }
 
+    function pushLiveOutcome(hit) {
+      liveRecentOutcomes.push(!!hit);
+      if (liveRecentOutcomes.length > 100) {
+        liveRecentOutcomes.shift(); // cap history
+      }
+    }
+
     function onAddSpin() {
       const v = parseInt(spinInput.value, 10);
       if (isNaN(v) || v < 0 || v > 36) {
@@ -739,6 +772,8 @@
           liveCurrentLosingStreak = 0;
           liveMartingaleLossCount = 0;
           liveStakePerNumber = baseUnit; // reset on win
+
+          pushLiveOutcome(true);
         } else {
           liveLosses++;
           liveCurrentLosingStreak++;
@@ -760,6 +795,8 @@
             // double per-number stake for next bet
             liveStakePerNumber = stakePerNumberNow * 2;
           }
+
+          pushLiveOutcome(false);
         }
         updateStatsUI();
       }
@@ -768,8 +805,8 @@
       spinInput.value = "";
       updateHistoryUI();
 
-      // Compute new prediction for NEXT spin
-      const pred = csPrediction(spinsLive);
+      // Compute new prediction for NEXT spin, using performance history
+      const pred = csPrediction(spinsLive, liveRecentOutcomes);
       lastPrediction = pred;
       renderRecommendation(pred);
     }
@@ -785,6 +822,7 @@
       liveProfit = 0;
       liveStakePerNumber = null;
       liveMartingaleLossCount = 0;
+      liveRecentOutcomes = [];
       updateHistoryUI();
       updateStatsUI();
       renderRecommendation(null);
@@ -840,6 +878,7 @@
       liveProfit = 0;
       liveStakePerNumber = null;
       liveMartingaleLossCount = 0;
+      liveRecentOutcomes = [];
 
       let history = [];
       let lastPredLocal = null;
@@ -867,6 +906,8 @@
             liveCurrentLosingStreak = 0;
             liveMartingaleLossCount = 0;
             liveStakePerNumber = baseUnit;
+
+            liveRecentOutcomes.push(true);
           } else {
             liveLosses++;
             liveCurrentLosingStreak++;
@@ -882,12 +923,18 @@
             } else {
               liveStakePerNumber = stakePerNumberNow * 2;
             }
+
+            liveRecentOutcomes.push(false);
+          }
+
+          if (liveRecentOutcomes.length > 100) {
+            liveRecentOutcomes.shift();
           }
         }
 
         history.push(result);
         spinsLive.push(result);
-        lastPredLocal = csPrediction(history);
+        lastPredLocal = csPrediction(history, liveRecentOutcomes);
       }
 
       lastPrediction = lastPredLocal;
@@ -919,6 +966,9 @@
       let history = [];
       let lastPred = null;
 
+      // separate performance history for this simulation run
+      let recentOutcomes = [];
+
       for (let i = 0; i < spins.length; i++) {
         const result = spins[i];
 
@@ -941,6 +991,8 @@
             currentStreak = 0;
             martingaleLossCount = 0;
             stakePerNumber = baseUnit;
+
+            recentOutcomes.push(true);
           } else {
             losses++;
             currentStreak++;
@@ -955,12 +1007,18 @@
             } else {
               stakePerNumber = stakeNow * 2;
             }
+
+            recentOutcomes.push(false);
+          }
+
+          if (recentOutcomes.length > 100) {
+            recentOutcomes.shift();
           }
         }
 
         history.push(result);
-        // compute new prediction for next spin
-        lastPred = csPrediction(history);
+        // compute new prediction for next spin using this sim's recentOutcomes
+        lastPred = csPrediction(history, recentOutcomes);
       }
 
       const hitRate = totalBets ? (wins / totalBets) * 100 : null;
@@ -1018,7 +1076,7 @@
       simWorstStreakEl.textContent = res.worstStreak;
       simProfitEl.textContent = formatMoney(res.profit);
       simNotesEl.textContent =
-        `Model: Callan–Symanzik directional distances with volatility-based coefficients + opposite-wheel correction + Martingale per number (base ${baseUnit}, doubles on each losing bet, resets after ${LOSS_RESET_MARTINGALE} consecutive losses).`;
+        `Model: Callan–Symanzik directional distances with performance-aware coefficients + opposite-wheel correction + Martingale per number (base ${baseUnit}, doubles on each losing bet, resets after ${LOSS_RESET_MARTINGALE} consecutive losses).`;
     }
 
     function clearSimulation() {
