@@ -477,80 +477,89 @@
       return sign + x.toFixed(2);
     }
 
-    // ---------- CALLAN–SYMANSIK STYLE PREDICTOR (NO LOSS MODE) ----------
+ // ---------- CALLAN–SYMANSIK STYLE PREDICTOR (NOW USING OPPOSITE NUMBER) ----------
 
-    function csPrediction(spins) {
-      if (spins.length < 4) {
-        return {
-          shouldBet: false,
-          reason: "Need at least 4 spins for the CS flow model.",
-          debug: null
-        };
-      }
+function csPrediction(spins) {
+  if (spins.length < 4) {
+    return {
+      shouldBet: false,
+      reason: "Need at least 4 spins for the CS flow model.",
+      debug: null
+    };
+  }
 
-      const lastNum = spins[spins.length - 1];
-      const idxLast = INDEX_OF[lastNum];
-      if (idxLast === undefined) {
-        return { shouldBet: false, reason: "Last number not on wheel", debug: null };
-      }
+  const lastNum = spins[spins.length - 1];
+  const idxLast = INDEX_OF[lastNum];
+  if (idxLast === undefined) {
+    return { shouldBet: false, reason: "Last number not on wheel", debug: null };
+  }
 
-      const distances = buildDirectionalDistances(spins);
+  const distances = buildDirectionalDistances(spins);
 
-      // Direction of upcoming spin
-      const nextIndex = spins.length; // 0-based index of next spin
-      const upcomingDir = directionForIndex(nextIndex);
+  // Direction of upcoming spin
+  const nextIndex = spins.length; // 0-based index of next spin
+  const upcomingDir = directionForIndex(nextIndex);
 
-      const dirDistances = distances
-        .filter(d => d.dir === upcomingDir)
-        .map(d => d.dist);
+  const dirDistances = distances
+    .filter(d => d.dir === upcomingDir)
+    .map(d => d.dist);
 
-      if (dirDistances.length < 3) {
-        return {
-          shouldBet: false,
-          reason: `Need at least 3 distances in ${upcomingDir} direction (have ${dirDistances.length})`,
-          debug: { upcomingDir, dirDistances }
-        };
-      }
+  if (dirDistances.length < 3) {
+    return {
+      shouldBet: false,
+      reason: `Need at least 3 distances in ${upcomingDir} direction (have ${dirDistances.length})`,
+      debug: { upcomingDir, dirDistances }
+    };
+  }
 
-      // Last three distances in that direction
-      const S1 = dirDistances[dirDistances.length - 3];
-      const S2 = dirDistances[dirDistances.length - 2];
-      const S3 = dirDistances[dirDistances.length - 1];
+  // Last three distances in that direction
+  const S1 = dirDistances[dirDistances.length - 3];
+  const S2 = dirDistances[dirDistances.length - 2];
+  const S3 = dirDistances[dirDistances.length - 1];
 
-      // Drift & curvature
-      const beta = S3 - S2;
-      const gamma = (S3 - S2) - (S2 - S1);
+  // Drift & curvature
+  const beta = S3 - S2;
+  const gamma = (S3 - S2) - (S2 - S1);
 
-      // Tuned coefficients
-      const a = 0.65;
-      const b = 0.35;
+  // Tuned coefficients (same as before)
+  const a = 0.65;
+  const b = 0.35;
 
-      // Predict next step
-      let S4 = S3 + a * beta + b * gamma;
+  // Predict next step
+  let S4 = S3 + a * beta + b * gamma;
+  S4 = Math.round(S4) % 37;
+  if (S4 < 0) S4 += 37;
 
-      S4 = Math.round(S4) % 37;
-      if (S4 < 0) S4 += 37;
+  // First: base centre index from direction + S4
+  let baseCentreIdx;
+  if (upcomingDir === "CW") {
+    baseCentreIdx = (idxLast + S4) % 37;
+  } else {
+    baseCentreIdx = (idxLast - S4 + 37) % 37;
+  }
 
-      // Convert step to index
-      let centreIdx;
-      if (upcomingDir === "CW") {
-        centreIdx = (idxLast + S4) % 37;
-      } else {
-        centreIdx = (idxLast - S4 + 37) % 37;
-      }
+  // NOW: flip to the exact opposite pocket on the wheel
+  const oppositeIdx = (baseCentreIdx + 18) % 37;
+  const centreNum = WHEEL_ORDER[oppositeIdx];
+  const neighbours = neighboursForCentre(centreNum);
 
-      const centreNum = WHEEL_ORDER[centreIdx];
-      const neighbours = neighboursForCentre(centreNum);
-
-      return {
-        shouldBet: true,
-        centreNum,
-        neighbours,
-        dominantStep: S4,
-        reason: `CS flow: using last 3 ${upcomingDir} distances with S4 = S3 + ${a}β + ${b}γ (no loss mode).`,
-        debug: { S1, S2, S3, beta, gamma, S4 }
-      };
+  return {
+    shouldBet: true,
+    centreNum,
+    neighbours,
+    dominantStep: S4,
+    reason: `CS flow (S4 = S3 + ${a}β + ${b}γ), then flipped to the opposite side of the wheel (18 pockets).`,
+    debug: {
+      upcomingDir,
+      S1, S2, S3,
+      beta, gamma,
+      S4,
+      baseCentreIdx,
+      oppositeIdx
     }
+  };
+}
+
 
     // ---------- LIVE UI LOGIC + MARTINGALE ----------
 
