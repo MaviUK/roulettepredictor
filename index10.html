@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Roulette Directional Distance Predictor – Model A</title>
+  <title>Roulette Directional Distance Predictor</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
     * { box-sizing: border-box; }
@@ -191,15 +191,16 @@
 </head>
 <body>
 
-  <h1>Roulette Directional Distance Predictor – Model A</h1>
+  <h1>Roulette Directional Distance Predictor</h1>
   <p class="small">
     Spins are assumed to <strong>alternate direction</strong> (CW, CCW, CW, CCW, ...). For each spin it records the
     <strong>wheel distance</strong> travelled in that spin's direction. To predict the next spin, it uses a
     <strong>Callan–Symanzik style directional distance model</strong>:
     <br />• Uses the last 3 distances in the upcoming direction,
     <br />• Computes drift β and curvature γ,
-    <br />• Predicts S₄ = S₃ + a·β + b·γ with <strong>fixed</strong> a = 0.65, b = 0.35,
-    <br />• No opposite-side flip (direct prediction),
+    <br />• Predicts S₄ = S₃ + a·β + b·γ,
+    <br />• a,b adapt based on how deep and stable the directional history is,
+    <br />• Then flips the base prediction to the <strong>opposite pocket on the wheel</strong> (18 pockets away),
     <br />• A <strong>Martingale</strong> on stake per number, resetting to base after 11 consecutive losses.
   </p>
 
@@ -482,7 +483,35 @@
       return sign + x.toFixed(2);
     }
 
-    // ---------- MODEL A: CS FLOW WITH FIXED COEFFICIENTS (NO OPPOSITE FLIP) ----------
+    // ---------- ADAPTIVE COEFFICIENT HELPER (USED BY MODEL A & B STYLE) ----------
+
+    function getAdaptiveCoeffs(dirDistances, baseA, baseB) {
+      const nDir = dirDistances.length;
+      const nClamped = Math.max(3, Math.min(nDir, 40));
+      const depthScore = (nClamped - 3) / (40 - 3); // 0..1
+
+      const k = Math.min(8, nDir);
+      const recent = dirDistances.slice(-k);
+      const mean = recent.reduce((sum, x) => sum + x, 0) / k;
+      const variance = recent.reduce((sum, x) => {
+        const d = x - mean;
+        return sum + d * d;
+      }, 0) / k;
+
+      const normVar = Math.min(variance / 50, 1); // rough scaling
+      const stability = 1 - normVar;              // 0..1 (1 = very stable)
+
+      const trust = 0.5 * depthScore + 0.5 * stability; // 0..1
+
+      const maxShift = 0.12;
+      const a = baseA - maxShift * trust; // reduce drift when trust high
+      const b = baseB + maxShift * trust; // increase curvature when trust high
+
+      return { a, b };
+    }
+
+    // ---------- MODEL A: ADAPTIVE CS FLOW + OPPOSITE POCKET ----------
+
     function csPrediction(spins) {
       if (spins.length < 4) {
         return {
@@ -525,25 +554,25 @@
       const beta  = S3 - S2;
       const gamma = (S3 - S2) - (S2 - S1);
 
-      // Fixed coefficients for Model A
-      const a = 0.65;
-      const b = 0.35;
+      // Adaptive coefficients for Model A (base 0.65 / 0.35)
+      const { a, b } = getAdaptiveCoeffs(dirDistances, 0.65, 0.35);
 
       // Predict next step
       let S4 = S3 + a * beta + b * gamma;
       S4 = Math.round(S4) % 37;
       if (S4 < 0) S4 += 37;
 
-      // Convert S4 into a wheel index (NO OPPOSITE FLIP)
-      let centreIdx;
+      // Base centre in wheel coordinates
+      let baseCentreIdx;
       if (upcomingDir === "CW") {
-        centreIdx = (idxLast + S4) % 37;
+        baseCentreIdx = (idxLast + S4) % 37;
       } else {
-        centreIdx = (idxLast - S4 + 37) % 37;
+        baseCentreIdx = (idxLast - S4 + 37) % 37;
       }
 
-      // Direct centre number
-      const centreNum = WHEEL_ORDER[centreIdx];
+      // Flip to the opposite pocket
+      const oppositeIdx = (baseCentreIdx + 18) % 37;
+      const centreNum = WHEEL_ORDER[oppositeIdx];
       const neighbours = neighboursForCentre(centreNum);
 
       return {
@@ -551,15 +580,17 @@
         centreNum,
         neighbours,
         dominantStep: S4,
-        reason: `Model A (direct): S4 = S3 + aβ + bγ with fixed a=${a}, b=${b}.`,
+        reason: `Model A (opposite): S4 = S3 + aβ + bγ with a=${a.toFixed(2)}, b=${b.toFixed(2)}, then flipped 18 pockets.`,
         debug: {
           upcomingDir,
           S1, S2, S3,
           beta, gamma,
           S4,
-          centreIdx,
+          baseCentreIdx,
+          oppositeIdx,
           centreNum,
-          a, b
+          a, b,
+          nDir: dirDistances.length
         }
       };
     }
@@ -711,7 +742,6 @@
 
         const hit = neighbours.includes(v);
         if (hit) {
-          // roulette: 35:1 payout => return 36x stake on the winning number
           const winReturn = stakePerNumberNow * 36;
           const profit = winReturn - totalStake;
           liveProfit += profit;
@@ -727,18 +757,14 @@
             liveWorstStreak = liveCurrentLosingStreak;
           }
 
-          // lose stake
           liveProfit -= totalStake;
 
-          // martingale loss tracking
           liveMartingaleLossCount += 1;
 
           if (liveMartingaleLossCount >= LOSS_RESET_MARTINGALE) {
-            // reset stake after 11 consecutive losses
             liveStakePerNumber = baseUnit;
             liveMartingaleLossCount = 0;
           } else {
-            // double per-number stake for next bet
             liveStakePerNumber = stakePerNumberNow * 2;
           }
         }
@@ -1011,7 +1037,7 @@
       simWorstStreakEl.textContent = res.worstStreak;
       simProfitEl.textContent = formatMoney(res.profit);
       simNotesEl.textContent =
-        `Model A (direct): CS directional distances with fixed coefficients a=0.65, b=0.35 (no opposite flip) + Martingale per number (base ${baseUnit}, doubles on each losing bet, resets after ${LOSS_RESET_MARTINGALE} consecutive losses).`;
+        `Model A (opposite): CS directional distances with adaptive coefficients (base a=0.65,b=0.35, opposite-pocket flip) + Martingale per number (base ${baseUnit}, doubles on each losing bet, resets after ${LOSS_RESET_MARTINGALE} consecutive losses).`;
     }
 
     function clearSimulation() {
