@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Roulette Directional Distance Predictor – Model B</title>
+  <title>Roulette Directional Distance Predictor</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
     * { box-sizing: border-box; }
@@ -191,16 +191,15 @@
 </head>
 <body>
 
-  <h1>Roulette Directional Distance Predictor – Model B</h1>
+  <h1>Roulette Directional Distance Predictor</h1>
   <p class="small">
     Spins are assumed to <strong>alternate direction</strong> (CW, CCW, CW, CCW, ...). For each spin it records the
-    <strong>wheel distance</strong> travelled in that spin's direction. To predict the next spin, this
-    <strong>Model B (volatility-aware CS-style)</strong>:
+    <strong>wheel distance</strong> travelled in that spin's direction. To predict the next spin, it uses a
+    <strong>Callan–Symanzik style directional distance model</strong>:
     <br />• Uses the last 3 distances in the upcoming direction,
     <br />• Computes drift β and curvature γ,
-    <br />• Looks at volatility (stdev) of the last up to 5 distances in that direction,
-    <br />• Predicts the next step as S₄ = S₃ + a·β + b·γ where a,b depend on volatility,
-    <br />• <strong>No opposite-wheel flip</strong> (we bet around the direct prediction),
+    <br />• Predicts S₄ = S₃ + a·β + b·γ,
+    <br />• a,b grow as we accumulate more distances in that direction,
     <br />• A <strong>Martingale</strong> on stake per number, resetting to base after 11 consecutive losses.
   </p>
 
@@ -373,6 +372,8 @@
                 <th>Hit %</th>
                 <th>Worst Losing Streak</th>
                 <th>P&amp;L</th>
+                <th>Last Bet</th>
+                <th>Last Bet P&amp;L</th>
               </tr>
             </thead>
             <tbody id="dayCsvTbody"></tbody>
@@ -386,10 +387,13 @@
                 <td id="totalHitRateCell"></td>
                 <td id="totalWorstStreakCell"></td>
                 <td id="totalProfitCell"></td>
+                <td></td>
+                <td></td>
               </tr>
             </tfoot>
           </table>
-          <div id="dayCsvSummary" class="small" style="margin-top:0.6rem;"></div>
+          <!-- Overall day analysis summary -->
+          <div id="dayCsvSummary" class="small" style="margin-top:0.75rem;"></div>
         </div>
       </div>
     </div>
@@ -478,45 +482,12 @@
       return sign + x.toFixed(2);
     }
 
-    function mean(arr) {
-      if (!arr.length) return 0;
-      let s = 0;
-      for (let v of arr) s += v;
-      return s / arr.length;
-    }
-
-    function stdev(arr) {
-      if (arr.length <= 1) return 0;
-      const m = mean(arr);
-      let ss = 0;
-      for (let v of arr) {
-        const d = v - m;
-        ss += d * d;
-      }
-      return Math.sqrt(ss / (arr.length - 1));
-    }
-
-    // ---------- MODEL B: VOLATILITY-AWARE CS-STYLE, NO OPPOSITE ----------
-
-    function getVolatilityCoefficients(vol) {
-      // vol = stdev of last up to 5 distances in this direction
-      // Stable (small vol): lean harder into β, γ.
-      // Medium: moderate weights.
-      // Very noisy: damp everything (closer to S3).
-      if (vol <= 3) {
-        return { a: 0.85, b: 0.45 };
-      } else if (vol <= 7) {
-        return { a: 0.65, b: 0.30 };
-      } else {
-        return { a: 0.40, b: 0.15 };
-      }
-    }
-
-    function modelBPrediction(spins) {
+    // ---------- MODEL D: PURE CALLAN–SYMANSIK FLOW (NO OPPOSITE FLIP) ----------
+    function csPrediction(spins) {
       if (spins.length < 4) {
         return {
           shouldBet: false,
-          reason: "Need at least 4 spins for Model B.",
+          reason: "Need at least 4 spins for the CS flow model.",
           debug: null
         };
       }
@@ -529,44 +500,45 @@
 
       const distances = buildDirectionalDistances(spins);
 
-      // Direction of upcoming spin
-      const nextIndex = spins.length; // 0-based index of next spin
+      // Direction of the upcoming spin
+      const nextIndex = spins.length;
       const upcomingDir = directionForIndex(nextIndex);
 
       const dirDistances = distances
         .filter(d => d.dir === upcomingDir)
         .map(d => d.dist);
 
-      const nDir = dirDistances.length;
-      if (nDir < 3) {
+      if (dirDistances.length < 3) {
         return {
           shouldBet: false,
-          reason: `Need at least 3 distances in ${upcomingDir} direction (have ${nDir})`,
+          reason: `Need at least 3 distances in ${upcomingDir} direction (have ${dirDistances.length})`,
           debug: { upcomingDir, dirDistances }
         };
       }
 
-      // Last three distances in that direction
-      const S1 = dirDistances[nDir - 3];
-      const S2 = dirDistances[nDir - 2];
-      const S3 = dirDistances[nDir - 1];
+      // Last three distances
+      const S1 = dirDistances[dirDistances.length - 3];
+      const S2 = dirDistances[dirDistances.length - 2];
+      const S3 = dirDistances[dirDistances.length - 1];
 
-      // Drift & curvature
-      const beta = S3 - S2;
+      // CS drift and curvature
+      const beta  = S3 - S2;
       const gamma = (S3 - S2) - (S2 - S1);
 
-      // Volatility of last up to 5 distances in this direction
-      const lastK = dirDistances.slice(-5);
-      const vol = stdev(lastK);
+      // Dynamic coefficients based on available directional history
+      const nDir = dirDistances.length;
+      const nClamped = Math.max(3, Math.min(nDir, 20));
+      const t = (nClamped - 3) / (20 - 3);
 
-      const { a, b } = getVolatilityCoefficients(vol);
+      const a = 0.75 - 0.15 * t;   // drift weight
+      const b = 0.25 + 0.15 * t;   // curvature weight
 
       // Predict next step
       let S4 = S3 + a * beta + b * gamma;
       S4 = Math.round(S4) % 37;
       if (S4 < 0) S4 += 37;
 
-      // Centre index from direction + S4 (NO opposite flip here)
+      // Convert S4 into a wheel index (NO OPPOSITE FLIP)
       let centreIdx;
       if (upcomingDir === "CW") {
         centreIdx = (idxLast + S4) % 37;
@@ -574,6 +546,7 @@
         centreIdx = (idxLast - S4 + 37) % 37;
       }
 
+      // Direct centre number
       const centreNum = WHEEL_ORDER[centreIdx];
       const neighbours = neighboursForCentre(centreNum);
 
@@ -582,16 +555,16 @@
         centreNum,
         neighbours,
         dominantStep: S4,
-        reason: `Model B (volatility-aware CS): used ${nDir} distances in ${upcomingDir}, vol=${vol.toFixed(2)}, a=${a.toFixed(2)}, b=${b.toFixed(2)}.`,
+        reason: `CS flow (direct mode): S4 = S3 + aβ + bγ with a=${a.toFixed(2)}, b=${b.toFixed(2)}.`,
         debug: {
           upcomingDir,
-          nDir,
-          lastK,
-          vol,
           S1, S2, S3,
           beta, gamma,
           S4,
-          centreIdx
+          centreIdx,
+          centreNum,
+          a, b,
+          nDir
         }
       };
     }
@@ -782,7 +755,7 @@
       updateHistoryUI();
 
       // Compute new prediction for NEXT spin
-      const pred = modelBPrediction(spinsLive);
+      const pred = csPrediction(spinsLive);
       lastPrediction = pred;
       renderRecommendation(pred);
     }
@@ -900,7 +873,7 @@
 
         history.push(result);
         spinsLive.push(result);
-        lastPredLocal = modelBPrediction(history);
+        lastPredLocal = csPrediction(history);
       }
 
       lastPrediction = lastPredLocal;
@@ -929,6 +902,9 @@
       let stakePerNumber = null;
       let martingaleLossCount = 0;
 
+      let lastBetResult = "No Bet";
+      let lastBetPnL = 0;
+
       let history = [];
       let lastPred = null;
 
@@ -954,12 +930,16 @@
             currentStreak = 0;
             martingaleLossCount = 0;
             stakePerNumber = baseUnit;
+
+            lastBetResult = "Win";
+            lastBetPnL = profit;
           } else {
+            const profit = -totalStake;
+            simProfit += profit;
+
             losses++;
             currentStreak++;
             if (currentStreak > worstStreak) worstStreak = currentStreak;
-
-            simProfit -= totalStake;
 
             martingaleLossCount += 1;
             if (martingaleLossCount >= LOSS_RESET_MARTINGALE) {
@@ -968,12 +948,15 @@
             } else {
               stakePerNumber = stakeNow * 2;
             }
+
+            lastBetResult = "Loss";
+            lastBetPnL = profit;
           }
         }
 
         history.push(result);
         // compute new prediction for next spin
-        lastPred = modelBPrediction(history);
+        lastPred = csPrediction(history);
       }
 
       const hitRate = totalBets ? (wins / totalBets) * 100 : null;
@@ -985,7 +968,9 @@
         losses,
         hitRate,
         worstStreak,
-        profit: simProfit
+        profit: simProfit,
+        lastBetResult,
+        lastBetPnL
       };
     }
 
@@ -1031,7 +1016,7 @@
       simWorstStreakEl.textContent = res.worstStreak;
       simProfitEl.textContent = formatMoney(res.profit);
       simNotesEl.textContent =
-        `Model B: volatility-aware CS-style distances (no opposite flip) + Martingale per number (base ${baseUnit}, doubles on each losing bet, resets after ${LOSS_RESET_MARTINGALE} consecutive losses).`;
+        `Model D (direct): CS directional distances with history-scaled coefficients (no opposite flip) + Martingale per number (base ${baseUnit}, doubles on each losing bet, resets after ${LOSS_RESET_MARTINGALE} consecutive losses).`;
     }
 
     function clearSimulation() {
@@ -1108,8 +1093,7 @@
         let totalWorstStreak = 0;
 
         const baseUnit = getBaseUnit();
-
-        const dayStats = []; // for per-day P&L and streaks
+        const dayStats = [];
 
         colsSpins.forEach((spins, colIdx) => {
           if (spins.length < 2) {
@@ -1128,10 +1112,10 @@
             totalWorstStreak = res.worstStreak;
           }
 
-          const tr = document.createElement("tr");
           const dayName = headers[colIdx] || `Day ${colIdx + 1}`;
           const hitStr = res.totalBets ? res.hitRate.toFixed(1) + "%" : "–";
 
+          const tr = document.createElement("tr");
           tr.innerHTML = `
             <td>${dayName}</td>
             <td>${res.spinsCount}</td>
@@ -1141,11 +1125,13 @@
             <td>${hitStr}</td>
             <td>${res.worstStreak}</td>
             <td>${formatMoney(res.profit)}</td>
+            <td>${res.lastBetResult}</td>
+            <td>${formatMoney(res.lastBetPnL)}</td>
           `;
           dayCsvTbody.appendChild(tr);
 
           dayStats.push({
-            name: dayName,
+            dayName,
             profit: res.profit
           });
         });
@@ -1163,48 +1149,49 @@
         totalWorstStreakCell.textContent = totalWorstStreak;
         totalProfitCell.textContent = formatMoney(totalProfit);
 
-        // Overall day-level analysis
+        // Overall day analysis
         if (dayStats.length > 0) {
+          const daysSimulated = dayStats.length;
           let winningDays = 0;
           let losingDays = 0;
           let flatDays = 0;
-          let maxDayProfit = -Infinity;
-          let minDayProfit = Infinity;
+          let longestLosingRun = 0;
+          let currentRun = 0;
+
+          let bestDay = dayStats[0];
+          let worstDay = dayStats[0];
 
           dayStats.forEach(d => {
-            if (d.profit > 0) winningDays++;
-            else if (d.profit < 0) losingDays++;
-            else flatDays++;
-
-            if (d.profit > maxDayProfit) maxDayProfit = d.profit;
-            if (d.profit < minDayProfit) minDayProfit = d.profit;
-          });
-
-          // Longest run of consecutive losing days
-          let currentLosingRun = 0;
-          let maxLosingRun = 0;
-          dayStats.forEach(d => {
-            if (d.profit < 0) {
-              currentLosingRun++;
-              if (currentLosingRun > maxLosingRun) maxLosingRun = currentLosingRun;
+            if (d.profit > 0) {
+              winningDays++;
+              currentRun = 0;
+            } else if (d.profit < 0) {
+              losingDays++;
+              currentRun++;
+              if (currentRun > longestLosingRun) longestLosingRun = currentRun;
             } else {
-              currentLosingRun = 0;
+              flatDays++;
+              currentRun = 0;
             }
+
+            if (d.profit > bestDay.profit) bestDay = d;
+            if (d.profit < worstDay.profit) worstDay = d;
           });
 
-          const avgDailyPnl = totalProfit / dayStats.length;
+          const avgDailyPnL = totalProfit / daysSimulated;
 
-          dayCsvSummary.innerHTML = `
-            <strong>Overall Day Analysis:</strong><br/>
-            Days simulated: ${dayStats.length}<br/>
-            Winning days: ${winningDays}<br/>
-            Losing days: ${losingDays}<br/>
-            Flat days: ${flatDays}<br/>
-            Longest run of consecutive losing days: ${maxLosingRun}<br/>
-            Best day P&amp;L: ${formatMoney(maxDayProfit)}<br/>
-            Worst day P&amp;L: ${formatMoney(minDayProfit)}<br/>
-            Average daily P&amp;L: ${formatMoney(avgDailyPnl)}
-          `;
+          dayCsvSummary.innerHTML =
+            `<strong>Overall Day Analysis:</strong><br>` +
+            `Days simulated: ${daysSimulated}<br>` +
+            `Winning days: ${winningDays}<br>` +
+            `Losing days: ${losingDays}<br>` +
+            `Flat days: ${flatDays}<br>` +
+            `Longest run of consecutive losing days: ${longestLosingRun}<br>` +
+            `Best day P&L: ${formatMoney(bestDay.profit)} (${bestDay.dayName})<br>` +
+            `Worst day P&L: ${formatMoney(worstDay.profit)} (${worstDay.dayName})<br>` +
+            `Average daily P&L: ${formatMoney(avgDailyPnL)}<br>`;
+        } else {
+          dayCsvSummary.textContent = "Overall Day Analysis: No valid days found in this CSV.";
         }
 
         dayCsvResultsDiv.style.display = "block";
