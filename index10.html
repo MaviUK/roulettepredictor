@@ -198,7 +198,7 @@
     <strong>Callan–Symanzik style directional distance model</strong>:
     <br />• Uses the last 3 distances in the upcoming direction,
     <br />• Computes drift β and curvature γ,
-    <br />• Predicts S₄ = S₃ + a·β + b·γ,
+    <br />• Predicts S₄ = S₃ + a·β + b·γ (blended with recent average),
     <br />• a,b grow as we accumulate more distances in that direction,
     <br />• A <strong>Martingale</strong> on stake per number, resetting to base after 11 consecutive losses.
   </p>
@@ -484,11 +484,7 @@
       return sign + x.toFixed(2);
     }
 
-    function uniqueUnion(arrA, arrB) {
-      return Array.from(new Set([...arrA, ...arrB]));
-    }
-
-    // ---------- MODEL D: CS FLOW + FALLBACK + DIRECT/OPPOSITE BLEND ----------
+    // ---------- MODEL D: CS FLOW + FALLBACK + SMOOTHED STEP ----------
     function csPrediction(spins) {
       if (spins.length < 4) {
         return {
@@ -537,30 +533,22 @@
           centreIdx = (idxLast - avg + 37) % 37;
         }
 
-        // BLEND: direct + opposite centre
-        const oppositeIdx = (centreIdx + 18) % 37; // rough opposite on 37-pocket wheel
-        const centreNumDirect = WHEEL_ORDER[centreIdx];
-        const centreNumOpp = WHEEL_ORDER[oppositeIdx];
-
-        const neighboursDirect = neighboursForCentre(centreNumDirect);
-        const neighboursOpp = neighboursForCentre(centreNumOpp);
-        const neighbours = uniqueUnion(neighboursDirect, neighboursOpp);
+        const centreNum = WHEEL_ORDER[centreIdx];
+        const neighbours = neighboursForCentre(centreNum);
 
         return {
           shouldBet: true,
-          centreNum: centreNumDirect,    // display direct, but bets cover both sectors
+          centreNum,
           neighbours,
           dominantStep: avg,
-          reason: `Fallback (blended): average distance in ${upcomingDir}, covering direct + opposite sectors.`,
+          reason: `Fallback: using average distance in ${upcomingDir} (need 3+ distances for full CS model).`,
           debug: {
-            mode: "fallback-average-blend",
+            mode: "fallback-average",
             upcomingDir,
             dirDistances,
             avg,
             centreIdx,
-            centreNumDirect,
-            oppositeIdx,
-            centreNumOpp,
+            centreNum,
             nDir: dirDistances.length
           }
         };
@@ -583,12 +571,20 @@
       const a = 0.75 - 0.15 * t;   // drift weight
       const b = 0.25 + 0.15 * t;   // curvature weight
 
-      // Predict next step
-      let S4 = S3 + a * beta + b * gamma;
+      // Raw CS prediction
+      let S4_raw = S3 + a * beta + b * gamma;
+
+      // Smooth with recent average distance (up to last 5 distances)
+      const k = Math.min(5, dirDistances.length);
+      const recent = dirDistances.slice(-k);
+      const avgRecent = recent.reduce((acc, v) => acc + v, 0) / k;
+
+      let S4 = 0.7 * S4_raw + 0.3 * avgRecent;
+
       S4 = Math.round(S4) % 37;
       if (S4 < 0) S4 += 37;
 
-      // Convert S4 into a wheel index (NO direction flip, but we will blend with opposite)
+      // Convert S4 into a wheel index (direct mode)
       let centreIdx;
       if (upcomingDir === "CW") {
         centreIdx = (idxLast + S4) % 37;
@@ -596,30 +592,25 @@
         centreIdx = (idxLast - S4 + 37) % 37;
       }
 
-      const oppositeIdx = (centreIdx + 18) % 37; // rough opposite
-      const centreNumDirect = WHEEL_ORDER[centreIdx];
-      const centreNumOpp = WHEEL_ORDER[oppositeIdx];
-
-      const neighboursDirect = neighboursForCentre(centreNumDirect);
-      const neighboursOpp = neighboursForCentre(centreNumOpp);
-      const neighbours = uniqueUnion(neighboursDirect, neighboursOpp);
+      const centreNum = WHEEL_ORDER[centreIdx];
+      const neighbours = neighboursForCentre(centreNum);
 
       return {
         shouldBet: true,
-        centreNum: centreNumDirect,   // display main/direct centre
+        centreNum,
         neighbours,
         dominantStep: S4,
-        reason: `CS flow (blended): S4 = S3 + aβ + bγ with a=${a.toFixed(2)}, b=${b.toFixed(2)}. Covering direct + opposite sectors.`,
+        reason: `CS flow (smoothed direct): S4 = blend(CS prediction, recent average) with a=${a.toFixed(2)}, b=${b.toFixed(2)}.`,
         debug: {
-          mode: "cs-full-blend",
+          mode: "cs-full-smoothed",
           upcomingDir,
           S1, S2, S3,
           beta, gamma,
+          S4_raw,
+          avgRecent,
           S4,
           centreIdx,
-          centreNumDirect,
-          oppositeIdx,
-          centreNumOpp,
+          centreNum,
           a, b,
           nDir,
           dirDistances
@@ -730,13 +721,13 @@
 
         const p1 = document.createElement("p");
         p1.innerHTML =
-          `Centre (direct): <strong>${pred.centreNum}</strong>` +
+          `Centre: <strong>${pred.centreNum}</strong>` +
           ` &mdash; Step: <span class="mono">${pred.dominantStep}</span>`;
         recommendationDiv.appendChild(p1);
 
         const p2 = document.createElement("p");
         p2.className = "small";
-        p2.textContent = "Cover these numbers (direct + opposite sectors):";
+        p2.textContent = "Cover this number and its 8 neighbours each side on the wheel (17 numbers):";
         recommendationDiv.appendChild(p2);
 
         const ul = document.createElement("ul");
@@ -772,8 +763,14 @@
         if (d.S1 !== undefined && d.S2 !== undefined && d.S3 !== undefined) {
           lines.push(`S1=${d.S1}, S2=${d.S2}, S3=${d.S3}`);
         }
+        if (d.S4_raw !== undefined) {
+          lines.push(`S4_raw=${d.S4_raw.toFixed ? d.S4_raw.toFixed(3) : d.S4_raw}`);
+        }
+        if (d.avgRecent !== undefined) {
+          lines.push(`avgRecent=${d.avgRecent.toFixed ? d.avgRecent.toFixed(3) : d.avgRecent}`);
+        }
         if (d.S4 !== undefined) {
-          lines.push(`S4=${d.S4}`);
+          lines.push(`S4_final=${d.S4}`);
         }
         if (d.beta !== undefined && d.gamma !== undefined) {
           lines.push(`β=${d.beta}, γ=${d.gamma}`);
@@ -783,11 +780,8 @@
             `a=${d.a.toFixed ? d.a.toFixed(3) : d.a}, b=${d.b.toFixed ? d.b.toFixed(3) : d.b}`
           );
         }
-        if (d.centreIdx !== undefined && d.centreNumDirect !== undefined) {
-          lines.push(`centreIdx=${d.centreIdx}, centreNumDirect=${d.centreNumDirect}`);
-        }
-        if (d.oppositeIdx !== undefined && d.centreNumOpp !== undefined) {
-          lines.push(`oppositeIdx=${d.oppositeIdx}, centreNumOpp=${d.centreNumOpp}`);
+        if (d.centreIdx !== undefined && d.centreNum !== undefined) {
+          lines.push(`centreIdx=${d.centreIdx}, centreNum=${d.centreNum}`);
         }
         if (d.avg !== undefined) {
           lines.push(`avg=${d.avg}`);
@@ -1117,7 +1111,7 @@
       simWorstStreakEl.textContent = res.worstStreak;
       simProfitEl.textContent = formatMoney(res.profit);
       simNotesEl.textContent =
-        `Model D (blended): CS directional distances with history-scaled coefficients + average-distance fallback. Bets cover the direct CS sector and the approximate opposite sector, with Martingale per number (base ${baseUnit}, doubles on each losing bet, resets after ${LOSS_RESET_MARTINGALE} consecutive losses).`;
+        `Model D (smoothed direct): CS directional distances with history-scaled coefficients + average-distance fallback, with S4 blended 70% CS / 30% recent average. Martingale per number (base ${baseUnit}, doubles on each losing bet, resets after ${LOSS_RESET_MARTINGALE} consecutive losses).`;
     }
 
     function clearSimulation() {
@@ -1125,6 +1119,7 @@
       simResults.style.display = "none";
     }
 
+    runSimulation;
     runSimBtn.addEventListener("click", runSimulation);
     clearSimBtn.addEventListener("click", clearSimulation);
 
