@@ -198,8 +198,8 @@
     <strong>Callan–Symanzik style directional distance model</strong>:
     <br />• Uses the last 3 distances in the upcoming direction,
     <br />• Computes drift β and curvature γ,
-    <br />• Predicts S₄ = S₃ + a·β + b·γ (blended with recent average),
-    <br />• a,b grow as we accumulate more distances in that direction,
+    <br />• Predicts S₄ = S₃ + a·β + b·γ (clamped to a realistic 0–36 range),
+    <br />• Has a simple average-distance fallback for small samples,
     <br />• A <strong>Martingale</strong> on stake per number, resetting to base after 11 consecutive losses.
   </p>
 
@@ -484,7 +484,7 @@
       return sign + x.toFixed(2);
     }
 
-    // ---------- MODEL D: CS FLOW + FALLBACK + SMOOTHED STEP ----------
+    // ---------- MODEL: CS FLOW + SIMPLE FALLBACK + CLAMPED STEP ----------
     function csPrediction(spins) {
       if (spins.length < 4) {
         return {
@@ -510,9 +510,8 @@
         .filter(d => d.dir === upcomingDir)
         .map(d => d.dist);
 
-      // SIMPLE FALLBACK LOGIC
+      // 0 distances in this direction -> no bet (we literally know nothing here)
       if (dirDistances.length === 0) {
-        // no information in upcoming direction at all
         return {
           shouldBet: false,
           reason: `No distances yet in ${upcomingDir} direction.`,
@@ -520,11 +519,13 @@
         };
       }
 
+      // 1–2 distances in this direction -> fallback to average distance
       if (dirDistances.length < 3) {
-        // Fallback: use average distance in this direction
         const sum = dirDistances.reduce((a, b) => a + b, 0);
-        let avg = Math.round(sum / dirDistances.length) % 37;
-        if (avg < 0) avg += 37;
+        let avg = sum / dirDistances.length;
+        avg = Math.round(avg);
+        if (avg < 0) avg = 0;
+        if (avg > 36) avg = 36;
 
         let centreIdx;
         if (upcomingDir === "CW") {
@@ -554,7 +555,7 @@
         };
       }
 
-      // Last three distances (full CS mode)
+      // Full CS mode: last three distances
       const S1 = dirDistances[dirDistances.length - 3];
       const S2 = dirDistances[dirDistances.length - 2];
       const S3 = dirDistances[dirDistances.length - 1];
@@ -571,20 +572,15 @@
       const a = 0.75 - 0.15 * t;   // drift weight
       const b = 0.25 + 0.15 * t;   // curvature weight
 
-      // Raw CS prediction
-      let S4_raw = S3 + a * beta + b * gamma;
+      // Raw CS prediction for the next distance
+      let S4Raw = S3 + a * beta + b * gamma;
 
-      // Smooth with recent average distance (up to last 5 distances)
-      const k = Math.min(5, dirDistances.length);
-      const recent = dirDistances.slice(-k);
-      const avgRecent = recent.reduce((acc, v) => acc + v, 0) / k;
+      // Clamp S4 into a realistic distance range [0, 36] instead of wrapping with %
+      let S4 = Math.round(S4Raw);
+      if (S4 < 0) S4 = 0;
+      if (S4 > 36) S4 = 36;
 
-      let S4 = 0.7 * S4_raw + 0.3 * avgRecent;
-
-      S4 = Math.round(S4) % 37;
-      if (S4 < 0) S4 += 37;
-
-      // Convert S4 into a wheel index (direct mode)
+      // Convert S4 into a wheel index (direct in upcoming direction)
       let centreIdx;
       if (upcomingDir === "CW") {
         centreIdx = (idxLast + S4) % 37;
@@ -600,14 +596,13 @@
         centreNum,
         neighbours,
         dominantStep: S4,
-        reason: `CS flow (smoothed direct): S4 = blend(CS prediction, recent average) with a=${a.toFixed(2)}, b=${b.toFixed(2)}.`,
+        reason: `CS flow (direct, clamped): S4 = S3 + aβ + bγ with a=${a.toFixed(2)}, b=${b.toFixed(2)}, then clamped to [0,36].`,
         debug: {
-          mode: "cs-full-smoothed",
+          mode: "cs-full-clamped",
           upcomingDir,
           S1, S2, S3,
           beta, gamma,
-          S4_raw,
-          avgRecent,
+          S4Raw,
           S4,
           centreIdx,
           centreNum,
@@ -763,11 +758,8 @@
         if (d.S1 !== undefined && d.S2 !== undefined && d.S3 !== undefined) {
           lines.push(`S1=${d.S1}, S2=${d.S2}, S3=${d.S3}`);
         }
-        if (d.S4_raw !== undefined) {
-          lines.push(`S4_raw=${d.S4_raw.toFixed ? d.S4_raw.toFixed(3) : d.S4_raw}`);
-        }
-        if (d.avgRecent !== undefined) {
-          lines.push(`avgRecent=${d.avgRecent.toFixed ? d.avgRecent.toFixed(3) : d.avgRecent}`);
+        if (d.S4Raw !== undefined) {
+          lines.push(`S4_raw=${d.S4Raw.toFixed ? d.S4Raw.toFixed(3) : d.S4Raw}`);
         }
         if (d.S4 !== undefined) {
           lines.push(`S4_final=${d.S4}`);
@@ -1111,7 +1103,7 @@
       simWorstStreakEl.textContent = res.worstStreak;
       simProfitEl.textContent = formatMoney(res.profit);
       simNotesEl.textContent =
-        `Model D (smoothed direct): CS directional distances with history-scaled coefficients + average-distance fallback, with S4 blended 70% CS / 30% recent average. Martingale per number (base ${baseUnit}, doubles on each losing bet, resets after ${LOSS_RESET_MARTINGALE} consecutive losses).`;
+        `CS direct model with: average-distance fallback when only 1–2 distances in upcoming direction, and CS step clamped to [0,36] instead of wrapping. Martingale per number (base ${baseUnit}, doubles on each losing bet, resets after ${LOSS_RESET_MARTINGALE} consecutive losses).`;
     }
 
     function clearSimulation() {
@@ -1119,7 +1111,6 @@
       simResults.style.display = "none";
     }
 
-    runSimulation;
     runSimBtn.addEventListener("click", runSimulation);
     clearSimBtn.addEventListener("click", clearSimulation);
 
