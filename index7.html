@@ -1119,50 +1119,6 @@ function csPrediction(spins) {
         totalWorstStreakCell.textContent = totalWorstStreak;
         totalProfitCell.textContent = formatMoney(totalProfit);
 
-        // Overall day-level analysis
-        if (dayStats.length > 0) {
-          let winningDays = 0;
-          let losingDays = 0;
-          let flatDays = 0;
-          let maxDayProfit = -Infinity;
-          let minDayProfit = Infinity;
-
-          dayStats.forEach(d => {
-            if (d.profit > 0) winningDays++;
-            else if (d.profit < 0) losingDays++;
-            else flatDays++;
-
-            if (d.profit > maxDayProfit) maxDayProfit = d.profit;
-            if (d.profit < minDayProfit) minDayProfit = d.profit;
-          });
-
-          // Longest run of consecutive losing days
-          let currentLosingRun = 0;
-          let maxLosingRun = 0;
-          dayStats.forEach(d => {
-            if (d.profit < 0) {
-              currentLosingRun++;
-              if (currentLosingRun > maxLosingRun) maxLosingRun = currentLosingRun;
-            } else {
-              currentLosingRun = 0;
-            }
-          });
-
-          const avgDailyPnl = totalProfit / dayStats.length;
-
-          dayCsvSummary.innerHTML = `
-            <strong>Overall Day Analysis:</strong><br/>
-            Days simulated: ${dayStats.length}<br/>
-            Winning days: ${winningDays}<br/>
-            Losing days: ${losingDays}<br/>
-            Flat days: ${flatDays}<br/>
-            Longest run of consecutive losing days: ${maxLosingRun}<br/>
-            Best day P&amp;L: ${formatMoney(maxDayProfit)}<br/>
-            Worst day P&amp;L: ${formatMoney(minDayProfit)}<br/>
-            Average daily P&amp;L: ${formatMoney(avgDailyPnl)}
-          `;
-        }
-
         dayCsvResultsDiv.style.display = "block";
       };
 
