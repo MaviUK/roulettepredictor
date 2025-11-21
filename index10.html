@@ -243,6 +243,8 @@
           <span class="pill pill-neutral">No Data</span>
           <p class="small">Enter some spins or bulk-load history to get started.</p>
         </div>
+        <!-- DEBUG PANEL -->
+        <pre class="small mono" id="debugBlock" style="white-space:pre-wrap; margin-top:0.5rem;"></pre>
       </div>
 
       <div class="section">
@@ -482,7 +484,7 @@
       return sign + x.toFixed(2);
     }
 
-    // ---------- MODEL D: PURE CALLAN–SYMANSIK FLOW (WITH SIMPLE FALLBACK) ----------
+    // ---------- MODEL D: CALLAN–SYMANZIK FLOW WITH SIMPLE FALLBACK ----------
     function csPrediction(spins) {
       if (spins.length < 4) {
         return {
@@ -508,13 +510,13 @@
         .filter(d => d.dir === upcomingDir)
         .map(d => d.dist);
 
-      // ---------- SIMPLE FALLBACK LOGIC ADDED HERE ----------
+      // SIMPLE FALLBACK LOGIC
       if (dirDistances.length === 0) {
         // no information in upcoming direction at all
         return {
           shouldBet: false,
           reason: `No distances yet in ${upcomingDir} direction.`,
-          debug: { upcomingDir, dirDistances }
+          debug: { mode: "no-data", upcomingDir, dirDistances }
         };
       }
 
@@ -551,7 +553,6 @@
           }
         };
       }
-      // ---------- END FALLBACK BLOCK ----------
 
       // Last three distances (full CS mode)
       const S1 = dirDistances[dirDistances.length - 3];
@@ -602,7 +603,8 @@
           centreIdx,
           centreNum,
           a, b,
-          nDir
+          nDir,
+          dirDistances
         }
       };
     }
@@ -628,6 +630,7 @@
     const historyInfo = document.getElementById("historyInfo");
     const historyList = document.getElementById("historyList");
     const recommendationDiv = document.getElementById("recommendation");
+    const debugBlock = document.getElementById("debugBlock");
 
     const liveTotalBetsEl = document.getElementById("liveTotalBets");
     const liveWinsEl = document.getElementById("liveWins");
@@ -678,6 +681,8 @@
 
     function renderRecommendation(pred) {
       recommendationDiv.innerHTML = "";
+      debugBlock.textContent = "";
+
       if (!pred) {
         const pill = document.createElement("span");
         pill.className = "pill pill-neutral";
@@ -731,6 +736,41 @@
           p3.textContent = pred.reason;
           recommendationDiv.appendChild(p3);
         }
+      }
+
+      // DEBUG OUTPUT
+      if (pred.debug) {
+        const d = pred.debug;
+        let lines = [];
+
+        if (d.mode) lines.push(`mode: ${d.mode}`);
+        if (d.upcomingDir) lines.push(`dir: ${d.upcomingDir}`);
+        if (typeof d.nDir === "number") lines.push(`nDir: ${d.nDir}`);
+
+        if (d.dirDistances && Array.isArray(d.dirDistances)) {
+          lines.push(`dirDistances: [${d.dirDistances.join(", ")}]`);
+        }
+
+        if (d.S1 !== undefined && d.S2 !== undefined && d.S3 !== undefined) {
+          lines.push(`S1=${d.S1}, S2=${d.S2}, S3=${d.S3}`);
+        }
+        if (d.S4 !== undefined) {
+          lines.push(`S4=${d.S4}`);
+        }
+        if (d.beta !== undefined && d.gamma !== undefined) {
+          lines.push(`β=${d.beta}, γ=${d.gamma}`);
+        }
+        if (d.a !== undefined && d.b !== undefined) {
+          lines.push(`a=${d.a.toFixed ? d.a.toFixed(3) : d.a}, b=${d.b.toFixed ? d.b.toFixed(3) : d.b}`);
+        }
+        if (d.centreIdx !== undefined && d.centreNum !== undefined) {
+          lines.push(`centreIdx=${d.centreIdx}, centreNum=${d.centreNum}`);
+        }
+        if (d.avg !== undefined) {
+          lines.push(`avg=${d.avg}`);
+        }
+
+        debugBlock.textContent = lines.join("\n");
       }
     }
 
