@@ -199,8 +199,7 @@
     <br />• Uses the last 3 distances in the upcoming direction,
     <br />• Computes drift β and curvature γ,
     <br />• Predicts S₄ = S₃ + a·β + b·γ,
-    <br />• a,b adapt based on how deep and stable the directional history is,
-    <br />• Then flips the base prediction to the <strong>opposite pocket on the wheel</strong> (18 pockets away),
+    <br />• a,b grow as we accumulate more distances in that direction,
     <br />• A <strong>Martingale</strong> on stake per number, resetting to base after 11 consecutive losses.
   </p>
 
@@ -483,35 +482,7 @@
       return sign + x.toFixed(2);
     }
 
-    // ---------- ADAPTIVE COEFFICIENT HELPER (USED BY MODEL A & B STYLE) ----------
-
-    function getAdaptiveCoeffs(dirDistances, baseA, baseB) {
-      const nDir = dirDistances.length;
-      const nClamped = Math.max(3, Math.min(nDir, 40));
-      const depthScore = (nClamped - 3) / (40 - 3); // 0..1
-
-      const k = Math.min(8, nDir);
-      const recent = dirDistances.slice(-k);
-      const mean = recent.reduce((sum, x) => sum + x, 0) / k;
-      const variance = recent.reduce((sum, x) => {
-        const d = x - mean;
-        return sum + d * d;
-      }, 0) / k;
-
-      const normVar = Math.min(variance / 50, 1); // rough scaling
-      const stability = 1 - normVar;              // 0..1 (1 = very stable)
-
-      const trust = 0.5 * depthScore + 0.5 * stability; // 0..1
-
-      const maxShift = 0.12;
-      const a = baseA - maxShift * trust; // reduce drift when trust high
-      const b = baseB + maxShift * trust; // increase curvature when trust high
-
-      return { a, b };
-    }
-
-    // ---------- MODEL A: ADAPTIVE CS FLOW + OPPOSITE POCKET ----------
-
+    // ---------- MODEL D: PURE CALLAN–SYMANSIK FLOW (WITH SIMPLE FALLBACK) ----------
     function csPrediction(spins) {
       if (spins.length < 4) {
         return {
@@ -537,15 +508,52 @@
         .filter(d => d.dir === upcomingDir)
         .map(d => d.dist);
 
-      if (dirDistances.length < 3) {
+      // ---------- SIMPLE FALLBACK LOGIC ADDED HERE ----------
+      if (dirDistances.length === 0) {
+        // no information in upcoming direction at all
         return {
           shouldBet: false,
-          reason: `Need at least 3 distances in ${upcomingDir} direction (have ${dirDistances.length})`,
+          reason: `No distances yet in ${upcomingDir} direction.`,
           debug: { upcomingDir, dirDistances }
         };
       }
 
-      // Last three distances
+      if (dirDistances.length < 3) {
+        // Fallback: use average distance in this direction
+        const sum = dirDistances.reduce((a, b) => a + b, 0);
+        let avg = Math.round(sum / dirDistances.length) % 37;
+        if (avg < 0) avg += 37;
+
+        let centreIdx;
+        if (upcomingDir === "CW") {
+          centreIdx = (idxLast + avg) % 37;
+        } else {
+          centreIdx = (idxLast - avg + 37) % 37;
+        }
+
+        const centreNum = WHEEL_ORDER[centreIdx];
+        const neighbours = neighboursForCentre(centreNum);
+
+        return {
+          shouldBet: true,
+          centreNum,
+          neighbours,
+          dominantStep: avg,
+          reason: `Fallback: using average distance in ${upcomingDir} (need 3+ distances for full CS model).`,
+          debug: {
+            mode: "fallback-average",
+            upcomingDir,
+            dirDistances,
+            avg,
+            centreIdx,
+            centreNum,
+            nDir: dirDistances.length
+          }
+        };
+      }
+      // ---------- END FALLBACK BLOCK ----------
+
+      // Last three distances (full CS mode)
       const S1 = dirDistances[dirDistances.length - 3];
       const S2 = dirDistances[dirDistances.length - 2];
       const S3 = dirDistances[dirDistances.length - 1];
@@ -554,25 +562,29 @@
       const beta  = S3 - S2;
       const gamma = (S3 - S2) - (S2 - S1);
 
-      // Adaptive coefficients for Model A (base 0.65 / 0.35)
-      const { a, b } = getAdaptiveCoeffs(dirDistances, 0.65, 0.35);
+      // Dynamic coefficients based on available directional history
+      const nDir = dirDistances.length;
+      const nClamped = Math.max(3, Math.min(nDir, 20));
+      const t = (nClamped - 3) / (20 - 3);
+
+      const a = 0.75 - 0.15 * t;   // drift weight
+      const b = 0.25 + 0.15 * t;   // curvature weight
 
       // Predict next step
       let S4 = S3 + a * beta + b * gamma;
       S4 = Math.round(S4) % 37;
       if (S4 < 0) S4 += 37;
 
-      // Base centre in wheel coordinates
-      let baseCentreIdx;
+      // Convert S4 into a wheel index (NO OPPOSITE FLIP)
+      let centreIdx;
       if (upcomingDir === "CW") {
-        baseCentreIdx = (idxLast + S4) % 37;
+        centreIdx = (idxLast + S4) % 37;
       } else {
-        baseCentreIdx = (idxLast - S4 + 37) % 37;
+        centreIdx = (idxLast - S4 + 37) % 37;
       }
 
-      // Flip to the opposite pocket
-      const oppositeIdx = (baseCentreIdx + 18) % 37;
-      const centreNum = WHEEL_ORDER[oppositeIdx];
+      // Direct centre number
+      const centreNum = WHEEL_ORDER[centreIdx];
       const neighbours = neighboursForCentre(centreNum);
 
       return {
@@ -580,17 +592,17 @@
         centreNum,
         neighbours,
         dominantStep: S4,
-        reason: `Model A (opposite): S4 = S3 + aβ + bγ with a=${a.toFixed(2)}, b=${b.toFixed(2)}, then flipped 18 pockets.`,
+        reason: `CS flow (direct mode): S4 = S3 + aβ + bγ with a=${a.toFixed(2)}, b=${b.toFixed(2)}.`,
         debug: {
+          mode: "cs-full",
           upcomingDir,
           S1, S2, S3,
           beta, gamma,
           S4,
-          baseCentreIdx,
-          oppositeIdx,
+          centreIdx,
           centreNum,
           a, b,
-          nDir: dirDistances.length
+          nDir
         }
       };
     }
@@ -742,6 +754,7 @@
 
         const hit = neighbours.includes(v);
         if (hit) {
+          // roulette: 35:1 payout => return 36x stake on the winning number
           const winReturn = stakePerNumberNow * 36;
           const profit = winReturn - totalStake;
           liveProfit += profit;
@@ -757,14 +770,18 @@
             liveWorstStreak = liveCurrentLosingStreak;
           }
 
+          // lose stake
           liveProfit -= totalStake;
 
+          // martingale loss tracking
           liveMartingaleLossCount += 1;
 
           if (liveMartingaleLossCount >= LOSS_RESET_MARTINGALE) {
+            // reset stake after 11 consecutive losses
             liveStakePerNumber = baseUnit;
             liveMartingaleLossCount = 0;
           } else {
+            // double per-number stake for next bet
             liveStakePerNumber = stakePerNumberNow * 2;
           }
         }
@@ -1037,7 +1054,7 @@
       simWorstStreakEl.textContent = res.worstStreak;
       simProfitEl.textContent = formatMoney(res.profit);
       simNotesEl.textContent =
-        `Model A (opposite): CS directional distances with adaptive coefficients (base a=0.65,b=0.35, opposite-pocket flip) + Martingale per number (base ${baseUnit}, doubles on each losing bet, resets after ${LOSS_RESET_MARTINGALE} consecutive losses).`;
+        `Model D (direct): CS directional distances with history-scaled coefficients (with average-distance fallback when <3 distances in direction) + Martingale per number (base ${baseUnit}, doubles on each losing bet, resets after ${LOSS_RESET_MARTINGALE} consecutive losses).`;
     }
 
     function clearSimulation() {
