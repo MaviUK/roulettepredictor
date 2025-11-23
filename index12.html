@@ -195,12 +195,11 @@
   <p class="small">
     Spins are assumed to <strong>alternate direction</strong> (CW, CCW, CW, CCW, ...). For each spin it records the
     <strong>wheel distance</strong> travelled in that spin's direction. To predict the next spin, it uses a
-    <strong>Callan–Symanzik style directional distance model</strong>:
-    <br />• Uses the last 3+ distances in the upcoming direction,
-    <br />• Computes drift β and curvature γ,
-    <br />• Uses a(t), b(t) that you set below (front-end),
-    <br />• Adds a configurable pocket shift in the spin direction,
-    <br />• A <strong>Martingale</strong> on stake per number, resetting to base after 11 consecutive losses.
+    <strong>Callan–Symanzik style directional distance model</strong> with:
+    <br />• Directional distances in the upcoming direction,
+    <br />• Drift β and curvature γ,
+    <br />• a(t), b(t) and directional step <strong>auto-optimised</strong> from multi-day CSV data,
+    <br />• A configurable Martingale: stake per number doubles on each losing bet, resets after 11 losses.
   </p>
 
   <div class="top-control">
@@ -210,37 +209,8 @@
           <label for="baseUnitInput">Base stake per number</label>
           <input type="number" id="baseUnitInput" min="0.01" step="0.01" value="1" />
         </div>
-
-        <div class="inline-input">
-          <label for="extraShiftInput">Extra pockets in spin direction</label>
-          <input type="number" id="extraShiftInput" min="0" max="18" step="1" value="5" />
-        </div>
-
-        <div class="inline-input">
-          <label for="aStartInput">a start</label>
-          <input type="number" id="aStartInput" step="0.01" value="0.75" />
-        </div>
-
-        <div class="inline-input">
-          <label for="aEndInput">a end</label>
-          <input type="number" id="aEndInput" step="0.01" value="0.60" />
-        </div>
-
-        <div class="inline-input">
-          <label for="bStartInput">b start</label>
-          <input type="number" id="bStartInput" step="0.01" value="0.25" />
-        </div>
-
-        <div class="inline-input">
-          <label for="bEndInput">b end</label>
-          <input type="number" id="bEndInput" step="0.01" value="0.40" />
-        </div>
-
-        <p class="small">
-          Base = starting stake per number.<br/>
-          Extra pockets = how far ahead of the CS step to bias the centre.<br/>
-          a(t) goes from a_start → a_end as directional history grows (3 → 20 distances).<br/>
-          b(t) does the same with b_start → b_end.
+        <p class="small" id="currentSettings">
+          Using default model parameters (not optimised yet).
         </p>
       </div>
     </div>
@@ -315,7 +285,8 @@
         <h3>Bulk Load Spins</h3>
         <p class="small">
           Paste up to 500 past spins (0–36), separated by spaces, commas, or new lines.
-          This will replace your current live history and re-score all bets with the current base stake.
+          This will replace your current live history and re-score all bets with the current base stake
+          and current optimised model parameters.
         </p>
         <textarea id="bulkLiveInput" placeholder="Example:
 26 34 16 4 10 10 27 29 17 8 35 7 23 ..."></textarea>
@@ -325,12 +296,13 @@
       </div>
     </div>
 
-    <!-- SIMULATOR -->
+    <!-- SIMULATOR + CSV + AUTO OPTIMISER -->
     <div class="card">
       <h2>Simulator</h2>
       <p class="small">
         Paste a list of spins (one per line or separated by spaces). The simulator will run the
-        same model + Martingale across that history and show performance stats.
+        same model + Martingale across that history and show performance stats, using the current
+        auto-optimised parameters.
       </p>
       <label for="simInput">Spin sequence</label>
       <textarea id="simInput" placeholder="Example:
@@ -376,16 +348,22 @@
         <p class="small" id="simNotes"></p>
       </div>
 
-      <!-- DAY-BY-DAY CSV SIMULATION -->
+      <!-- DAY-BY-DAY CSV SIMULATION + AUTO OPTIMISER -->
       <div class="section">
-        <h3>Day-by-Day CSV Simulation</h3>
+        <h3>Day-by-Day CSV Simulation & Optimiser</h3>
         <p class="small">
           Export your spreadsheet as a <strong>CSV</strong> where the first row has headers like
           <span class="mono">Day 1,Day 2,Day 3,...</span> and each column contains that day's spins (0–36).
-          This will run the same model + Martingale <strong>for each day separately</strong>.
+          You can:
+          <br />• Run the same model + Martingale for each day separately,
+          <br />• Or automatically <strong>optimise</strong> the model parameters from at least 20 days of data.
         </p>
         <input type="file" id="dayCsvInput" accept=".csv" />
-        <button class="btn btn-primary" id="runDayCsvBtn">Run Day-by-Day</button>
+        <div style="margin-top:0.4rem;">
+          <button class="btn btn-primary" id="runDayCsvBtn">Run Day-by-Day</button>
+          <button class="btn btn-secondary" id="optimizeFromCsvBtn">Optimise Model From CSV</button>
+        </div>
+        <div id="scanStatus" class="small" style="margin-top:0.4rem;"></div>
 
         <div id="dayCsvResults" style="display:none; margin-top:0.75rem;">
           <h3>Day Breakdown</h3>
@@ -442,6 +420,17 @@
 
     const HALF_SECTOR = 8;              // neighbours each side (17 numbers total)
     const LOSS_RESET_MARTINGALE = 11;   // reset stake after 11 consecutive losing bets
+
+    // Default parameters (before any optimisation)
+    const DEFAULT_PARAMS = {
+      extraShift: 5,   // pockets in spin direction
+      aStart: 0.75,
+      aEnd:   0.60,
+      bStart: 0.25,
+      bEnd:   0.40
+    };
+
+    let modelParams = { ...DEFAULT_PARAMS };
 
     // ---------- UTILITIES ----------
 
@@ -504,34 +493,14 @@
       return 1;
     }
 
-    function getExtraShift() {
-      const input = document.getElementById("extraShiftInput");
-      const v = parseInt(input.value, 10);
-      if (!isNaN(v) && v >= 0 && v <= 18) return v;
-      return 0; // safe fallback
-    }
-
-    function getNumberFromInput(id, fallback) {
-      const el = document.getElementById(id);
-      if (!el) return fallback;
-      const v = parseFloat(el.value);
-      if (isNaN(v)) return fallback;
-      return v;
-    }
-
-    function getAStart() { return getNumberFromInput("aStartInput", 0.75); }
-    function getAEnd()   { return getNumberFromInput("aEndInput",   0.60); }
-    function getBStart() { return getNumberFromInput("bStartInput", 0.25); }
-    function getBEnd()   { return getNumberFromInput("bEndInput",   0.40); }
-
     function formatMoney(x) {
       const sign = x >= 0 ? "+" : "";
       return sign + x.toFixed(2);
     }
 
-    // ---------- MODEL: CS FLOW + CONFIGURABLE EXTRA SHIFT + FRONT-END a,b ----------
+    // ---------- CS PREDICTION WITH PARAMS + WRAPPER ----------
 
-    function csPrediction(spins) {
+    function csPredictionWithParams(spins, params) {
       if (spins.length < 4) {
         return {
           shouldBet: false,
@@ -578,10 +547,10 @@
       const nClamped = Math.max(3, Math.min(nDir, 20));
       const t = (nClamped - 3) / (20 - 3);
 
-      const aStart = getAStart();
-      const aEnd   = getAEnd();
-      const bStart = getBStart();
-      const bEnd   = getBEnd();
+      const aStart = params.aStart;
+      const aEnd   = params.aEnd;
+      const bStart = params.bStart;
+      const bEnd   = params.bEnd;
 
       const a = aStart + (aEnd - aStart) * t;
       const b = bStart + (bEnd - bStart) * t;
@@ -591,8 +560,8 @@
       S4 = Math.round(S4) % 37;
       if (S4 < 0) S4 += 37;
 
-      // Configurable extra shift in spin direction
-      const extraShift = getExtraShift();
+      // Extra shift in spin direction
+      const extraShift = params.extraShift;
       const stepWithBias = (S4 + extraShift) % 37;
 
       // Convert to wheel index in upcoming direction
@@ -612,7 +581,7 @@
         centreNum,
         neighbours,
         dominantStep: stepWithBias,
-        reason: `CS flow with a(t)∈[${aStart.toFixed(2)},${aEnd.toFixed(2)}], b(t)∈[${bStart.toFixed(2)},${bEnd.toFixed(2)}] and +${extraShift} pocket bias in ${upcomingDir}.`,
+        reason: `CS flow with a(t) and b(t) auto-optimised; +${extraShift} pocket bias in ${upcomingDir}.`,
         debug: {
           upcomingDir,
           S1, S2, S3,
@@ -629,6 +598,27 @@
         }
       };
     }
+
+    function csPrediction(spins) {
+      return csPredictionWithParams(spins, modelParams);
+    }
+
+    // ---------- CURRENT SETTINGS UI ----------
+
+    const currentSettingsEl = document.getElementById("currentSettings");
+
+    function updateCurrentSettingsUI(extraInfo) {
+      const p = modelParams;
+      const info = extraInfo ? `<br>${extraInfo}` : "";
+      currentSettingsEl.innerHTML =
+        `Current model parameters: ` +
+        `extraShift=${p.extraShift}, ` +
+        `aStart=${p.aStart.toFixed(2)}, aEnd=${p.aEnd.toFixed(2)}, ` +
+        `bStart=${p.bStart.toFixed(2)}, bEnd=${p.bEnd.toFixed(2)}.` +
+        info;
+    }
+
+    updateCurrentSettingsUI("(default values; run optimiser to tune from your CSV.)");
 
     // ---------- LIVE UI LOGIC + MARTINGALE ----------
 
@@ -949,7 +939,7 @@
 
     // ---------- SIMULATOR SHARED LOGIC + MARTINGALE ----------
 
-    function simulateSpinsArray(spins, baseUnit) {
+    function simulateSpinsArray(spins, baseUnit, paramsOverride) {
       if (spins.length < 2) {
         return null;
       }
@@ -969,6 +959,7 @@
 
       let history = [];
       let lastPred = null;
+      const paramsToUse = paramsOverride || modelParams;
 
       for (let i = 0; i < spins.length; i++) {
         const result = spins[i];
@@ -1018,7 +1009,7 @@
 
         history.push(result);
         // compute new prediction for next spin
-        lastPred = csPrediction(history);
+        lastPred = csPredictionWithParams(history, paramsToUse);
       }
 
       const hitRate = totalBets ? (wins / totalBets) * 100 : null;
@@ -1078,11 +1069,11 @@
       simWorstStreakEl.textContent = res.worstStreak;
       simProfitEl.textContent = formatMoney(res.profit);
       simNotesEl.textContent =
-        `CS direct model with a(t)∈[${getAStart().toFixed(2)},${getAEnd().toFixed(2)}], `
-        + `b(t)∈[${getBStart().toFixed(2)},${getBEnd().toFixed(2)}], `
-        + `+${getExtraShift()} pocket directional bias. `
-        + `Martingale per number (base ${baseUnit}, doubles on each losing bet, `
-        + `resets after ${LOSS_RESET_MARTINGALE} consecutive losses).`;
+        `Simulation using current auto-optimised parameters: ` +
+        `extraShift=${modelParams.extraShift}, ` +
+        `aStart=${modelParams.aStart.toFixed(2)}, aEnd=${modelParams.aEnd.toFixed(2)}, ` +
+        `bStart=${modelParams.bStart.toFixed(2)}, bEnd=${modelParams.bEnd.toFixed(2)}. ` +
+        `Martingale base ${baseUnit}, doubles on loss, resets after ${LOSS_RESET_MARTINGALE} consecutive losses.`;
     }
 
     function clearSimulation() {
@@ -1097,6 +1088,8 @@
 
     const dayCsvInput = document.getElementById("dayCsvInput");
     const runDayCsvBtn = document.getElementById("runDayCsvBtn");
+    const optimizeFromCsvBtn = document.getElementById("optimizeFromCsvBtn");
+    const scanStatusEl = document.getElementById("scanStatus");
     const dayCsvResultsDiv = document.getElementById("dayCsvResults");
     const dayCsvTbody = document.getElementById("dayCsvTbody");
 
@@ -1265,6 +1258,175 @@
 
       reader.readAsText(file);
     });
+
+    // ---------- AUTO OPTIMISER FROM CSV (A, B, STEP) ----------
+
+    optimizeFromCsvBtn.addEventListener("click", () => {
+      const file = dayCsvInput.files && dayCsvInput.files[0];
+      if (!file) {
+        alert("Please choose a CSV file first.");
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const text = e.target.result;
+        const rows = parseCsv(text);
+        if (rows.length < 2) {
+          alert("CSV must have a header row and at least one data row.");
+          return;
+        }
+
+        const headers = rows[0].map(h => h.trim());
+        const numCols = headers.length;
+
+        // Collect spins per column (per day)
+        const colsSpins = Array.from({ length: numCols }, () => []);
+
+        for (let r = 1; r < rows.length; r++) {
+          const row = rows[r];
+          for (let c = 0; c < numCols; c++) {
+            const cell = (row[c] || "").trim();
+            if (cell === "") continue;
+            const v = parseInt(cell, 10);
+            if (!isNaN(v) && v >= 0 && v <= 36) {
+              colsSpins[c].push(v);
+            }
+          }
+        }
+
+        // Build list of usable days
+        const days = [];
+        colsSpins.forEach((spins, colIdx) => {
+          if (spins.length >= 2) {
+            days.push({
+              name: headers[colIdx] || `Day ${colIdx + 1}`,
+              spins
+            });
+          }
+        });
+
+        if (days.length < 20) {
+          alert(`Need at least 20 valid day columns to optimise (found ${days.length}).`);
+          return;
+        }
+
+        // Run optimiser (synchronously for now)
+        autoOptimiseModel(days);
+      };
+
+      reader.readAsText(file);
+    });
+
+    function autoOptimiseModel(days) {
+      const baseUnitForOpt = 1; // base stake for optimisation (scale doesn't matter for ranking)
+
+      // Parameter search ranges (you can expand these if needed)
+      const extraShiftRange = [0, 3, 5, 7, 9, 11, 13];
+      const aStartRange = [0.60, 0.70, 0.80];
+      const aEndRange   = [0.30, 0.40, 0.50];
+      const bStartRange = [0.20, 0.30];
+      const bEndRange   = [0.30, 0.40, 0.50];
+
+      let combinations = [];
+      for (let es of extraShiftRange) {
+        for (let aS of aStartRange) {
+          for (let aE of aEndRange) {
+            if (aE > aS) continue; // require a_end <= a_start
+            for (let bS of bStartRange) {
+              for (let bE of bEndRange) {
+                if (bE < bS) continue; // require b_end >= b_start
+                combinations.push({
+                  extraShift: es,
+                  aStart: aS,
+                  aEnd: aE,
+                  bStart: bS,
+                  bEnd: bE
+                });
+              }
+            }
+          }
+        }
+      }
+
+      const totalCombos = combinations.length;
+      if (totalCombos === 0) {
+        alert("No valid parameter combinations to scan.");
+        return;
+      }
+
+      scanStatusEl.textContent =
+        `Scanning ${totalCombos} parameter combinations across ${days.length} days...`;
+
+      let bestCombo = null;
+
+      for (let i = 0; i < totalCombos; i++) {
+        const params = combinations[i];
+
+        scanStatusEl.textContent =
+          `Scanning combo ${i + 1}/${totalCombos}: ` +
+          `extraShift=${params.extraShift}, ` +
+          `aStart=${params.aStart.toFixed(2)}, aEnd=${params.aEnd.toFixed(2)}, ` +
+          `bStart=${params.bStart.toFixed(2)}, bEnd=${params.bEnd.toFixed(2)}...`;
+
+        let totalProfit = 0;
+        let losingDays = 0;
+        let worstStreakOverall = 0;
+
+        for (const day of days) {
+          const res = simulateSpinsArray(day.spins, baseUnitForOpt, params);
+          if (!res) continue;
+          totalProfit += res.profit;
+          if (res.profit < 0) losingDays++;
+          if (res.worstStreak > worstStreakOverall) {
+            worstStreakOverall = res.worstStreak;
+          }
+        }
+
+        const score = {
+          params,
+          totalProfit,
+          losingDays,
+          worstStreakOverall
+        };
+
+        if (!bestCombo) {
+          bestCombo = score;
+        } else {
+          // Compare:
+          // 1) Higher profit
+          // 2) Fewer losing days
+          // 3) Smaller worst losing streak
+          if (score.totalProfit > bestCombo.totalProfit ||
+             (score.totalProfit === bestCombo.totalProfit && score.losingDays < bestCombo.losingDays) ||
+             (score.totalProfit === bestCombo.totalProfit && score.losingDays === bestCombo.losingDays &&
+              score.worstStreakOverall < bestCombo.worstStreakOverall)) {
+            bestCombo = score;
+          }
+        }
+      }
+
+      if (!bestCombo) {
+        scanStatusEl.textContent = "Optimisation failed: no valid results.";
+        return;
+      }
+
+      // Apply best parameters to global model
+      modelParams = { ...bestCombo.params };
+      const summary =
+        `Optimised over ${days.length} days, ${totalCombos} combos. ` +
+        `Best total P&L: ${formatMoney(bestCombo.totalProfit)}; ` +
+        `Losing days: ${bestCombo.losingDays}; ` +
+        `Worst losing streak: ${bestCombo.worstStreakOverall}.`;
+
+      scanStatusEl.textContent =
+        `Done. Best parameters: extraShift=${modelParams.extraShift}, ` +
+        `aStart=${modelParams.aStart.toFixed(2)}, aEnd=${modelParams.aEnd.toFixed(2)}, ` +
+        `bStart=${modelParams.bStart.toFixed(2)}, bEnd=${modelParams.bEnd.toFixed(2)}. ` +
+        summary;
+
+      updateCurrentSettingsUI(summary);
+    }
 
     // initial UI
     updateHistoryUI();
