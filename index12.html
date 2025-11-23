@@ -1,0 +1,1358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Roulette Directional Distance Predictor</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      margin: 0;
+      padding: 1.5rem;
+      background: #0b1020;
+      color: #f5f5f5;
+    }
+    h1, h2, h3 {
+      margin-top: 0;
+      font-weight: 700;
+    }
+    h1 { font-size: 1.8rem; }
+    h2 { font-size: 1.3rem; margin-top: 1.5rem; }
+    h3 { font-size: 1.1rem; margin-top: 1rem; }
+
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+      gap: 1.5rem;
+    }
+
+    @media (max-width: 900px) {
+      .container { grid-template-columns: 1fr; }
+    }
+
+    .card {
+      background: #151a2c;
+      border-radius: 14px;
+      padding: 1.1rem 1.25rem;
+      box-shadow: 0 14px 40px rgba(0,0,0,0.4);
+      border: 1px solid rgba(255,255,255,0.04);
+    }
+
+    label { display: block; margin-bottom: 0.35rem; font-size: 0.9rem; opacity: 0.9; }
+    input[type="number"], textarea {
+      width: 100%;
+      padding: 0.6rem 0.7rem;
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.15);
+      background: #0b1020;
+      color: #f5f5f5;
+      font-size: 0.95rem;
+      outline: none;
+    }
+    input[type="number"]:focus, textarea:focus {
+      border-color: #58d5ff;
+      box-shadow: 0 0 0 1px rgba(88,213,255,0.3);
+    }
+    textarea {
+      min-height: 120px;
+      resize: vertical;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0.55rem 0.9rem;
+      border-radius: 999px;
+      border: 0;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 0.9rem;
+      margin-right: 0.5rem;
+      margin-top: 0.4rem;
+      transition: transform 0.08s ease, box-shadow 0.08s ease, background 0.15s ease;
+    }
+    .btn-primary {
+      background: #ff3366;
+      color: #fff;
+      box-shadow: 0 0 0 1px rgba(255,255,255,0.05),0 10px 25px rgba(255,51,102,0.4);
+    }
+    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 14px 30px rgba(255,51,102,0.5); }
+    .btn-secondary {
+      background: #232b49;
+      color: #f5f5f5;
+    }
+    .btn-secondary:hover { background: #2f385c; }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.25rem 0.6rem;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .pill-good { background: rgba(0,200,140,0.15); color: #4cf3b6; }
+    .pill-bad  { background: rgba(255,120,80,0.15); color: #ffb899; }
+    .pill-neutral { background: rgba(130,150,255,0.15); color: #b3bfff; }
+
+    .section {
+      margin-top: 0.75rem;
+      padding-top: 0.75rem;
+      border-top: 1px solid rgba(255,255,255,0.06);
+    }
+
+    .list-inline {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.25rem 0.4rem;
+      margin: 0.25rem 0;
+      padding: 0;
+      list-style: none;
+      font-size: 0.9rem;
+    }
+    .list-inline li {
+      padding: 0.17rem 0.5rem;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.05);
+    }
+
+    .mono { font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.85rem; }
+
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 0.6rem;
+      margin-top: 0.4rem;
+    }
+    @media (max-width: 600px) {
+      .stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    .stat {
+      background: rgba(255,255,255,0.03);
+      border-radius: 10px;
+      padding: 0.5rem 0.6rem;
+      font-size: 0.8rem;
+    }
+    .stat span { display: block; }
+    .stat-label { opacity: 0.7; margin-bottom: 0.1rem; }
+    .stat-value { font-weight: 700; font-size: 0.95rem; }
+
+    .small { font-size: 0.8rem; opacity: 0.8; }
+
+    .top-control {
+      max-width: 1100px;
+      margin: 0 auto 1rem auto;
+    }
+    .top-control-inner {
+      background: #151a2c;
+      border-radius: 14px;
+      padding: 0.9rem 1rem;
+      border: 1px solid rgba(255,255,255,0.06);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+    }
+    .top-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      align-items: flex-end;
+    }
+    .top-row label {
+      margin-bottom: 0.1rem;
+    }
+    .inline-input {
+      max-width: 160px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 0.5rem;
+    }
+    th, td {
+      padding: 0.3rem 0.4rem;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      text-align: left;
+      font-size: 0.8rem;
+    }
+    th {
+      font-weight: 600;
+      opacity: 0.9;
+    }
+    tfoot td {
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Roulette Directional Distance Predictor</h1>
+  <p class="small">
+    Spins are assumed to <strong>alternate direction</strong> (CW, CCW, CW, CCW, ...). For each spin it records the
+    <strong>wheel distance</strong> travelled in that spin's direction. To predict the next spin, it uses a
+    <strong>Callan–Symanzik style directional distance model</strong>:
+    <br />• Uses the last 3 distances in the upcoming direction,
+    <br />• Computes drift β and curvature γ,
+    <br />• Predicts S₄ = S₃ + a·β + b·γ (with tunable a &amp; b),
+    <br />• Adds a configurable pocket shift in the spin direction,
+    <br />• A <strong>Martingale</strong> on stake per number, resetting to base after 11 consecutive losses.
+  </p>
+
+  <div class="top-control">
+    <div class="top-control-inner">
+      <div class="top-row">
+        <div class="inline-input">
+          <label for="baseUnitInput">Base stake per number</label>
+          <input type="number" id="baseUnitInput" min="0.01" step="0.01" value="0.1" />
+        </div>
+        <div class="inline-input">
+          <label for="extraShiftInput">Extra pockets in spin direction</label>
+          <input type="number" id="extraShiftInput" min="0" max="18" step="1" value="3" />
+        </div>
+        <div class="inline-input">
+          <label for="driftWeightInput">Drift weight a</label>
+          <input type="number" id="driftWeightInput" min="0" max="1" step="0.01" value="0.33" />
+        </div>
+        <div class="inline-input">
+          <label for="curveWeightInput">Curvature weight b</label>
+          <input type="number" id="curveWeightInput" min="0" max="1" step="0.01" value="0.67" />
+        </div>
+        <p class="small">
+          Base = starting stake per number.<br/>
+          Extra pockets = how far ahead of the CS step to bias the centre.<br/>
+          a = drift weight, b = curvature weight (in S₄ = S₃ + aβ + bγ).
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <div class="container">
+    <!-- LIVE INPUT / OUTPUT -->
+    <div class="card">
+      <h2>Live Mode</h2>
+
+      <label for="spinInput">Enter latest spin (0–36), then click "Add Spin"</label>
+      <input type="number" id="spinInput" min="0" max="36" placeholder="e.g. 23" />
+      <div>
+        <button class="btn btn-primary" id="addSpinBtn">Add Spin</button>
+        <button class="btn btn-secondary" id="resetSpinsBtn">Reset History</button>
+        <button class="btn btn-secondary" id="exportSpinsBtn">Export Session</button>
+      </div>
+
+      <div class="section">
+        <h3>Current History</h3>
+        <div class="small" id="historyInfo">No spins yet.</div>
+        <ul class="list-inline mono" id="historyList"></ul>
+      </div>
+
+      <div class="section">
+        <h3>Next Spin Recommendation</h3>
+        <div id="recommendation">
+          <span class="pill pill-neutral">No Data</span>
+          <p class="small">Enter some spins or bulk-load history to get started.</p>
+        </div>
+      </div>
+
+      <div class="section">
+        <h3>Live Stats (this session)</h3>
+        <div class="stat-grid">
+          <div class="stat">
+            <span class="stat-label">Total Bets</span>
+            <span class="stat-value" id="liveTotalBets">0</span>
+          </div>
+          <div class="stat">
+            <span class="stat-label">Wins</span>
+            <span class="stat-value" id="liveWins">0</span>
+          </div>
+          <div class="stat">
+            <span class="stat-label">Losses</span>
+            <span class="stat-value" id="liveLosses">0</span>
+          </div>
+          <div class="stat">
+            <span class="stat-label">Hit Rate</span>
+            <span class="stat-value" id="liveHitRate">–</span>
+          </div>
+          <div class="stat">
+            <span class="stat-label">Current Losing Streak</span>
+            <span class="stat-value" id="liveCurrentStreak">0</span>
+          </div>
+          <div class="stat">
+            <span class="stat-label">Worst Losing Streak</span>
+            <span class="stat-value" id="liveWorstStreak">0</span>
+          </div>
+          <div class="stat">
+            <span class="stat-label">Profit / Loss</span>
+            <span class="stat-value" id="liveProfit">+0.00</span>
+          </div>
+          <div class="stat">
+            <span class="stat-label">Current Stake / Number</span>
+            <span class="stat-value" id="liveStakePerNumber">–</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h3>Bulk Load Spins</h3>
+        <p class="small">
+          Paste up to 500 past spins (0–36), separated by spaces, commas, or new lines.
+          This will replace your current live history and re-score all bets with the current base stake.
+        </p>
+        <textarea id="bulkLiveInput" placeholder="Example:
+26 34 16 4 10 10 27 29 17 8 35 7 23 ..."></textarea>
+        <div>
+          <button class="btn btn-primary" id="loadBulkLiveBtn">Load Into Live Model</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- SIMULATOR -->
+    <div class="card">
+      <h2>Simulator</h2>
+      <p class="small">
+        Paste a list of spins (one per line or separated by spaces). The simulator will run the
+        same model + Martingale across that history and show performance stats.
+      </p>
+      <label for="simInput">Spin sequence</label>
+      <textarea id="simInput" placeholder="Example:
+26 34 16 4 10 10 27 29 17 8 35 7 23 36 36 25 10 21 8 19 ..."></textarea>
+
+      <div>
+        <button class="btn btn-primary" id="runSimBtn">Run Simulation</button>
+        <button class="btn btn-secondary" id="clearSimBtn">Clear</button>
+      </div>
+
+      <div class="section" id="simResults" style="display:none;">
+        <h3>Simulation Results</h3>
+        <div class="stat-grid">
+          <div class="stat">
+            <span class="stat-label">Spins</span>
+            <span class="stat-value" id="simSpins">0</span>
+          </div>
+          <div class="stat">
+            <span class="stat-label">Total Bets</span>
+            <span class="stat-value" id="simTotalBets">0</span>
+          </div>
+          <div class="stat">
+            <span class="stat-label">Wins</span>
+            <span class="stat-value" id="simWins">0</span>
+          </div>
+          <div class="stat">
+            <span class="stat-label">Losses</span>
+            <span class="stat-value" id="simLosses">0</span>
+          </div>
+          <div class="stat">
+            <span class="stat-label">Hit Rate</span>
+            <span class="stat-value" id="simHitRate">–</span>
+          </div>
+          <div class="stat">
+            <span class="stat-label">Worst Losing Streak</span>
+            <span class="stat-value" id="simWorstStreak">0</span>
+          </div>
+          <div class="stat">
+            <span class="stat-label">Profit / Loss</span>
+            <span class="stat-value" id="simProfit">+0.00</span>
+          </div>
+        </div>
+        <p class="small" id="simNotes"></p>
+      </div>
+
+      <!-- DAY-BY-DAY CSV SIMULATION -->
+      <div class="section">
+        <h3>Day-by-Day CSV Simulation</h3>
+        <p class="small">
+          Export your spreadsheet as a <strong>CSV</strong> where the first row has headers like
+          <span class="mono">Day 1,Day 2,Day 3,...</span> and each column contains that day's spins (0–36).
+          This will run the same model + Martingale <strong>for each day separately</strong>.
+        </p>
+        <input type="file" id="dayCsvInput" accept=".csv" />
+        <button class="btn btn-primary" id="runDayCsvBtn">Run Day-by-Day</button>
+        <button class="btn btn-secondary" id="optimiseParamsBtn" style="margin-top:0.4rem;">
+          Find Best Settings (a, b, shift)
+        </button>
+
+        <div id="dayCsvResults" style="display:none; margin-top:0.75rem;">
+          <h3>Day Breakdown</h3>
+          <table class="mono">
+            <thead>
+              <tr>
+                <th>Day</th>
+                <th>Spins</th>
+                <th>Total Bets</th>
+                <th>Wins</th>
+                <th>Losses</th>
+                <th>Hit %</th>
+                <th>Worst Losing Streak</th>
+                <th>P&amp;L</th>
+                <th>Last Bet</th>
+                <th>Last Bet P&amp;L</th>
+              </tr>
+            </thead>
+            <tbody id="dayCsvTbody"></tbody>
+            <tfoot>
+              <tr id="dayCsvTotalRow">
+                <td><strong>TOTAL</strong></td>
+                <td id="totalSpinsCell"></td>
+                <td id="totalBetsCell"></td>
+                <td id="totalWinsCell"></td>
+                <td id="totalLossesCell"></td>
+                <td id="totalHitRateCell"></td>
+                <td id="totalWorstStreakCell"></td>
+                <td id="totalProfitCell"></td>
+                <td></td>
+                <td></td>
+              </tr>
+            </tfoot>
+          </table>
+          <!-- Overall day analysis summary -->
+          <div id="dayCsvSummary" class="small" style="margin-top:0.75rem;"></div>
+          <div id="optimiseResults" class="small" style="margin-top:0.75rem;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ---------- MODEL CONSTANTS ----------
+
+    const WHEEL_ORDER = [
+      0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6,
+      27, 13, 36, 11, 30, 8, 23, 10, 5, 24,
+      16, 33, 1, 20, 14, 31, 9, 22, 18, 29,
+      7, 28, 12, 35, 3, 26
+    ];
+
+    const INDEX_OF = {};
+    WHEEL_ORDER.forEach((n, i) => { INDEX_OF[n] = i; });
+
+    const HALF_SECTOR = 8;              // neighbours each side (17 numbers total)
+    const LOSS_RESET_MARTINGALE = 11;   // reset stake after 11 consecutive losing bets
+
+    // ---------- UTILITIES ----------
+
+    function neighboursForCentre(centreNum) {
+      const idx = INDEX_OF[centreNum];
+      if (idx === undefined) return [];
+      const nums = [];
+      for (let offset = -HALF_SECTOR; offset <= HALF_SECTOR; offset++) {
+        const j = (idx + offset + 37) % 37;
+        nums.push(WHEEL_ORDER[j]);
+      }
+      return nums;
+    }
+
+    // direction pattern: assume spin index 0 = CW, 1 = CCW, 2 = CW, ...
+    function directionForIndex(i) {
+      return i % 2 === 0 ? "CW" : "CCW";
+    }
+
+    // Build directional distances from full spin history.
+    function buildDirectionalDistances(spins) {
+      const distances = [];
+      if (spins.length < 2) return distances;
+
+      for (let i = 1; i < spins.length; i++) {
+        const prev = spins[i - 1];
+        const curr = spins[i];
+        const idxPrev = INDEX_OF[prev];
+        const idxCurr = INDEX_OF[curr];
+        if (idxPrev === undefined || idxCurr === undefined) continue;
+
+        const dir = directionForIndex(i); // direction of spin i
+        let dist;
+        if (dir === "CW") {
+          dist = (idxCurr - idxPrev + 37) % 37;
+        } else {
+          dist = (idxPrev - idxCurr + 37) % 37;
+        }
+        distances.push({ dir, dist });
+      }
+      return distances;
+    }
+
+    function parseSpinText(text) {
+      const tokens = text.split(/[\s,;]+/).filter(Boolean);
+      const arr = [];
+      for (const t of tokens) {
+        const v = parseInt(t, 10);
+        if (!isNaN(v) && v >= 0 && v <= 36) {
+          arr.push(v);
+        }
+      }
+      return arr;
+    }
+
+    function getBaseUnit() {
+      const input = document.getElementById("baseUnitInput");
+      const v = parseFloat(input.value);
+      if (!isNaN(v) && v > 0) return v;
+      return 1;
+    }
+
+    function getExtraShift() {
+      const input = document.getElementById("extraShiftInput");
+      const v = parseInt(input.value, 10);
+      if (!isNaN(v) && v >= 0 && v <= 18) return v;
+      return 0; // safe fallback
+    }
+
+    function getDriftWeight() {
+      const input = document.getElementById("driftWeightInput");
+      let v = parseFloat(input.value);
+      if (isNaN(v)) v = 0.33;
+      return v;
+    }
+
+    function getCurveWeight() {
+      const input = document.getElementById("curveWeightInput");
+      let v = parseFloat(input.value);
+      if (isNaN(v)) v = 0.67;
+      return v;
+    }
+
+    function formatMoney(x) {
+      const sign = x >= 0 ? "+" : "";
+      return sign + x.toFixed(2);
+    }
+
+    // ---------- MODEL: CS FLOW WITH CONFIGURABLE a, b, SHIFT ----------
+    // overrideParams is optional: { extraShift, driftA, curveB }
+    function csPrediction(spins, overrideParams) {
+      if (spins.length < 4) {
+        return {
+          shouldBet: false,
+          reason: "Need at least 4 spins for the CS flow model.",
+          debug: null
+        };
+      }
+
+      const lastNum = spins[spins.length - 1];
+      const idxLast = INDEX_OF[lastNum];
+      if (idxLast === undefined) {
+        return { shouldBet: false, reason: "Last number not on wheel", debug: null };
+      }
+
+      const distances = buildDirectionalDistances(spins);
+
+      // Direction of the upcoming spin
+      const nextIndex = spins.length;
+      const upcomingDir = directionForIndex(nextIndex);
+
+      const dirDistances = distances
+        .filter(d => d.dir === upcomingDir)
+        .map(d => d.dist);
+
+      if (dirDistances.length < 3) {
+        return {
+          shouldBet: false,
+          reason: `Need at least 3 distances in ${upcomingDir} direction (have ${dirDistances.length}).`,
+          debug: { upcomingDir, dirDistances }
+        };
+      }
+
+      // Last three distances
+      const S1 = dirDistances[dirDistances.length - 3];
+      const S2 = dirDistances[dirDistances.length - 2];
+      const S3 = dirDistances[dirDistances.length - 1];
+
+      // Drift and curvature
+      const beta  = S3 - S2;
+      const gamma = (S3 - S2) - (S2 - S1);
+
+      // Use UI weights unless overridden
+      const a = overrideParams && typeof overrideParams.driftA === "number"
+        ? overrideParams.driftA
+        : getDriftWeight();
+      const b = overrideParams && typeof overrideParams.curveB === "number"
+        ? overrideParams.curveB
+        : getCurveWeight();
+      const extraShift = overrideParams && typeof overrideParams.extraShift === "number"
+        ? overrideParams.extraShift
+        : getExtraShift();
+
+      // Predict next step
+      let S4 = S3 + a * beta + b * gamma;
+      S4 = Math.round(S4) % 37;
+      if (S4 < 0) S4 += 37;
+
+      // Extra bias in spin direction
+      const stepWithBias = (S4 + extraShift) % 37;
+
+      // Convert to wheel index in upcoming direction
+      let centreIdx;
+      if (upcomingDir === "CW") {
+        centreIdx = (idxLast + stepWithBias) % 37;
+      } else {
+        centreIdx = (idxLast - stepWithBias + 74) % 37; // avoid negatives
+      }
+
+      const centreNum = WHEEL_ORDER[centreIdx];
+      const neighbours = neighboursForCentre(centreNum);
+
+      return {
+        shouldBet: true,
+        centreNum,
+        neighbours,
+        dominantStep: stepWithBias,
+        reason: `CS flow with a=${a.toFixed(2)}, b=${b.toFixed(2)}, +${extraShift} pocket bias in ${upcomingDir}.`,
+        debug: {
+          upcomingDir,
+          S1, S2, S3,
+          beta, gamma,
+          S4Base: S4,
+          extraShift,
+          stepWithBias,
+          centreIdx,
+          centreNum,
+          a, b,
+          nDir: dirDistances.length
+        }
+      };
+    }
+
+    // ---------- LIVE UI LOGIC + MARTINGALE ----------
+
+    const spinsLive = [];
+    let liveTotalBets = 0;
+    let liveWins = 0;
+    let liveLosses = 0;
+    let liveCurrentLosingStreak = 0;
+    let liveWorstStreak = 0;
+
+    // Martingale state for live mode
+    let liveProfit = 0;                  // total P&L
+    let liveStakePerNumber = null;       // current stake per number
+    let liveMartingaleLossCount = 0;     // consecutive losing bets for stake reset
+
+    const spinInput = document.getElementById("spinInput");
+    const addSpinBtn = document.getElementById("addSpinBtn");
+    const resetSpinsBtn = document.getElementById("resetSpinsBtn");
+    const exportSpinsBtn = document.getElementById("exportSpinsBtn");
+    const historyInfo = document.getElementById("historyInfo");
+    const historyList = document.getElementById("historyList");
+    const recommendationDiv = document.getElementById("recommendation");
+
+    const liveTotalBetsEl = document.getElementById("liveTotalBets");
+    const liveWinsEl = document.getElementById("liveWins");
+    const liveLossesEl = document.getElementById("liveLosses");
+    const liveHitRateEl = document.getElementById("liveHitRate");
+    const liveCurrentStreakEl = document.getElementById("liveCurrentStreak");
+    const liveWorstStreakEl = document.getElementById("liveWorstStreak");
+    const liveProfitEl = document.getElementById("liveProfit");
+    const liveStakePerNumberEl = document.getElementById("liveStakePerNumber");
+
+    let lastPrediction = null; // for scoring wins/losses
+
+    function updateHistoryUI() {
+      if (spinsLive.length === 0) {
+        historyInfo.textContent = "No spins yet.";
+        historyList.innerHTML = "";
+        return;
+      }
+      historyInfo.textContent = `Total spins: ${spinsLive.length} (showing last 20)`;
+      const last20 = spinsLive.slice(-20);
+      historyList.innerHTML = "";
+      last20.forEach(n => {
+        const li = document.createElement("li");
+        li.textContent = n;
+        historyList.appendChild(li);
+      });
+    }
+
+    function updateStatsUI() {
+      liveTotalBetsEl.textContent = liveTotalBets;
+      liveWinsEl.textContent = liveWins;
+      liveLossesEl.textContent = liveLosses;
+      liveCurrentStreakEl.textContent = liveCurrentLosingStreak;
+      liveWorstStreakEl.textContent = liveWorstStreak;
+      if (liveTotalBets === 0) {
+        liveHitRateEl.textContent = "–";
+      } else {
+        const rate = (liveWins / liveTotalBets) * 100;
+        liveHitRateEl.textContent = rate.toFixed(1) + "%";
+      }
+      liveProfitEl.textContent = formatMoney(liveProfit);
+      if (liveStakePerNumber == null) {
+        liveStakePerNumberEl.textContent = "–";
+      } else {
+        liveStakePerNumberEl.textContent = liveStakePerNumber.toFixed(2);
+      }
+    }
+
+    function renderRecommendation(pred) {
+      recommendationDiv.innerHTML = "";
+
+      if (!pred) {
+        const pill = document.createElement("span");
+        pill.className = "pill pill-neutral";
+        pill.textContent = "No Data";
+        recommendationDiv.appendChild(pill);
+        const p = document.createElement("p");
+        p.className = "small";
+        p.textContent = "Enter more spins to get a prediction.";
+        recommendationDiv.appendChild(p);
+        return;
+      }
+
+      if (!pred.shouldBet) {
+        const pill = document.createElement("span");
+        pill.className = "pill pill-neutral";
+        pill.textContent = "NO BET";
+        recommendationDiv.appendChild(pill);
+        const p = document.createElement("p");
+        p.className = "small";
+        p.textContent = pred.reason || "Pattern not strong enough yet.";
+        recommendationDiv.appendChild(p);
+      } else {
+        const pill = document.createElement("span");
+        pill.className = "pill pill-good";
+        pill.textContent = "BET";
+        recommendationDiv.appendChild(pill);
+
+        const p1 = document.createElement("p");
+        p1.innerHTML =
+          `Centre: <strong>${pred.centreNum}</strong>` +
+          ` &mdash; Step: <span class="mono">${pred.dominantStep}</span>`;
+        recommendationDiv.appendChild(p1);
+
+        const p2 = document.createElement("p");
+        p2.className = "small";
+        p2.textContent = "Cover this number and its 8 neighbours each side on the wheel (17 numbers):";
+        recommendationDiv.appendChild(p2);
+
+        const ul = document.createElement("ul");
+        ul.className = "list-inline mono";
+        pred.neighbours.forEach(n => {
+          const li = document.createElement("li");
+          li.textContent = n;
+          ul.appendChild(li);
+        });
+        recommendationDiv.appendChild(ul);
+
+        if (pred.reason) {
+          const p3 = document.createElement("p");
+          p3.className = "small";
+          p3.textContent = pred.reason;
+          recommendationDiv.appendChild(p3);
+        }
+      }
+    }
+
+    function onAddSpin() {
+      const v = parseInt(spinInput.value, 10);
+      if (isNaN(v) || v < 0 || v > 36) {
+        alert("Please enter a valid number between 0 and 36.");
+        return;
+      }
+
+      const baseUnit = getBaseUnit();
+
+      // Score previous prediction (if any) NOW that we know the outcome
+      if (lastPrediction && lastPrediction.shouldBet) {
+        liveTotalBets++;
+
+        const neighbours = lastPrediction.neighbours || [];
+        const numbersCovered = neighbours.length;
+        const stakePerNumberNow = (liveStakePerNumber == null) ? baseUnit : liveStakePerNumber;
+        const totalStake = stakePerNumberNow * numbersCovered;
+
+        const hit = neighbours.includes(v);
+        if (hit) {
+          // roulette: 35:1 payout => return 36x stake on the winning number
+          const winReturn = stakePerNumberNow * 36;
+          const profit = winReturn - totalStake;
+          liveProfit += profit;
+
+          liveWins++;
+          liveCurrentLosingStreak = 0;
+          liveMartingaleLossCount = 0;
+          liveStakePerNumber = baseUnit; // reset on win
+        } else {
+          liveLosses++;
+          liveCurrentLosingStreak++;
+          if (liveCurrentLosingStreak > liveWorstStreak) {
+            liveWorstStreak = liveCurrentLosingStreak;
+          }
+
+          // lose stake
+          liveProfit -= totalStake;
+
+          // martingale loss tracking
+          liveMartingaleLossCount += 1;
+
+          if (liveMartingaleLossCount >= LOSS_RESET_MARTINGALE) {
+            // reset stake after 11 consecutive losses
+            liveStakePerNumber = baseUnit;
+            liveMartingaleLossCount = 0;
+          } else {
+            // double per-number stake for next bet
+            liveStakePerNumber = stakePerNumberNow * 2;
+          }
+        }
+        updateStatsUI();
+      }
+
+      spinsLive.push(v);
+      spinInput.value = "";
+      updateHistoryUI();
+
+      // Compute new prediction for NEXT spin
+      const pred = csPrediction(spinsLive);
+      lastPrediction = pred;
+      renderRecommendation(pred);
+    }
+
+    function onResetSpins() {
+      spinsLive.length = 0;
+      lastPrediction = null;
+      liveTotalBets = 0;
+      liveWins = 0;
+      liveLosses = 0;
+      liveCurrentLosingStreak = 0;
+      liveWorstStreak = 0;
+      liveProfit = 0;
+      liveStakePerNumber = null;
+      liveMartingaleLossCount = 0;
+      updateHistoryUI();
+      updateStatsUI();
+      renderRecommendation(null);
+    }
+
+    function onExportSpins() {
+      if (spinsLive.length === 0) {
+        alert("No spins to export yet.");
+        return;
+      }
+      const text = spinsLive.join("\n");
+      const blob = new Blob([text], { type: "text/plain" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "roulette_spins_session.txt";
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }, 0);
+    }
+
+    addSpinBtn.addEventListener("click", onAddSpin);
+    resetSpinsBtn.addEventListener("click", onResetSpins);
+    exportSpinsBtn.addEventListener("click", onExportSpins);
+    spinInput.addEventListener("keyup", (e) => {
+      if (e.key === "Enter") onAddSpin();
+    });
+
+    // ---------- BULK LOAD INTO LIVE MODE ----------
+
+    const bulkLiveInput = document.getElementById("bulkLiveInput");
+    const loadBulkLiveBtn = document.getElementById("loadBulkLiveBtn");
+
+    loadBulkLiveBtn.addEventListener("click", () => {
+      const spins = parseSpinText(bulkLiveInput.value);
+      if (spins.length < 2) {
+        alert("Please paste at least 2 valid spins (0–36).");
+        return;
+      }
+
+      const baseUnit = getBaseUnit();
+
+      // Reset all live stats
+      spinsLive.length = 0;
+      liveTotalBets = 0;
+      liveWins = 0;
+      liveLosses = 0;
+      liveCurrentLosingStreak = 0;
+      liveWorstStreak = 0;
+      liveProfit = 0;
+      liveStakePerNumber = null;
+      liveMartingaleLossCount = 0;
+
+      let history = [];
+      let lastPredLocal = null;
+
+      for (let i = 0; i < spins.length; i++) {
+        const result = spins[i];
+
+        // settle bet from previous prediction
+        if (lastPredLocal && lastPredLocal.shouldBet) {
+          liveTotalBets++;
+
+          const neighbours = lastPredLocal.neighbours || [];
+          const numbersCovered = neighbours.length;
+          const stakePerNumberNow = (liveStakePerNumber == null) ? baseUnit : liveStakePerNumber;
+          const totalStake = stakePerNumberNow * numbersCovered;
+
+          const hit = neighbours.includes(result);
+
+          if (hit) {
+            const winReturn = stakePerNumberNow * 36;
+            const profit = winReturn - totalStake;
+            liveProfit += profit;
+
+            liveWins++;
+            liveCurrentLosingStreak = 0;
+            liveMartingaleLossCount = 0;
+            liveStakePerNumber = baseUnit;
+          } else {
+            liveLosses++;
+            liveCurrentLosingStreak++;
+            if (liveCurrentLosingStreak > liveWorstStreak) {
+              liveWorstStreak = liveCurrentLosingStreak;
+            }
+            liveProfit -= totalStake;
+
+            liveMartingaleLossCount += 1;
+            if (liveMartingaleLossCount >= LOSS_RESET_MARTINGALE) {
+              liveStakePerNumber = baseUnit;
+              liveMartingaleLossCount = 0;
+            } else {
+              liveStakePerNumber = stakePerNumberNow * 2;
+            }
+          }
+        }
+
+        history.push(result);
+        spinsLive.push(result);
+        lastPredLocal = csPrediction(history);
+      }
+
+      lastPrediction = lastPredLocal;
+
+      updateHistoryUI();
+      updateStatsUI();
+      renderRecommendation(lastPredLocal);
+
+      alert(`Loaded ${spins.length} spins into Live Mode.`);
+    });
+
+    // ---------- SIMULATOR SHARED LOGIC + MARTINGALE ----------
+
+    function simulateSpinsArray(spins, baseUnit, overrideParams) {
+      if (spins.length < 2) {
+        return null;
+      }
+
+      let totalBets = 0;
+      let wins = 0;
+      let losses = 0;
+      let currentStreak = 0;
+      let worstStreak = 0;
+
+      let simProfit = 0;
+      let stakePerNumber = null;
+      let martingaleLossCount = 0;
+
+      let lastBetResult = "No Bet";
+      let lastBetPnL = 0;
+
+      let history = [];
+      let lastPred = null;
+
+      for (let i = 0; i < spins.length; i++) {
+        const result = spins[i];
+
+        // settle bet from previous prediction
+        if (lastPred && lastPred.shouldBet) {
+          totalBets++;
+
+          const neighbours = lastPred.neighbours || [];
+          const numbersCovered = neighbours.length;
+          const stakeNow = (stakePerNumber == null) ? baseUnit : stakePerNumber;
+          const totalStake = stakeNow * numbersCovered;
+
+          const hit = neighbours.includes(result);
+          if (hit) {
+            const winReturn = stakeNow * 36;
+            const profit = winReturn - totalStake;
+            simProfit += profit;
+
+            wins++;
+            currentStreak = 0;
+            martingaleLossCount = 0;
+            stakePerNumber = baseUnit;
+
+            lastBetResult = "Win";
+            lastBetPnL = profit;
+          } else {
+            const profit = -totalStake;
+            simProfit += profit;
+
+            losses++;
+            currentStreak++;
+            if (currentStreak > worstStreak) worstStreak = currentStreak;
+
+            martingaleLossCount += 1;
+            if (martingaleLossCount >= LOSS_RESET_MARTINGALE) {
+              stakePerNumber = baseUnit;
+              martingaleLossCount = 0;
+            } else {
+              stakePerNumber = stakeNow * 2;
+            }
+
+            lastBetResult = "Loss";
+            lastBetPnL = profit;
+          }
+        }
+
+        history.push(result);
+        // compute new prediction for next spin
+        lastPred = csPrediction(history, overrideParams);
+      }
+
+      const hitRate = totalBets ? (wins / totalBets) * 100 : null;
+
+      return {
+        spinsCount: spins.length,
+        totalBets,
+        wins,
+        losses,
+        hitRate,
+        worstStreak,
+        profit: simProfit,
+        lastBetResult,
+        lastBetPnL
+      };
+    }
+
+    // ---------- SIMULATOR UI ----------
+
+    const simInput = document.getElementById("simInput");
+    const runSimBtn = document.getElementById("runSimBtn");
+    const clearSimBtn = document.getElementById("clearSimBtn");
+    const simResults = document.getElementById("simResults");
+    const simSpinsEl = document.getElementById("simSpins");
+    const simTotalBetsEl = document.getElementById("simTotalBets");
+    const simWinsEl = document.getElementById("simWins");
+    const simLossesEl = document.getElementById("simLosses");
+    const simHitRateEl = document.getElementById("simHitRate");
+    const simWorstStreakEl = document.getElementById("simWorstStreak");
+    const simProfitEl = document.getElementById("simProfit");
+    const simNotesEl = document.getElementById("simNotes");
+
+    function runSimulation() {
+      const spins = parseSpinText(simInput.value);
+      if (spins.length < 2) {
+        alert("Please paste at least 2 valid spins (0–36).");
+        return;
+      }
+
+      const baseUnit = getBaseUnit();
+      const res = simulateSpinsArray(spins, baseUnit);
+      if (!res) {
+        alert("Not enough spins to simulate.");
+        return;
+      }
+
+      simResults.style.display = "block";
+      simSpinsEl.textContent = res.spinsCount;
+      simTotalBetsEl.textContent = res.totalBets;
+      simWinsEl.textContent = res.wins;
+      simLossesEl.textContent = res.losses;
+      if (res.totalBets === 0) {
+        simHitRateEl.textContent = "–";
+      } else {
+        simHitRateEl.textContent = res.hitRate.toFixed(1) + "%";
+      }
+      simWorstStreakEl.textContent = res.worstStreak;
+      simProfitEl.textContent = formatMoney(res.profit);
+      simNotesEl.textContent =
+        `CS direct model with a=${getDriftWeight().toFixed(2)}, b=${getCurveWeight().toFixed(2)}, ` +
+        `+${getExtraShift()} pocket directional bias. Martingale per number (base ${baseUnit}, ` +
+        `doubles on each losing bet, resets after ${LOSS_RESET_MARTINGALE} consecutive losses).`;
+    }
+
+    function clearSimulation() {
+      simInput.value = "";
+      simResults.style.display = "none";
+    }
+
+    runSimBtn.addEventListener("click", runSimulation);
+    clearSimBtn.addEventListener("click", clearSimulation);
+
+    // ---------- DAY-BY-DAY CSV SIMULATION ----------
+
+    const dayCsvInput = document.getElementById("dayCsvInput");
+    const runDayCsvBtn = document.getElementById("runDayCsvBtn");
+    const optimiseParamsBtn = document.getElementById("optimiseParamsBtn");
+    const dayCsvResultsDiv = document.getElementById("dayCsvResults");
+    const dayCsvTbody = document.getElementById("dayCsvTbody");
+
+    const totalSpinsCell = document.getElementById("totalSpinsCell");
+    const totalBetsCell = document.getElementById("totalBetsCell");
+    const totalWinsCell = document.getElementById("totalWinsCell");
+    const totalLossesCell = document.getElementById("totalLossesCell");
+    const totalHitRateCell = document.getElementById("totalHitRateCell");
+    const totalWorstStreakCell = document.getElementById("totalWorstStreakCell");
+    const totalProfitCell = document.getElementById("totalProfitCell");
+    const dayCsvSummary = document.getElementById("dayCsvSummary");
+    const optimiseResults = document.getElementById("optimiseResults");
+
+    function parseCsv(text) {
+      const lines = text.split(/\r?\n/).filter(line => line.trim() !== "");
+      return lines.map(line => line.split(/,|\t/));
+    }
+
+    runDayCsvBtn.addEventListener("click", () => {
+      const file = dayCsvInput.files && dayCsvInput.files[0];
+      if (!file) {
+        alert("Please choose a CSV file first.");
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const text = e.target.result;
+        const rows = parseCsv(text);
+        if (rows.length < 2) {
+          alert("CSV must have a header row and at least one data row.");
+          return;
+        }
+
+        const headers = rows[0].map(h => h.trim());
+        const numCols = headers.length;
+
+        // Collect spins per column (per day)
+        const colsSpins = Array.from({ length: numCols }, () => []);
+
+        for (let r = 1; r < rows.length; r++) {
+          const row = rows[r];
+          for (let c = 0; c < numCols; c++) {
+            const cell = (row[c] || "").trim();
+            if (cell === "") continue;
+            const v = parseInt(cell, 10);
+            if (!isNaN(v) && v >= 0 && v <= 36) {
+              colsSpins[c].push(v);
+            }
+          }
+        }
+
+        dayCsvTbody.innerHTML = "";
+        dayCsvSummary.innerHTML = "";
+        optimiseResults.innerHTML = "";
+
+        let totalSpins = 0;
+        let totalBets = 0;
+        let totalWins = 0;
+        let totalLosses = 0;
+        let totalProfit = 0;
+        let totalWorstStreak = 0;
+
+        const baseUnit = getBaseUnit();
+        const dayStats = [];
+
+        colsSpins.forEach((spins, colIdx) => {
+          if (spins.length < 2) {
+            // skip days with less than 2 spins (can't simulate)
+            return;
+          }
+          const res = simulateSpinsArray(spins, baseUnit);
+          if (!res) return;
+
+          totalSpins += res.spinsCount;
+          totalBets += res.totalBets;
+          totalWins += res.wins;
+          totalLosses += res.losses;
+          totalProfit += res.profit;
+          if (res.worstStreak > totalWorstStreak) {
+            totalWorstStreak = res.worstStreak;
+          }
+
+          const dayName = headers[colIdx] || `Day ${colIdx + 1}`;
+          const hitStr = res.totalBets ? res.hitRate.toFixed(1) + "%" : "–";
+
+          const tr = document.createElement("tr");
+          tr.innerHTML = `
+            <td>${dayName}</td>
+            <td>${res.spinsCount}</td>
+            <td>${res.totalBets}</td>
+            <td>${res.wins}</td>
+            <td>${res.losses}</td>
+            <td>${hitStr}</td>
+            <td>${res.worstStreak}</td>
+            <td>${formatMoney(res.profit)}</td>
+            <td>${res.lastBetResult}</td>
+            <td>${formatMoney(res.lastBetPnL)}</td>
+          `;
+          dayCsvTbody.appendChild(tr);
+
+          dayStats.push({
+            dayName,
+            profit: res.profit
+          });
+        });
+
+        // Totals row
+        totalSpinsCell.textContent = totalSpins;
+        totalBetsCell.textContent = totalBets;
+        totalWinsCell.textContent = totalWins;
+        totalLossesCell.textContent = totalLosses;
+        if (totalBets > 0) {
+          totalHitRateCell.textContent = ((totalWins / totalBets) * 100).toFixed(1) + "%";
+        } else {
+          totalHitRateCell.textContent = "–";
+        }
+        totalWorstStreakCell.textContent = totalWorstStreak;
+        totalProfitCell.textContent = formatMoney(totalProfit);
+
+        // Overall day analysis
+        if (dayStats.length > 0) {
+          const daysSimulated = dayStats.length;
+          let winningDays = 0;
+          let losingDays = 0;
+          let flatDays = 0;
+          let longestLosingRun = 0;
+          let currentRun = 0;
+
+          let bestDay = dayStats[0];
+          let worstDay = dayStats[0];
+
+          dayStats.forEach(d => {
+            if (d.profit > 0) {
+              winningDays++;
+              currentRun = 0;
+            } else if (d.profit < 0) {
+              losingDays++;
+              currentRun++;
+              if (currentRun > longestLosingRun) longestLosingRun = currentRun;
+            } else {
+              flatDays++;
+              currentRun = 0;
+            }
+
+            if (d.profit > bestDay.profit) bestDay = d;
+            if (d.profit < worstDay.profit) worstDay = d;
+          });
+
+          const avgDailyPnL = totalProfit / daysSimulated;
+
+          dayCsvSummary.innerHTML =
+            `<strong>Overall Day Analysis:</strong><br>` +
+            `Days simulated: ${daysSimulated}<br>` +
+            `Winning days: ${winningDays}<br>` +
+            `Losing days: ${losingDays}<br>` +
+            `Flat days: ${flatDays}<br>` +
+            `Longest run of consecutive losing days: ${longestLosingRun}<br>` +
+            `Best day P&L: ${formatMoney(bestDay.profit)} (${bestDay.dayName})<br>` +
+            `Worst day P&L: ${formatMoney(worstDay.profit)} (${worstDay.dayName})<br>` +
+            `Average daily P&L: ${formatMoney(avgDailyPnL)}<br>`;
+        } else {
+          dayCsvSummary.textContent = "Overall Day Analysis: No valid days found in this CSV.";
+        }
+
+        dayCsvResultsDiv.style.display = "block";
+      };
+
+      reader.readAsText(file);
+    });
+
+    // ---------- PARAMETER OPTIMISATION (a, b, shift) ----------
+
+    optimiseParamsBtn.addEventListener("click", () => {
+      const file = dayCsvInput.files && dayCsvInput.files[0];
+      if (!file) {
+        alert("Please choose the same CSV file you used for the 40 days.");
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const text = e.target.result;
+        const rows = parseCsv(text);
+        if (rows.length < 2) {
+          alert("CSV must have a header row and at least one data row.");
+          return;
+        }
+
+        const headers = rows[0].map(h => h.trim());
+        const numCols = headers.length;
+        const colsSpins = Array.from({ length: numCols }, () => []);
+
+        for (let r = 1; r < rows.length; r++) {
+          const row = rows[r];
+          for (let c = 0; c < numCols; c++) {
+            const cell = (row[c] || "").trim();
+            if (cell === "") continue;
+            const v = parseInt(cell, 10);
+            if (!isNaN(v) && v >= 0 && v <= 36) {
+              colsSpins[c].push(v);
+            }
+          }
+        }
+
+        const validDays = colsSpins.filter(spins => spins.length >= 2);
+        if (validDays.length < 20) {
+          alert(`Need at least 20 valid days to optimise. Found only ${validDays.length}.`);
+          return;
+        }
+
+        const baseUnit = getBaseUnit();
+
+        // You can tweak these ranges if you want to search wider / narrower.
+        const candidateShifts = [0, 1, 2, 3, 4, 5, 6];
+        const candidateAs     = [0.20, 0.30, 0.33, 0.40, 0.50];
+        const candidateBs     = [0.50, 0.60, 0.67, 0.70, 0.80];
+
+        let best = null;
+
+        for (const shift of candidateShifts) {
+          for (const a of candidateAs) {
+            for (const b of candidateBs) {
+              const params = { extraShift: shift, driftA: a, curveB: b };
+
+              let totalProfit = 0;
+              let daysUsed = 0;
+
+              for (const spins of validDays) {
+                const res = simulateSpinsArray(spins, baseUnit, params);
+                if (!res) continue;
+                totalProfit += res.profit;
+                daysUsed++;
+              }
+
+              if (daysUsed === 0) continue;
+
+              const avgDaily = totalProfit / daysUsed;
+
+              if (!best || avgDaily > best.avgDaily) {
+                best = { shift, a, b, totalProfit, avgDaily, daysUsed };
+              }
+            }
+          }
+        }
+
+        if (!best) {
+          optimiseResults.textContent = "Could not find any valid parameter combination.";
+          return;
+        }
+
+        // Write best settings back into the UI
+        document.getElementById("extraShiftInput").value = best.shift;
+        document.getElementById("driftWeightInput").value = best.a.toFixed(2);
+        document.getElementById("curveWeightInput").value = best.b.toFixed(2);
+
+        optimiseResults.innerHTML =
+          `<strong>Best settings found over ${best.daysUsed} days:</strong><br>` +
+          `Extra pockets (shift): ${best.shift}<br>` +
+          `Drift weight a: ${best.a.toFixed(2)}<br>` +
+          `Curvature weight b: ${best.b.toFixed(2)}<br>` +
+          `Total P&L: ${formatMoney(best.totalProfit)}<br>` +
+          `Average daily P&L: ${formatMoney(best.avgDaily)}<br>` +
+          `<span style="opacity:0.8;">(Inputs above have been updated to these values.)</span>`;
+      };
+
+      reader.readAsText(file);
+    });
+
+    // initial UI
+    updateHistoryUI();
+    updateStatsUI();
+    renderRecommendation(null);
+  </script>
+</body>
+</html>
