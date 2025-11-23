@@ -196,9 +196,9 @@
     Spins are assumed to <strong>alternate direction</strong> (CW, CCW, CW, CCW, ...). For each spin it records the
     <strong>wheel distance</strong> travelled in that spin's direction. To predict the next spin, it uses a
     <strong>Callan–Symanzik style directional distance model</strong>:
-    <br />• Uses the last 3 distances in the upcoming direction,
+    <br />• Uses the last 3+ distances in the upcoming direction,
     <br />• Computes drift β and curvature γ,
-    <br />• Predicts S₄ = S₃ + a·β + b·γ (with tunable a &amp; b),
+    <br />• Uses a(t), b(t) that you set below (front-end),
     <br />• Adds a configurable pocket shift in the spin direction,
     <br />• A <strong>Martingale</strong> on stake per number, resetting to base after 11 consecutive losses.
   </p>
@@ -208,24 +208,39 @@
       <div class="top-row">
         <div class="inline-input">
           <label for="baseUnitInput">Base stake per number</label>
-          <input type="number" id="baseUnitInput" min="0.01" step="0.01" value="0.1" />
+          <input type="number" id="baseUnitInput" min="0.01" step="0.01" value="1" />
         </div>
+
         <div class="inline-input">
           <label for="extraShiftInput">Extra pockets in spin direction</label>
-          <input type="number" id="extraShiftInput" min="0" max="18" step="1" value="3" />
+          <input type="number" id="extraShiftInput" min="0" max="18" step="1" value="5" />
         </div>
+
         <div class="inline-input">
-          <label for="driftWeightInput">Drift weight a</label>
-          <input type="number" id="driftWeightInput" min="0" max="1" step="0.01" value="0.33" />
+          <label for="aStartInput">a start</label>
+          <input type="number" id="aStartInput" step="0.01" value="0.75" />
         </div>
+
         <div class="inline-input">
-          <label for="curveWeightInput">Curvature weight b</label>
-          <input type="number" id="curveWeightInput" min="0" max="1" step="0.01" value="0.67" />
+          <label for="aEndInput">a end</label>
+          <input type="number" id="aEndInput" step="0.01" value="0.60" />
         </div>
+
+        <div class="inline-input">
+          <label for="bStartInput">b start</label>
+          <input type="number" id="bStartInput" step="0.01" value="0.25" />
+        </div>
+
+        <div class="inline-input">
+          <label for="bEndInput">b end</label>
+          <input type="number" id="bEndInput" step="0.01" value="0.40" />
+        </div>
+
         <p class="small">
           Base = starting stake per number.<br/>
           Extra pockets = how far ahead of the CS step to bias the centre.<br/>
-          a = drift weight, b = curvature weight (in S₄ = S₃ + aβ + bγ).
+          a(t) goes from a_start → a_end as directional history grows (3 → 20 distances).<br/>
+          b(t) does the same with b_start → b_end.
         </p>
       </div>
     </div>
@@ -371,9 +386,6 @@
         </p>
         <input type="file" id="dayCsvInput" accept=".csv" />
         <button class="btn btn-primary" id="runDayCsvBtn">Run Day-by-Day</button>
-        <button class="btn btn-secondary" id="optimiseParamsBtn" style="margin-top:0.4rem;">
-          Find Best Settings (a, b, shift)
-        </button>
 
         <div id="dayCsvResults" style="display:none; margin-top:0.75rem;">
           <h3>Day Breakdown</h3>
@@ -410,7 +422,6 @@
           </table>
           <!-- Overall day analysis summary -->
           <div id="dayCsvSummary" class="small" style="margin-top:0.75rem;"></div>
-          <div id="optimiseResults" class="small" style="margin-top:0.75rem;"></div>
         </div>
       </div>
     </div>
@@ -500,28 +511,27 @@
       return 0; // safe fallback
     }
 
-    function getDriftWeight() {
-      const input = document.getElementById("driftWeightInput");
-      let v = parseFloat(input.value);
-      if (isNaN(v)) v = 0.33;
+    function getNumberFromInput(id, fallback) {
+      const el = document.getElementById(id);
+      if (!el) return fallback;
+      const v = parseFloat(el.value);
+      if (isNaN(v)) return fallback;
       return v;
     }
 
-    function getCurveWeight() {
-      const input = document.getElementById("curveWeightInput");
-      let v = parseFloat(input.value);
-      if (isNaN(v)) v = 0.67;
-      return v;
-    }
+    function getAStart() { return getNumberFromInput("aStartInput", 0.75); }
+    function getAEnd()   { return getNumberFromInput("aEndInput",   0.60); }
+    function getBStart() { return getNumberFromInput("bStartInput", 0.25); }
+    function getBEnd()   { return getNumberFromInput("bEndInput",   0.40); }
 
     function formatMoney(x) {
       const sign = x >= 0 ? "+" : "";
       return sign + x.toFixed(2);
     }
 
-    // ---------- MODEL: CS FLOW WITH CONFIGURABLE a, b, SHIFT ----------
-    // overrideParams is optional: { extraShift, driftA, curveB }
-    function csPrediction(spins, overrideParams) {
+    // ---------- MODEL: CS FLOW + CONFIGURABLE EXTRA SHIFT + FRONT-END a,b ----------
+
+    function csPrediction(spins) {
       if (spins.length < 4) {
         return {
           shouldBet: false,
@@ -549,7 +559,7 @@
       if (dirDistances.length < 3) {
         return {
           shouldBet: false,
-          reason: `Need at least 3 distances in ${upcomingDir} direction (have ${dirDistances.length}).`,
+          reason: `Need at least 3 distances in ${upcomingDir} direction (have ${dirDistances.length})`,
           debug: { upcomingDir, dirDistances }
         };
       }
@@ -559,27 +569,30 @@
       const S2 = dirDistances[dirDistances.length - 2];
       const S3 = dirDistances[dirDistances.length - 1];
 
-      // Drift and curvature
+      // CS drift and curvature
       const beta  = S3 - S2;
       const gamma = (S3 - S2) - (S2 - S1);
 
-      // Use UI weights unless overridden
-      const a = overrideParams && typeof overrideParams.driftA === "number"
-        ? overrideParams.driftA
-        : getDriftWeight();
-      const b = overrideParams && typeof overrideParams.curveB === "number"
-        ? overrideParams.curveB
-        : getCurveWeight();
-      const extraShift = overrideParams && typeof overrideParams.extraShift === "number"
-        ? overrideParams.extraShift
-        : getExtraShift();
+      // Dynamic coefficients based on available directional history
+      const nDir = dirDistances.length;
+      const nClamped = Math.max(3, Math.min(nDir, 20));
+      const t = (nClamped - 3) / (20 - 3);
+
+      const aStart = getAStart();
+      const aEnd   = getAEnd();
+      const bStart = getBStart();
+      const bEnd   = getBEnd();
+
+      const a = aStart + (aEnd - aStart) * t;
+      const b = bStart + (bEnd - bStart) * t;
 
       // Predict next step
       let S4 = S3 + a * beta + b * gamma;
       S4 = Math.round(S4) % 37;
       if (S4 < 0) S4 += 37;
 
-      // Extra bias in spin direction
+      // Configurable extra shift in spin direction
+      const extraShift = getExtraShift();
       const stepWithBias = (S4 + extraShift) % 37;
 
       // Convert to wheel index in upcoming direction
@@ -587,7 +600,8 @@
       if (upcomingDir === "CW") {
         centreIdx = (idxLast + stepWithBias) % 37;
       } else {
-        centreIdx = (idxLast - stepWithBias + 74) % 37; // avoid negatives
+        // move backwards by stepWithBias; add 74 to stay positive
+        centreIdx = (idxLast - stepWithBias + 74) % 37;
       }
 
       const centreNum = WHEEL_ORDER[centreIdx];
@@ -598,7 +612,7 @@
         centreNum,
         neighbours,
         dominantStep: stepWithBias,
-        reason: `CS flow with a=${a.toFixed(2)}, b=${b.toFixed(2)}, +${extraShift} pocket bias in ${upcomingDir}.`,
+        reason: `CS flow with a(t)∈[${aStart.toFixed(2)},${aEnd.toFixed(2)}], b(t)∈[${bStart.toFixed(2)},${bEnd.toFixed(2)}] and +${extraShift} pocket bias in ${upcomingDir}.`,
         debug: {
           upcomingDir,
           S1, S2, S3,
@@ -609,7 +623,9 @@
           centreIdx,
           centreNum,
           a, b,
-          nDir: dirDistances.length
+          aStart, aEnd,
+          bStart, bEnd,
+          nDir
         }
       };
     }
@@ -933,7 +949,7 @@
 
     // ---------- SIMULATOR SHARED LOGIC + MARTINGALE ----------
 
-    function simulateSpinsArray(spins, baseUnit, overrideParams) {
+    function simulateSpinsArray(spins, baseUnit) {
       if (spins.length < 2) {
         return null;
       }
@@ -1002,7 +1018,7 @@
 
         history.push(result);
         // compute new prediction for next spin
-        lastPred = csPrediction(history, overrideParams);
+        lastPred = csPrediction(history);
       }
 
       const hitRate = totalBets ? (wins / totalBets) * 100 : null;
@@ -1062,9 +1078,11 @@
       simWorstStreakEl.textContent = res.worstStreak;
       simProfitEl.textContent = formatMoney(res.profit);
       simNotesEl.textContent =
-        `CS direct model with a=${getDriftWeight().toFixed(2)}, b=${getCurveWeight().toFixed(2)}, ` +
-        `+${getExtraShift()} pocket directional bias. Martingale per number (base ${baseUnit}, ` +
-        `doubles on each losing bet, resets after ${LOSS_RESET_MARTINGALE} consecutive losses).`;
+        `CS direct model with a(t)∈[${getAStart().toFixed(2)},${getAEnd().toFixed(2)}], `
+        + `b(t)∈[${getBStart().toFixed(2)},${getBEnd().toFixed(2)}], `
+        + `+${getExtraShift()} pocket directional bias. `
+        + `Martingale per number (base ${baseUnit}, doubles on each losing bet, `
+        + `resets after ${LOSS_RESET_MARTINGALE} consecutive losses).`;
     }
 
     function clearSimulation() {
@@ -1079,7 +1097,6 @@
 
     const dayCsvInput = document.getElementById("dayCsvInput");
     const runDayCsvBtn = document.getElementById("runDayCsvBtn");
-    const optimiseParamsBtn = document.getElementById("optimiseParamsBtn");
     const dayCsvResultsDiv = document.getElementById("dayCsvResults");
     const dayCsvTbody = document.getElementById("dayCsvTbody");
 
@@ -1091,7 +1108,6 @@
     const totalWorstStreakCell = document.getElementById("totalWorstStreakCell");
     const totalProfitCell = document.getElementById("totalProfitCell");
     const dayCsvSummary = document.getElementById("dayCsvSummary");
-    const optimiseResults = document.getElementById("optimiseResults");
 
     function parseCsv(text) {
       const lines = text.split(/\r?\n/).filter(line => line.trim() !== "");
@@ -1134,7 +1150,6 @@
 
         dayCsvTbody.innerHTML = "";
         dayCsvSummary.innerHTML = "";
-        optimiseResults.innerHTML = "";
 
         let totalSpins = 0;
         let totalBets = 0;
@@ -1246,104 +1261,6 @@
         }
 
         dayCsvResultsDiv.style.display = "block";
-      };
-
-      reader.readAsText(file);
-    });
-
-    // ---------- PARAMETER OPTIMISATION (a, b, shift) ----------
-
-    optimiseParamsBtn.addEventListener("click", () => {
-      const file = dayCsvInput.files && dayCsvInput.files[0];
-      if (!file) {
-        alert("Please choose the same CSV file you used for the 40 days.");
-        return;
-      }
-
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const text = e.target.result;
-        const rows = parseCsv(text);
-        if (rows.length < 2) {
-          alert("CSV must have a header row and at least one data row.");
-          return;
-        }
-
-        const headers = rows[0].map(h => h.trim());
-        const numCols = headers.length;
-        const colsSpins = Array.from({ length: numCols }, () => []);
-
-        for (let r = 1; r < rows.length; r++) {
-          const row = rows[r];
-          for (let c = 0; c < numCols; c++) {
-            const cell = (row[c] || "").trim();
-            if (cell === "") continue;
-            const v = parseInt(cell, 10);
-            if (!isNaN(v) && v >= 0 && v <= 36) {
-              colsSpins[c].push(v);
-            }
-          }
-        }
-
-        const validDays = colsSpins.filter(spins => spins.length >= 2);
-        if (validDays.length < 20) {
-          alert(`Need at least 20 valid days to optimise. Found only ${validDays.length}.`);
-          return;
-        }
-
-        const baseUnit = getBaseUnit();
-
-        // You can tweak these ranges if you want to search wider / narrower.
-        const candidateShifts = [0, 1, 2, 3, 4, 5, 6];
-        const candidateAs     = [0.20, 0.30, 0.33, 0.40, 0.50];
-        const candidateBs     = [0.50, 0.60, 0.67, 0.70, 0.80];
-
-        let best = null;
-
-        for (const shift of candidateShifts) {
-          for (const a of candidateAs) {
-            for (const b of candidateBs) {
-              const params = { extraShift: shift, driftA: a, curveB: b };
-
-              let totalProfit = 0;
-              let daysUsed = 0;
-
-              for (const spins of validDays) {
-                const res = simulateSpinsArray(spins, baseUnit, params);
-                if (!res) continue;
-                totalProfit += res.profit;
-                daysUsed++;
-              }
-
-              if (daysUsed === 0) continue;
-
-              const avgDaily = totalProfit / daysUsed;
-
-              if (!best || avgDaily > best.avgDaily) {
-                best = { shift, a, b, totalProfit, avgDaily, daysUsed };
-              }
-            }
-          }
-        }
-
-        if (!best) {
-          optimiseResults.textContent = "Could not find any valid parameter combination.";
-          return;
-        }
-
-        // Write best settings back into the UI
-        document.getElementById("extraShiftInput").value = best.shift;
-        document.getElementById("driftWeightInput").value = best.a.toFixed(2);
-        document.getElementById("curveWeightInput").value = best.b.toFixed(2);
-
-        optimiseResults.innerHTML =
-          `<strong>Best settings found over ${best.daysUsed} days:</strong><br>` +
-          `Extra pockets (shift): ${best.shift}<br>` +
-          `Drift weight a: ${best.a.toFixed(2)}<br>` +
-          `Curvature weight b: ${best.b.toFixed(2)}<br>` +
-          `Total P&L: ${formatMoney(best.totalProfit)}<br>` +
-          `Average daily P&L: ${formatMoney(best.avgDaily)}<br>` +
-          `<span style="opacity:0.8;">(Inputs above have been updated to these values.)</span>`;
       };
 
       reader.readAsText(file);
