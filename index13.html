@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Roulette Distance Predictor (Non-Directional)</title>
+  <title>Roulette Directional Distance Predictor</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
     * { box-sizing: border-box; }
@@ -210,16 +210,15 @@
 </head>
 <body>
 
-  <h1>Roulette Distance Predictor</h1>
+  <h1>Roulette Directional Distance Predictor</h1>
   <p class="small">
-    This version <strong>does not use spin direction</strong> (no CW/CCW alternation).
-    For each spin it records the <strong>CW step distance</strong> between consecutive numbers on the wheel.
-    To predict the next spin, it uses a <strong>Callan–Symanzik style step model</strong>:
-    <br />• Uses the last 3 CW step distances,
+    Spins are assumed to <strong>alternate direction</strong> (CW, CCW, CW, CCW, ...).
+    For each spin it records the <strong>wheel distance</strong> travelled in that spin's direction.
+    To predict the next spin, it uses a <strong>Callan–Symanzik style directional distance model</strong>:
+    <br />• Uses the last 3 distances in the upcoming direction,
     <br />• Computes drift β and curvature γ,
-    <br />• Predicts S₄ = S₃ + a·β + b·γ,
-    <br />• Applies an extra pocket bias, then moves that many pockets around the wheel in a fixed direction (CW or CCW),
-    <br />• <strong>a</strong>, <strong>b</strong>, <strong>extraShift</strong> and a fixed <strong>direction bias (CW or CCW)</strong> are auto-optimised from your multi-day CSV data,
+    <br />• Predicts S₄ = S₃ + a·β + b·γ, then adds an extra pocket shift in the spin direction,
+    <br />• a, b and the pocket shift are <strong>auto-optimised from your multi-day CSV data</strong>,
     <br />• A <strong>Martingale</strong> on stake per number, resetting to base after 11 consecutive losses.
   </p>
 
@@ -236,7 +235,7 @@
         </p>
       </div>
       <p class="small" id="currentParamsText">
-        Current model parameters: using defaults (extraShift=3, a=0.33, b=0.67, dirBias=CW).
+        Current model parameters: using defaults (extraShift=3, a=0.33, b=0.67).  
         Upload and optimise from CSV to auto-tune these.
       </p>
     </div>
@@ -382,7 +381,8 @@
           <span class="mono">Day 1,Day 2,Day 3,...</span> and each column contains that day's spins (0–36).
           You can:
           <br />• Run the same model + Martingale for each day separately, or
-          <br />• Automatically scan a wide range of <code>a</code>, <code>b</code>, pocket shift and direction bias values and pick the most profitable setting.
+          <br />• Automatically scan a wide range of <code>a</code>, <code>b</code> and pocket shift values and pick the parameter set that
+          <strong>minimises the worst losing streak</strong> over all days (with losing days and P&amp;L as tiebreakers).
         </p>
         <input type="file" id="dayCsvInput" accept=".csv" />
         <div style="margin-top:0.4rem;">
@@ -457,8 +457,7 @@
     let AUTO_PARAMS = {
       extraShift: 3,
       aFixed: 0.33,
-      bFixed: 0.67,
-      dirBias: "CW"  // fixed global direction bias chosen by optimiser
+      bFixed: 0.67
     };
 
     // ---------- UTILITIES ----------
@@ -474,8 +473,13 @@
       return nums;
     }
 
-    // Build simple CW step distances from full spin history.
-    function buildCWDistances(spins) {
+    // direction pattern: assume spin index 0 = CW, 1 = CCW, 2 = CW, ...
+    function directionForIndex(i) {
+      return i % 2 === 0 ? "CW" : "CCW";
+    }
+
+    // Build directional distances from full spin history.
+    function buildDirectionalDistances(spins) {
       const distances = [];
       if (spins.length < 2) return distances;
 
@@ -486,9 +490,14 @@
         const idxCurr = INDEX_OF[curr];
         if (idxPrev === undefined || idxCurr === undefined) continue;
 
-        // CW distance only
-        const distCW = (idxCurr - idxPrev + 37) % 37;
-        distances.push(distCW);
+        const dir = directionForIndex(i); // direction of spin i
+        let dist;
+        if (dir === "CW") {
+          dist = (idxCurr - idxPrev + 37) % 37;
+        } else {
+          dist = (idxPrev - idxCurr + 37) % 37;
+        }
+        distances.push({ dir, dist });
       }
       return distances;
     }
@@ -517,13 +526,13 @@
       return sign + x.toFixed(2);
     }
 
-    // ---------- CS MODEL USING AUTO_PARAMS (NO DIRECTIONAL SPLIT) ----------
+    // ---------- CS MODEL USING AUTO_PARAMS ----------
 
     function csPrediction(spins, params = AUTO_PARAMS) {
       if (spins.length < 4) {
         return {
           shouldBet: false,
-          reason: "Need at least 4 spins for the CS step model.",
+          reason: "Need at least 4 spins for the CS flow model.",
           debug: null
         };
       }
@@ -534,19 +543,28 @@
         return { shouldBet: false, reason: "Last number not on wheel", debug: null };
       }
 
-      const cwDistances = buildCWDistances(spins);
-      if (cwDistances.length < 3) {
+      const distances = buildDirectionalDistances(spins);
+
+      // Direction of the upcoming spin
+      const nextIndex = spins.length;
+      const upcomingDir = directionForIndex(nextIndex);
+
+      const dirDistances = distances
+        .filter(d => d.dir === upcomingDir)
+        .map(d => d.dist);
+
+      if (dirDistances.length < 3) {
         return {
           shouldBet: false,
-          reason: `Need at least 3 CW step distances (have ${cwDistances.length})`,
-          debug: { cwDistances }
+          reason: `Need at least 3 distances in ${upcomingDir} direction (have ${dirDistances.length})`,
+          debug: { upcomingDir, dirDistances }
         };
       }
 
       // Last three distances
-      const S1 = cwDistances[cwDistances.length - 3];
-      const S2 = cwDistances[cwDistances.length - 2];
-      const S3 = cwDistances[cwDistances.length - 1];
+      const S1 = dirDistances[dirDistances.length - 3];
+      const S2 = dirDistances[dirDistances.length - 2];
+      const S3 = dirDistances[dirDistances.length - 1];
 
       // CS drift and curvature
       const beta  = S3 - S2;
@@ -564,10 +582,9 @@
       const extraShift = params.extraShift || 0;
       const stepWithBias = (S4 + extraShift) % 37;
 
-      // Apply global direction bias (CW or CCW)
-      const dirBias = params.dirBias || "CW";
+      // Convert to wheel index in upcoming direction
       let centreIdx;
-      if (dirBias === "CW") {
+      if (upcomingDir === "CW") {
         centreIdx = (idxLast + stepWithBias) % 37;
       } else {
         centreIdx = (idxLast - stepWithBias + 74) % 37; // +74 avoids negatives
@@ -581,8 +598,9 @@
         centreNum,
         neighbours,
         dominantStep: stepWithBias,
-        reason: `CS step model: S4 = S3 + aβ + bγ with a=${a.toFixed(2)}, b=${b.toFixed(2)}, extraShift=${extraShift}, dirBias=${dirBias}.`,
+        reason: `CS flow: S4 = S3 + aβ + bγ with a=${a.toFixed(2)}, b=${b.toFixed(2)}, extraShift=${extraShift}.`,
         debug: {
+          upcomingDir,
           S1, S2, S3,
           beta, gamma,
           S4,
@@ -591,8 +609,7 @@
           centreIdx,
           centreNum,
           a, b,
-          dirBias,
-          nSteps: cwDistances.length
+          nDir: dirDistances.length
         }
       };
     }
@@ -634,7 +651,7 @@
     function updateCurrentParamsSummary(extraInfo) {
       const info = extraInfo || "Optimised parameters.";
       currentParamsText.textContent =
-        `Current model parameters: extraShift=${AUTO_PARAMS.extraShift}, a=${AUTO_PARAMS.aFixed.toFixed(2)}, b=${AUTO_PARAMS.bFixed.toFixed(2)}, dirBias=${AUTO_PARAMS.dirBias}. ${info}`;
+        `Current model parameters: extraShift=${AUTO_PARAMS.extraShift}, a=${AUTO_PARAMS.aFixed.toFixed(2)}, b=${AUTO_PARAMS.bFixed.toFixed(2)}. ${info}`;
     }
 
     function updateHistoryUI() {
@@ -691,7 +708,7 @@
       if (!pred.shouldBet) {
         const pill = document.createElement("span");
         pill.className = "pill pill-neutral";
-        pill.textContent = "NO BEt";
+        pill.textContent = "NO BET";
         recommendationDiv.appendChild(pill);
         const p = document.createElement("p");
         p.className = "small";
@@ -1092,7 +1109,7 @@
       simWorstStreakEl.textContent = res.worstStreak;
       simProfitEl.textContent = formatMoney(res.profit);
       simNotesEl.textContent =
-        `CS step model with a=${AUTO_PARAMS.aFixed.toFixed(2)}, b=${AUTO_PARAMS.bFixed.toFixed(2)}, extraShift=${AUTO_PARAMS.extraShift}, dirBias=${AUTO_PARAMS.dirBias}. ` +
+        `CS model with a=${AUTO_PARAMS.aFixed.toFixed(2)}, b=${AUTO_PARAMS.bFixed.toFixed(2)}, extraShift=${AUTO_PARAMS.extraShift}. ` +
         `Martingale per number (base ${baseUnit}, doubles on each losing bet, resets after ${LOSS_RESET_MARTINGALE} consecutive losses).`;
     }
 
@@ -1306,19 +1323,16 @@
 
         // build parameter grid
         const extraShiftOptions = [0, 1, 2, 3, 4, 5];
-        const dirOptions = ["CW", "CCW"];
         const aStep = 0.02;
         const bStep = 0.02;
 
         const paramGrid = [];
         for (let extraShift of extraShiftOptions) {
-          for (let dirBias of dirOptions) {
-            for (let a = 0.0; a <= 1.0001; a += aStep) {
-              for (let b = 0.0; b <= 1.0001; b += bStep) {
-                const aFixed = parseFloat(a.toFixed(2));
-                const bFixed = parseFloat(b.toFixed(2));
-                paramGrid.push({ extraShift, aFixed, bFixed, dirBias });
-              }
+          for (let a = 0.0; a <= 1.0001; a += aStep) {
+            for (let b = 0.0; b <= 1.0001; b += bStep) {
+              const aFixed = parseFloat(a.toFixed(2));
+              const bFixed = parseFloat(b.toFixed(2));
+              paramGrid.push({ extraShift, aFixed, bFixed });
             }
           }
         }
@@ -1347,7 +1361,15 @@
             const p = paramGrid[comboIndex++];
             const res = simulateAllDaysWithParams(allDaysSpins, baseUnit, p);
             if (res && res.daysSimulated > 0) {
-              if (!best || res.totalProfit > best.totalProfit) {
+              // NEW: minimise worst losing streak, then losing days, then maximise profit
+              if (
+                !best ||
+                res.totalWorstStreak < best.totalWorstStreak ||
+                (res.totalWorstStreak === best.totalWorstStreak && res.losingDays < best.losingDays) ||
+                (res.totalWorstStreak === best.totalWorstStreak &&
+                 res.losingDays === best.losingDays &&
+                 res.totalProfit > best.totalProfit)
+              ) {
                 best = {
                   ...p,
                   ...res
@@ -1364,9 +1386,9 @@
           if (best) {
             optimizerStatus.textContent =
               `Scanning ${comboIndex}/${totalCombos} combos... ` +
-              `Current best P&L ${formatMoney(best.totalProfit)} ` +
-              `(extraShift=${best.extraShift}, a=${best.aFixed.toFixed(2)}, b=${best.bFixed.toFixed(2)}, dirBias=${best.dirBias}, ` +
-              `losing days=${best.losingDays}, worst losing streak=${best.totalWorstStreak}).`;
+              `Current best worst streak=${best.totalWorstStreak} ` +
+              `(extraShift=${best.extraShift}, a=${best.aFixed.toFixed(2)}, b=${best.bFixed.toFixed(2)}, ` +
+              `losing days=${best.losingDays}, total P&L=${formatMoney(best.totalProfit)}).`;
           } else {
             optimizerStatus.textContent =
               `Scanning ${comboIndex}/${totalCombos} combos... (no valid result yet)`;
@@ -1392,18 +1414,18 @@
             AUTO_PARAMS = {
               extraShift: best.extraShift,
               aFixed: best.aFixed,
-              bFixed: best.bFixed,
-              dirBias: best.dirBias
+              bFixed: best.bFixed
             };
 
             optimizerStatus.textContent =
-              `Done. Best parameters: extraShift=${best.extraShift}, a=${best.aFixed.toFixed(2)}, b=${best.bFixed.toFixed(2)}, dirBias=${best.dirBias}. ` +
+              `Done. Best parameters (min worst streak): extraShift=${best.extraShift}, a=${best.aFixed.toFixed(2)}, b=${best.bFixed.toFixed(2)}. ` +
               `Optimised over ${best.daysSimulated} days, ${totalCombos} combos. ` +
-              `Best total P&L=${formatMoney(best.totalProfit)}; Losing days=${best.losingDays}; ` +
-              `Worst losing streak=${best.totalWorstStreak}.`;
+              `Worst losing streak=${best.totalWorstStreak}; Losing days=${best.losingDays}; ` +
+              `Total P&L=${formatMoney(best.totalProfit)}.`;
 
             updateCurrentParamsSummary(
-              `Optimised over ${best.daysSimulated} days. Best total P&L=${formatMoney(best.totalProfit)}, losing days=${best.losingDays}, worst losing streak=${best.totalWorstStreak}.`
+              `Optimised to minimise worst losing streak over ${best.daysSimulated} days. ` +
+              `Worst streak=${best.totalWorstStreak}, losing days=${best.losingDays}, total P&L=${formatMoney(best.totalProfit)}.`
             );
           }
         }
