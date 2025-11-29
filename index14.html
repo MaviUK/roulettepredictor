@@ -150,7 +150,8 @@
       padding: 0.25rem 0.5rem;
       border-radius: 999px;
       font-size: 0.75rem;
-      margin-top: 0.25rem;
+      margin-top: 0.5rem;
+      margin-bottom: 0.75rem;
     }
   </style>
 </head>
@@ -161,14 +162,15 @@
     Spins are assumed to <strong>alternate direction</strong> (CW, CCW, CW, CCW, ...).<br>
     For each spin, the model:
     <br>• Builds wheel distances in that spin's direction,
-    <br>• Uses the last 4 distances in the same direction to <strong>update a, b and an extra pocket shift</strong>,
-    <br>• Predicts the next step using a Callan–Symanzik style formula,
-    <br>• Covers the predicted number plus 8 neighbours each side (17 numbers total),
+    <br>• Learns separate <strong>a, b, extraShift</strong> parameters for CW and CCW,
+    <br>• Uses exponential forgetting so recent spins matter more,
+    <br>• Predicts the next distance via a Callan–Symanzik style formula,
+    <br>• Covers the predicted number plus 8 neighbours each side (17 numbers),
     <br>• Uses a Martingale on stake per number (doubling on each loss, reset after 11 consecutive losses).
   </p>
 
   <div class="params-badge" id="paramBadge">
-    a = 0.94, b = 0.36, extraShift = 4, samples = 0
+    CW: a=0.94, b=0.36, shift=4, samples=0  |  CCW: a=0.94, b=0.36, shift=4, samples=0
   </div>
 
   <div class="container">
@@ -244,8 +246,8 @@
         <h3>Bulk Load Spins (updates the model as if live)</h3>
         <p class="small">
           Paste spins (0–36), separated by spaces, commas, or new lines.
-          This will replace your current live history and re-score all bets with the
-          current adaptive model.
+          This will replace your current live history and re-score all bets
+          with the current adaptive model.
         </p>
         <textarea id="bulkLiveInput" placeholder="Example:
 26 34 16 4 10 10 27 29 17 8 35 7 23 ..."></textarea>
@@ -259,8 +261,8 @@
     <div class="card">
       <h2>Simulator (using current parameters)</h2>
       <p class="small">
-        Paste a list of spins. The simulator will run the same CS model + Martingale
-        using the <strong>current</strong> values of a, b and extraShift.
+        Paste a list of spins. The simulator will run the CS model + Martingale
+        using the <strong>current</strong> CW/CCW parameters.
         It does <em>not</em> adapt while simulating (so it won't overwrite your live model).
       </p>
 
@@ -326,27 +328,24 @@
     const HALF_SECTOR = 8;              // neighbours each side (17 numbers total)
     const LOSS_RESET_MARTINGALE = 11;   // reset stake after 11 consecutive losing bets
 
-    // ---------- ADAPTIVE PARAMETERS ----------
+    // ---------- ADAPTIVE PARAMETERS (PER DIRECTION) ----------
 
     const INITIAL_PARAMS = {
-      extraShift: 4,
-      aFixed: 0.94,
-      bFixed: 0.36
+      CW:  { extraShift: 4, aFixed: 0.94, bFixed: 0.36 },
+      CCW: { extraShift: 4, aFixed: 0.94, bFixed: 0.36 }
     };
 
-    let AUTO_PARAMS = { ...INITIAL_PARAMS };
+    let AUTO_PARAMS = JSON.parse(JSON.stringify(INITIAL_PARAMS));
 
-    // Running state for fitting:
+    // Running state per direction for fitting:
     // (S4 - S3) ≈ a * beta + b * gamma, and residual -> extraShift
     const adaptiveState = {
-      n: 0,
-      s11: 0,  // sum(x1^2)
-      s12: 0,  // sum(x1*x2)
-      s22: 0,  // sum(x2^2)
-      s1y: 0,  // sum(x1*y)
-      s2y: 0,  // sum(x2*y)
-      errMean: 0 // mean residual used for extraShift
+      CW:  { n: 0, s11: 0, s12: 0, s22: 0, s1y: 0, s2y: 0, errMean: 0 },
+      CCW: { n: 0, s11: 0, s12: 0, s22: 0, s1y: 0, s2y: 0, errMean: 0 }
     };
+
+    // Forgetting factor (0.98 ≈ stronger memory, 0.90 ≈ fast adaptation)
+    const LS_DECAY = 0.98;
 
     // ---------- UTILITIES ----------
 
@@ -420,21 +419,20 @@
 
     function updateParamBadge() {
       const badge = document.getElementById("paramBadge");
+      const cw = AUTO_PARAMS.CW;
+      const ccw = AUTO_PARAMS.CCW;
       badge.textContent =
-        `a = ${AUTO_PARAMS.aFixed.toFixed(2)}, ` +
-        `b = ${AUTO_PARAMS.bFixed.toFixed(2)}, ` +
-        `extraShift = ${AUTO_PARAMS.extraShift}, ` +
-        `samples = ${adaptiveState.n}`;
+        `CW: a=${cw.aFixed.toFixed(2)}, b=${cw.bFixed.toFixed(2)}, shift=${cw.extraShift}, samples=${adaptiveState.CW.n}  |  ` +
+        `CCW: a=${ccw.aFixed.toFixed(2)}, b=${ccw.bFixed.toFixed(2)}, shift=${ccw.extraShift}, samples=${adaptiveState.CCW.n}`;
     }
 
-    // ---------- ADAPTIVE UPDATE (a, b, extraShift) ----------
+    // ---------- ADAPTIVE UPDATE (a, b, extraShift PER DIRECTION) ----------
 
     // Call this AFTER adding a new spin to history.
     function maybeUpdateAdaptiveParamsFromSpins(spins) {
       const distances = buildDirectionalDistances(spins);
       if (distances.length < 4) return;
 
-      // Use the direction of the most recent distance
       const lastDir = distances[distances.length - 1].dir;
       const sameDir = distances.filter(d => d.dir === lastDir);
       if (sameDir.length < 4) return;
@@ -451,11 +449,19 @@
       const x1 = beta;
       const x2 = gamma;
 
-      // Ignore trivial case
       if (x1 === 0 && x2 === 0) return;
 
-      const st = adaptiveState;
-      st.n++;
+      const st = adaptiveState[lastDir];
+      const p  = AUTO_PARAMS[lastDir];
+
+      // Exponential forgetting on least-squares accumulators
+      st.s11 *= LS_DECAY;
+      st.s12 *= LS_DECAY;
+      st.s22 *= LS_DECAY;
+      st.s1y *= LS_DECAY;
+      st.s2y *= LS_DECAY;
+
+      st.n += 1;
       st.s11 += x1 * x1;
       st.s12 += x1 * x2;
       st.s22 += x2 * x2;
@@ -464,38 +470,31 @@
 
       const { s11, s12, s22, s1y, s2y } = st;
       const den = s11 * s22 - s12 * s12;
-      if (Math.abs(den) < 1e-6) return; // ill-conditioned, skip update
+      if (Math.abs(den) > 1e-6) {
+        let aHat = ( s22 * s1y - s12 * s2y ) / den;
+        let bHat = ( s11 * s2y - s12 * s1y ) / den;
 
-      // Least-squares estimate of a, b (for y = a*beta + b*gamma)
-      let aHat = ( s22 * s1y - s12 * s2y ) / den;
-      let bHat = ( s11 * s2y - s12 * s1y ) / den;
+        const mix = 0.2; // 20% new info
+        p.aFixed = clamp((1 - mix) * p.aFixed + mix * aHat, -2, 2);
+        p.bFixed = clamp((1 - mix) * p.bFixed + mix * bHat, -2, 2);
+      }
 
-      // Smooth the update so parameters don't jump around wildly
-      const mix = 0.2; // 20% new info, 80% old
-      AUTO_PARAMS.aFixed = clamp((1 - mix) * AUTO_PARAMS.aFixed + mix * aHat, -2, 2);
-      AUTO_PARAMS.bFixed = clamp((1 - mix) * AUTO_PARAMS.bFixed + mix * bHat, -2, 2);
+      // ---- extraShift adaptation for this direction ----
+      const S4_pred_noShift = S3 + p.aFixed * beta + p.bFixed * gamma;
 
-      // ---- extraShift adaptation ----
-      // Model’s prediction *without* extraShift:
-      const S4_pred_noShift = S3 + AUTO_PARAMS.aFixed * beta + AUTO_PARAMS.bFixed * gamma;
-
-      // Error in pockets between what actually happened and no-shift prediction
-      let rawErr = S4 - S4_pred_noShift; // can be negative / > 36
-
-      // wrap error into 0..36 then to [-18,18]
+      let rawErr = S4 - S4_pred_noShift; // pockets
+      // wrap error into circular range [-18,18]
       rawErr = ((rawErr % 37) + 37) % 37; // 0..36
-      if (rawErr > 18) rawErr -= 37;      // now in [-18,18]
+      if (rawErr > 18) rawErr -= 37;
 
-      const errMix = 0.1; // slower update for shift
+      const errMix = 0.1;
       st.errMean = st.n === 1
         ? rawErr
         : (1 - errMix) * st.errMean + errMix * rawErr;
 
-      // Map mean error to integer extraShift in [0, 10]
       let newShift = Math.round(st.errMean);
       newShift = clamp(newShift, 0, 10);
-
-      AUTO_PARAMS.extraShift = newShift;
+      p.extraShift = newShift;
 
       updateParamBadge();
     }
@@ -519,9 +518,12 @@
 
       const distances = buildDirectionalDistances(spins);
 
-      // Direction of the upcoming spin
       const nextIndex = spins.length;
       const upcomingDir = directionForIndex(nextIndex);
+      const paramsForDir = params[upcomingDir];
+      if (!paramsForDir) {
+        return { shouldBet: false, reason: "No parameters for direction " + upcomingDir, debug: null };
+      }
 
       const dirDistances = distances
         .filter(d => d.dir === upcomingDir)
@@ -542,18 +544,16 @@
       const beta  = S3 - S2;
       const gamma = (S3 - S2) - (S2 - S1);
 
-      const a = params.aFixed;
-      const b = params.bFixed;
+      const a = paramsForDir.aFixed;
+      const b = paramsForDir.bFixed;
 
-      // Predict next distance in that direction (no shift)
       let S4 = S3 + a * beta + b * gamma;
       S4 = Math.round(S4);
       S4 = ((S4 % 37) + 37) % 37;
 
-      const extraShift = params.extraShift || 0;
+      const extraShift = paramsForDir.extraShift || 0;
       const stepWithBias = (S4 + extraShift) % 37;
 
-      // Convert to wheel index in upcoming direction
       let centreIdx;
       if (upcomingDir === "CW") {
         centreIdx = (idxLast + stepWithBias) % 37;
@@ -569,7 +569,7 @@
         centreNum,
         neighbours,
         dominantStep: stepWithBias,
-        reason: `CS flow: a=${a.toFixed(2)}, b=${b.toFixed(2)}, extraShift=${extraShift}, dir=${upcomingDir}.`,
+        reason: `CS flow (${upcomingDir}): a=${a.toFixed(2)}, b=${b.toFixed(2)}, extraShift=${extraShift}.`,
         debug: {
           upcomingDir,
           S1, S2, S3,
@@ -785,12 +785,13 @@
       liveStakePerNumber = null;
       liveMartingaleLossCount = 0;
 
-      // reset adaptive params to initial
-      AUTO_PARAMS = { ...INITIAL_PARAMS };
-      adaptiveState.n = 0;
-      adaptiveState.s11 = adaptiveState.s12 = adaptiveState.s22 = 0;
-      adaptiveState.s1y = adaptiveState.s2y = 0;
-      adaptiveState.errMean = 0;
+      AUTO_PARAMS = JSON.parse(JSON.stringify(INITIAL_PARAMS));
+      ["CW","CCW"].forEach(dir => {
+        const st = adaptiveState[dir];
+        st.n = 0; st.s11 = st.s12 = st.s22 = 0;
+        st.s1y = st.s2y = 0;
+        st.errMean = 0;
+      });
       updateParamBadge();
 
       updateHistoryUI();
@@ -828,11 +829,13 @@
       liveProfit = 0;
       liveStakePerNumber = null;
       liveMartingaleLossCount = 0;
-      AUTO_PARAMS = { ...INITIAL_PARAMS };
-      adaptiveState.n = 0;
-      adaptiveState.s11 = adaptiveState.s12 = adaptiveState.s22 = 0;
-      adaptiveState.s1y = adaptiveState.s2y = 0;
-      adaptiveState.errMean = 0;
+      AUTO_PARAMS = JSON.parse(JSON.stringify(INITIAL_PARAMS));
+      ["CW","CCW"].forEach(dir => {
+        const st = adaptiveState[dir];
+        st.n = 0; st.s11 = st.s12 = st.s22 = 0;
+        st.s1y = st.s2y = 0;
+        st.errMean = 0;
+      });
       updateParamBadge();
 
       let history = [];
@@ -841,7 +844,6 @@
       for (let i = 0; i < spins.length; i++) {
         const result = spins[i];
 
-        // settle bet from previous prediction
         if (lastPredLocal && lastPredLocal.shouldBet) {
           liveTotalBets++;
 
@@ -971,7 +973,6 @@
         }
 
         history.push(result);
-        // NOTE: we do NOT adapt here; use fixed params snapshot passed in
         lastPred = csPrediction(history, params);
       }
 
@@ -996,7 +997,7 @@
       }
 
       const baseUnit = getBaseUnit();
-      const paramsSnapshot = { ...AUTO_PARAMS }; // use current adaptive params
+      const paramsSnapshot = JSON.parse(JSON.stringify(AUTO_PARAMS)); // snapshot per-dir params
       const res = simulateSpinsArrayWithParams(spins, baseUnit, paramsSnapshot);
       if (!res) {
         alert("Not enough spins to simulate.");
@@ -1016,8 +1017,9 @@
       simWorstStreakEl.textContent = res.worstStreak;
       simProfitEl.textContent = formatMoney(res.profit);
       simNotesEl.textContent =
-        `Simulation using snapshot: a=${paramsSnapshot.aFixed.toFixed(2)}, ` +
-        `b=${paramsSnapshot.bFixed.toFixed(2)}, extraShift=${paramsSnapshot.extraShift}. ` +
+        `Simulation using snapshot: ` +
+        `CW(a=${paramsSnapshot.CW.aFixed.toFixed(2)}, b=${paramsSnapshot.CW.bFixed.toFixed(2)}, shift=${paramsSnapshot.CW.extraShift}); ` +
+        `CCW(a=${paramsSnapshot.CCW.aFixed.toFixed(2)}, b=${paramsSnapshot.CCW.bFixed.toFixed(2)}, shift=${paramsSnapshot.CCW.extraShift}). ` +
         `No adaptation inside this run.`;
     }
 
