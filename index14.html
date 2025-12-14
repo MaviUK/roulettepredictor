@@ -153,21 +153,6 @@
     }
     th { font-weight: 600; opacity: 0.9; }
     tfoot td { font-weight: 600; }
-
-    .progress {
-      width: 100%;
-      background: rgba(255,255,255,0.08);
-      border-radius: 999px;
-      overflow: hidden;
-      height: 10px;
-      margin-top: 0.4rem;
-    }
-    .progress-bar {
-      height: 100%;
-      width: 0%;
-      background: #ff3366;
-      transition: width 0.1s linear;
-    }
   </style>
 </head>
 <body>
@@ -175,9 +160,8 @@
   <h1>Roulette Fixed-Zone (17 Numbers) Predictor</h1>
   <p class="small">
     This version does <strong>not</strong> use any maths model.
-    It scans the wheel and selects a <strong>fixed centre number</strong> and its <strong>8 neighbours each side</strong> (17 numbers total)
-    that produces the <strong>smallest worst “miss run”</strong> on your spin history.
-    Target: find a zone that <strong>never goes 11 spins without a hit</strong> (if possible from your data).
+    It scans the wheel and selects a <strong>single fixed centre</strong> (and its <strong>8 neighbours each side</strong>, 17 numbers total)
+    that minimises the <strong>worst miss run</strong> on your history. Target: <strong>no 11-spin miss run</strong> (if possible).
     <br/>Martingale: doubles stake per number after each losing bet; resets after 11 consecutive losses.
   </p>
 
@@ -284,20 +268,23 @@
         <p class="small" id="simNotes"></p>
       </div>
 
-      <!-- DAY-BY-DAY CSV SIMULATION -->
+      <!-- CSV (ALL DAYS COMBINED ZONE) -->
       <div class="section">
-        <h3>Day-by-Day CSV Simulation</h3>
+        <h3>CSV Simulation (All Days Combined Zone)</h3>
         <p class="small">
-          CSV format: headers like <span class="mono">Day 1,Day 2,...</span> and each column contains that day's spins (0–36).
-          This runs the fixed-zone finder separately per day using that day’s spins.
+          Export your sheet as a <strong>CSV</strong> with headers like <span class="mono">Day 1,Day 2,...</span>.
+          This will:
+          <br>• Combine all spins from all columns
+          <br>• Find ONE best fixed zone from the combined history
+          <br>• Simulate each day using that SAME fixed zone
         </p>
         <input type="file" id="dayCsvInput" accept=".csv" />
         <div style="margin-top:0.4rem;">
-          <button class="btn btn-primary" id="runDayCsvBtn">Run Day-by-Day</button>
+          <button class="btn btn-primary" id="runDayCsvBtn">Run Combined-Zone CSV</button>
         </div>
 
         <div id="dayCsvResults" style="display:none; margin-top:0.75rem;">
-          <h3>Day Breakdown</h3>
+          <h3>Day Breakdown (same zone for all days)</h3>
           <table class="mono">
             <thead>
               <tr>
@@ -309,8 +296,8 @@
                 <th>Hit %</th>
                 <th>Worst Losing Streak</th>
                 <th>P&amp;L</th>
-                <th>Zone Centre</th>
-                <th>Worst Miss Run</th>
+                <th>Global Zone Centre</th>
+                <th>Day Miss Run (global zone)</th>
               </tr>
             </thead>
             <tbody id="dayCsvTbody"></tbody>
@@ -337,7 +324,6 @@
 
   <script>
     // ---------- MODEL CONSTANTS ----------
-
     const WHEEL_ORDER = [
       0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6,
       27, 13, 36, 11, 30, 8, 23, 10, 5, 24,
@@ -352,7 +338,6 @@
     const LOSS_RESET_MARTINGALE = 11;   // reset stake after 11 consecutive losing bets
 
     // ---------- UTILITIES ----------
-
     function neighboursForCentre(centreNum) {
       const idx = INDEX_OF[centreNum];
       if (idx === undefined) return [];
@@ -387,7 +372,6 @@
     }
 
     // ---------- FIXED ZONE FINDER ----------
-
     function longestMissRun(spins, zoneSet) {
       let worst = 0;
       let current = 0;
@@ -458,13 +442,9 @@
     }
 
     // ---------- LIVE UI LOGIC + MARTINGALE ----------
-
     const spinsLive = [];
-    let liveTotalBets = 0;
-    let liveWins = 0;
-    let liveLosses = 0;
-    let liveCurrentLosingStreak = 0;
-    let liveWorstStreak = 0;
+    let liveTotalBets = 0, liveWins = 0, liveLosses = 0;
+    let liveCurrentLosingStreak = 0, liveWorstStreak = 0;
 
     let liveProfit = 0;
     let liveStakePerNumber = null;
@@ -511,10 +491,7 @@
       liveLossesEl.textContent = liveLosses;
       liveCurrentStreakEl.textContent = liveCurrentLosingStreak;
       liveWorstStreakEl.textContent = liveWorstStreak;
-
-      if (liveTotalBets === 0) liveHitRateEl.textContent = "–";
-      else liveHitRateEl.textContent = ((liveWins / liveTotalBets) * 100).toFixed(1) + "%";
-
+      liveHitRateEl.textContent = liveTotalBets ? ((liveWins / liveTotalBets) * 100).toFixed(1) + "%" : "–";
       liveProfitEl.textContent = formatMoney(liveProfit);
       liveStakePerNumberEl.textContent = (liveStakePerNumber == null) ? "–" : liveStakePerNumber.toFixed(2);
     }
@@ -583,12 +560,12 @@
 
       const baseUnit = getBaseUnit();
 
-      // Score previous prediction (if any) now that we know the outcome
+      // settle previous bet
       if (lastPrediction && lastPrediction.shouldBet) {
         liveTotalBets++;
 
         const neighbours = lastPrediction.neighbours || [];
-        const numbersCovered = neighbours.length;
+        const numbersCovered = neighbours.length; // 17
         const stakePerNumberNow = (liveStakePerNumber == null) ? baseUnit : liveStakePerNumber;
         const totalStake = stakePerNumberNow * numbersCovered;
 
@@ -624,22 +601,17 @@
       spinInput.value = "";
       updateHistoryUI();
 
-      // Compute fixed-zone prediction for NEXT spin
-      const pred = fixedZonePrediction(spinsLive, 10); // 10 => avoid 11-miss run if possible
-      lastPrediction = pred;
-      renderRecommendation(pred);
+      // predict NEXT spin (fixed-zone chosen from all spins so far)
+      lastPrediction = fixedZonePrediction(spinsLive, 10); // 10 => try to avoid 11-miss run
+      renderRecommendation(lastPrediction);
     }
 
     function onResetSpins() {
       spinsLive.length = 0;
       lastPrediction = null;
 
-      liveTotalBets = 0;
-      liveWins = 0;
-      liveLosses = 0;
-      liveCurrentLosingStreak = 0;
-      liveWorstStreak = 0;
-
+      liveTotalBets = 0; liveWins = 0; liveLosses = 0;
+      liveCurrentLosingStreak = 0; liveWorstStreak = 0;
       liveProfit = 0;
       liveStakePerNumber = null;
       liveMartingaleLossCount = 0;
@@ -650,10 +622,7 @@
     }
 
     function onExportSpins() {
-      if (spinsLive.length === 0) {
-        alert("No spins to export yet.");
-        return;
-      }
+      if (spinsLive.length === 0) return alert("No spins to export yet.");
       const text = spinsLive.join("\n");
       const blob = new Blob([text], { type: "text/plain" });
       const url = URL.createObjectURL(blob);
@@ -674,26 +643,18 @@
     spinInput.addEventListener("keyup", (e) => { if (e.key === "Enter") onAddSpin(); });
 
     // ---------- BULK LOAD INTO LIVE MODE ----------
-
     const bulkLiveInput = document.getElementById("bulkLiveInput");
     const loadBulkLiveBtn = document.getElementById("loadBulkLiveBtn");
 
     loadBulkLiveBtn.addEventListener("click", () => {
       const spins = parseSpinText(bulkLiveInput.value);
-      if (spins.length < 2) {
-        alert("Please paste at least 2 valid spins (0–36).");
-        return;
-      }
+      if (spins.length < 2) return alert("Please paste at least 2 valid spins (0–36).");
 
       const baseUnit = getBaseUnit();
 
-      // Reset all live stats
       spinsLive.length = 0;
-      liveTotalBets = 0;
-      liveWins = 0;
-      liveLosses = 0;
-      liveCurrentLosingStreak = 0;
-      liveWorstStreak = 0;
+      liveTotalBets = 0; liveWins = 0; liveLosses = 0;
+      liveCurrentLosingStreak = 0; liveWorstStreak = 0;
       liveProfit = 0;
       liveStakePerNumber = null;
       liveMartingaleLossCount = 0;
@@ -704,7 +665,6 @@
       for (let i = 0; i < spins.length; i++) {
         const result = spins[i];
 
-        // settle bet from previous prediction
         if (lastPredLocal && lastPredLocal.shouldBet) {
           liveTotalBets++;
 
@@ -714,11 +674,9 @@
           const totalStake = stakePerNumberNow * numbersCovered;
 
           const hit = neighbours.includes(result);
-
           if (hit) {
             const winReturn = stakePerNumberNow * 36;
-            const profit = winReturn - totalStake;
-            liveProfit += profit;
+            liveProfit += (winReturn - totalStake);
 
             liveWins++;
             liveCurrentLosingStreak = 0;
@@ -755,16 +713,12 @@
       alert(`Loaded ${spins.length} spins into Live Mode.`);
     });
 
-    // ---------- SIMULATOR SHARED LOGIC + MARTINGALE ----------
-
+    // ---------- SIMULATOR ----------
     function simulateSpinsArray(spins, baseUnit) {
       if (spins.length < 2) return null;
 
-      let totalBets = 0;
-      let wins = 0;
-      let losses = 0;
-      let currentStreak = 0;
-      let worstStreak = 0;
+      let totalBets = 0, wins = 0, losses = 0;
+      let currentStreak = 0, worstStreak = 0;
 
       let simProfit = 0;
       let stakePerNumber = null;
@@ -776,7 +730,6 @@
       for (let i = 0; i < spins.length; i++) {
         const result = spins[i];
 
-        // settle bet from previous prediction
         if (lastPred && lastPred.shouldBet) {
           totalBets++;
 
@@ -788,16 +741,14 @@
           const hit = neighbours.includes(result);
           if (hit) {
             const winReturn = stakeNow * 36;
-            const profit = winReturn - totalStake;
-            simProfit += profit;
+            simProfit += (winReturn - totalStake);
 
             wins++;
             currentStreak = 0;
             martingaleLossCount = 0;
             stakePerNumber = baseUnit;
           } else {
-            const profit = -totalStake;
-            simProfit += profit;
+            simProfit -= totalStake;
 
             losses++;
             currentStreak++;
@@ -818,11 +769,8 @@
       }
 
       const hitRate = totalBets ? (wins / totalBets) * 100 : null;
-
       return { spinsCount: spins.length, totalBets, wins, losses, hitRate, worstStreak, profit: simProfit };
     }
-
-    // ---------- SIMULATOR UI ----------
 
     const simInput = document.getElementById("simInput");
     const runSimBtn = document.getElementById("runSimBtn");
@@ -839,14 +787,11 @@
 
     function runSimulation() {
       const spins = parseSpinText(simInput.value);
-      if (spins.length < 2) {
-        alert("Please paste at least 2 valid spins (0–36).");
-        return;
-      }
+      if (spins.length < 2) return alert("Please paste at least 2 valid spins (0–36).");
 
       const baseUnit = getBaseUnit();
       const res = simulateSpinsArray(spins, baseUnit);
-      if (!res) { alert("Not enough spins to simulate."); return; }
+      if (!res) return alert("Not enough spins to simulate.");
 
       simResults.style.display = "block";
       simSpinsEl.textContent = res.spinsCount;
@@ -870,8 +815,7 @@
     runSimBtn.addEventListener("click", runSimulation);
     clearSimBtn.addEventListener("click", clearSimulation);
 
-    // ---------- DAY-BY-DAY CSV SIMULATION ----------
-
+    // ---------- CSV (ALL DAYS COMBINED ZONE) ----------
     const dayCsvInput = document.getElementById("dayCsvInput");
     const runDayCsvBtn = document.getElementById("runDayCsvBtn");
     const dayCsvResultsDiv = document.getElementById("dayCsvResults");
@@ -893,13 +837,13 @@
 
     function loadCsvFile(callback) {
       const file = dayCsvInput.files && dayCsvInput.files[0];
-      if (!file) { alert("Please choose a CSV file first."); return; }
+      if (!file) return alert("Please choose a CSV file first.");
 
       const reader = new FileReader();
       reader.onload = (e) => {
         const text = e.target.result;
         const rows = parseCsv(text);
-        if (rows.length < 2) { alert("CSV must have a header row and at least one data row."); return; }
+        if (rows.length < 2) return alert("CSV must have a header row and at least one data row.");
 
         const headers = rows[0].map(h => h.trim());
         const numCols = headers.length;
@@ -926,28 +870,35 @@
         dayCsvTbody.innerHTML = "";
         dayCsvSummary.innerHTML = "";
 
-        let totalSpins = 0;
-        let totalBets = 0;
-        let totalWins = 0;
-        let totalLosses = 0;
-        let totalProfit = 0;
-        let totalWorstStreak = 0;
-
         const baseUnit = getBaseUnit();
 
-        let daysSimulated = 0;
-        let winningDays = 0;
-        let losingDays = 0;
-        let flatDays = 0;
+        // 1) Combine all spins across all days
+        const allSpinsCombined = [];
+        colsSpins.forEach(spins => { if (spins && spins.length) allSpinsCombined.push(...spins); });
 
+        if (allSpinsCombined.length < 2) {
+          alert("Not enough spins in the CSV to run a combined-zone simulation.");
+          return;
+        }
+
+        // 2) Find ONE best fixed zone from the combined history
+        const globalZoneInfo = findBestFixedZone(allSpinsCombined, 10);
+        if (!globalZoneInfo) {
+          alert("Could not find a valid fixed zone from the combined CSV data.");
+          return;
+        }
+        const globalZoneSet = new Set(globalZoneInfo.neighbours);
+
+        // Totals
+        let totalSpins = 0, totalBets = 0, totalWins = 0, totalLosses = 0;
+        let totalProfit = 0, totalWorstStreak = 0;
+
+        let daysSimulated = 0, winningDays = 0, losingDays = 0, flatDays = 0;
+
+        // 3) Simulate each day using the SAME global zone
         colsSpins.forEach((spins, colIdx) => {
           if (!spins || spins.length < 2) return;
 
-          // pick best fixed zone for THIS day
-          const zoneInfo = findBestFixedZone(spins, 10);
-          const zoneSet = new Set(zoneInfo.neighbours);
-
-          // simulate using that fixed zone for the day
           let stakePerNumber = null;
           let martingaleLossCount = 0;
 
@@ -955,22 +906,19 @@
           let currentStreak = 0, worstStreak = 0;
           let dayProfit = 0;
 
-          // start betting from spin 2 (once we have at least 1 previous spin), but zone is fixed anyway.
-          // We'll just bet on every spin after the first.
           for (let i = 1; i < spins.length; i++) {
             const result = spins[i];
             dayBets++;
 
-            const numbersCovered = zoneInfo.neighbours.length;
+            const numbersCovered = globalZoneInfo.neighbours.length; // 17
             const stakeNow = (stakePerNumber == null) ? baseUnit : stakePerNumber;
             const totalStake = stakeNow * numbersCovered;
 
-            const hit = zoneSet.has(result);
+            const hit = globalZoneSet.has(result);
 
             if (hit) {
               const winReturn = stakeNow * 36;
-              const profit = winReturn - totalStake;
-              dayProfit += profit;
+              dayProfit += (winReturn - totalStake);
 
               dayWins++;
               currentStreak = 0;
@@ -992,6 +940,8 @@
               }
             }
           }
+
+          const dayMissRun = longestMissRun(spins, globalZoneSet);
 
           daysSimulated++;
           if (dayProfit > 0) winningDays++;
@@ -1018,8 +968,8 @@
             <td>${hitRate}</td>
             <td>${worstStreak}</td>
             <td>${formatMoney(dayProfit)}</td>
-            <td>${zoneInfo.centreNum}</td>
-            <td>${zoneInfo.worstMissRun}</td>
+            <td>${globalZoneInfo.centreNum}</td>
+            <td>${dayMissRun}</td>
           `;
           dayCsvTbody.appendChild(tr);
         });
@@ -1032,17 +982,17 @@
         totalWorstStreakCell.textContent = totalWorstStreak;
         totalProfitCell.textContent = formatMoney(totalProfit);
 
-        if (daysSimulated > 0) {
-          dayCsvSummary.innerHTML =
-            `<strong>Overall Day Analysis:</strong><br>` +
-            `Days simulated: ${daysSimulated}<br>` +
-            `Winning days: ${winningDays}<br>` +
-            `Losing days: ${losingDays}<br>` +
-            `Flat days: ${flatDays}<br>` +
-            `Average daily P&L: ${formatMoney(totalProfit / daysSimulated)}<br>`;
-        } else {
-          dayCsvSummary.textContent = "Overall Day Analysis: No valid days found in this CSV.";
-        }
+        dayCsvSummary.innerHTML =
+          `<strong>Combined CSV Zone (used for ALL days):</strong><br>` +
+          `Fixed centre: <strong>${globalZoneInfo.centreNum}</strong><br>` +
+          `Global worst miss run (combined history): <strong>${globalZoneInfo.worstMissRun}</strong><br>` +
+          `${globalZoneInfo.meetsTarget ? "✅ Meets target (never 11 misses in a row in combined history)." : "⚠️ No zone meets target in combined history; this is the best available."}<br><br>` +
+          `<strong>Overall Day Analysis:</strong><br>` +
+          `Days simulated: ${daysSimulated}<br>` +
+          `Winning days: ${winningDays}<br>` +
+          `Losing days: ${losingDays}<br>` +
+          `Flat days: ${flatDays}<br>` +
+          `Average daily P&L: ${daysSimulated ? formatMoney(totalProfit / daysSimulated) : "–"}<br>`;
 
         dayCsvResultsDiv.style.display = "block";
       });
