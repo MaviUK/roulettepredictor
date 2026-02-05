@@ -87,7 +87,6 @@
       letter-spacing: 0.04em;
     }
     .pill-good { background: rgba(0,200,140,0.15); color: #4cf3b6; }
-    .pill-bad  { background: rgba(255,120,80,0.15); color: #ffb899; }
     .pill-neutral { background: rgba(130,150,255,0.15); color: #b3bfff; }
 
     .section {
@@ -132,10 +131,7 @@
 
     .small { font-size: 0.8rem; opacity: 0.8; }
 
-    .top-control {
-      max-width: 1100px;
-      margin: 0 auto 1rem auto;
-    }
+    .top-control { max-width: 1100px; margin: 0 auto 1rem auto; }
     .top-control-inner {
       background: #151a2c;
       border-radius: 14px;
@@ -143,20 +139,11 @@
       border: 1px solid rgba(255,255,255,0.06);
       box-shadow: 0 10px 30px rgba(0,0,0,0.4);
     }
-    .top-row {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.75rem;
-      align-items: flex-end;
-    }
+    .top-row { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: flex-end; }
     .top-row label { margin-bottom: 0.1rem; }
     .inline-input { max-width: 160px; }
 
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 0.5rem;
-    }
+    table { width: 100%; border-collapse: collapse; margin-top: 0.5rem; }
     th, td {
       padding: 0.3rem 0.4rem;
       border-bottom: 1px solid rgba(255,255,255,0.06);
@@ -186,18 +173,14 @@
 
   <h1>Roulette Directional Distance Predictor</h1>
   <p class="small">
-    Spins are assumed to <strong>alternate direction</strong> (CW, CCW, CW, CCW, ...).
-    For each spin it records the <strong>wheel distance</strong> travelled in that spin's direction.
-    To predict the next spin, it uses a <strong>Callan–Symanzik style directional distance model</strong>:
-    <br />• Uses the last 3 distances in the upcoming direction,
-    <br />• Computes drift β and curvature γ,
-    <br />• Predicts S₄ = S₃ + a·β + b·γ, then adds an extra pocket shift in the spin direction,
-    <br />• a, b and the pocket shift are <strong>auto-optimised from your multi-day CSV data</strong>,
-    <br />• A <strong>Martingale</strong> on stake per number, resetting to base after 11 consecutive losses.
+    Optimiser upgraded to be browser-safe:
+    <br />• <strong>Early-abort pruning</strong> (stops evaluating a parameter set once it’s already worse than the current best)
+    <br />• <strong>Coarse → refine</strong> search (fast pass, then tight search around the winner)
+    <br />This prevents the tab freezing/crashing.
     <br /><br />
-    <strong>Rolling 5-day mode:</strong> Days 1–5 use fixed params (shift=1, a=0.60, b=0.28).
-    Day 6 uses the best params optimised over days 1–5, Day 7 uses days 2–6, etc.
-    After a rolling run, the app also saves “Next Day Params” (based on the last 5 days in your CSV) for Live Mode.
+    <strong>Rolling 5-day mode:</strong> Days 1–5 forced to <span class="mono">shift=1, a=0.60, b=0.28</span>.
+    Day 6 uses best params optimised over days 1–5; Day 7 uses days 2–6; etc.
+    After a rolling run, the app also saves <strong>Next Day Params</strong> (best over last 5 valid days in your CSV) for Live Mode.
   </p>
 
   <div class="top-control">
@@ -208,19 +191,12 @@
           <input type="number" id="baseUnitInput" min="0.01" step="0.01" value="1" />
         </div>
         <p class="small">
-          Base = starting stake per number for Live, Simulator, and CSV runs.
-          Martingale doubles this after each losing bet, and resets after 11 consecutive losses.
+          Base = starting stake per number for Live/Simulator/CSV runs.
+          Martingale doubles after each losing bet, resets after 11 consecutive losses.
         </p>
       </div>
-
-      <p class="small" id="currentParamsText">
-        Current model parameters: using defaults (extraShift=2, a=0.26, b=0.60).
-        Upload and optimise from CSV to auto-tune these.
-      </p>
-
-      <p class="small" id="savedNextDayParamsText">
-        Saved Next Day Params: none yet. Run Rolling 5-day CSV and it will save the next-day params for Live Mode.
-      </p>
+      <p class="small" id="currentParamsText"></p>
+      <p class="small" id="savedNextDayParamsText"></p>
     </div>
   </div>
 
@@ -254,53 +230,26 @@
       <div class="section">
         <h3>Live Stats (this session)</h3>
         <div class="stat-grid">
-          <div class="stat">
-            <span class="stat-label">Total Bets</span>
-            <span class="stat-value" id="liveTotalBets">0</span>
-          </div>
-          <div class="stat">
-            <span class="stat-label">Wins</span>
-            <span class="stat-value" id="liveWins">0</span>
-          </div>
-          <div class="stat">
-            <span class="stat-label">Losses</span>
-            <span class="stat-value" id="liveLosses">0</span>
-          </div>
-          <div class="stat">
-            <span class="stat-label">Hit Rate</span>
-            <span class="stat-value" id="liveHitRate">–</span>
-          </div>
-          <div class="stat">
-            <span class="stat-label">Current Losing Streak</span>
-            <span class="stat-value" id="liveCurrentStreak">0</span>
-          </div>
-          <div class="stat">
-            <span class="stat-label">Worst Losing Streak</span>
-            <span class="stat-value" id="liveWorstStreak">0</span>
-          </div>
-          <div class="stat">
-            <span class="stat-label">Profit / Loss</span>
-            <span class="stat-value" id="liveProfit">+0.00</span>
-          </div>
-          <div class="stat">
-            <span class="stat-label">Current Stake / Number</span>
-            <span class="stat-value" id="liveStakePerNumber">–</span>
-          </div>
+          <div class="stat"><span class="stat-label">Total Bets</span><span class="stat-value" id="liveTotalBets">0</span></div>
+          <div class="stat"><span class="stat-label">Wins</span><span class="stat-value" id="liveWins">0</span></div>
+          <div class="stat"><span class="stat-label">Losses</span><span class="stat-value" id="liveLosses">0</span></div>
+          <div class="stat"><span class="stat-label">Hit Rate</span><span class="stat-value" id="liveHitRate">–</span></div>
+          <div class="stat"><span class="stat-label">Current Losing Streak</span><span class="stat-value" id="liveCurrentStreak">0</span></div>
+          <div class="stat"><span class="stat-label">Worst Losing Streak</span><span class="stat-value" id="liveWorstStreak">0</span></div>
+          <div class="stat"><span class="stat-label">Profit / Loss</span><span class="stat-value" id="liveProfit">+0.00</span></div>
+          <div class="stat"><span class="stat-label">Current Stake / Number</span><span class="stat-value" id="liveStakePerNumber">–</span></div>
         </div>
       </div>
 
       <div class="section">
         <h3>Bulk Load Spins</h3>
         <p class="small">
-          Paste up to 500 past spins (0–36), separated by spaces, commas, or new lines.
-          This will replace your current live history and re-score all bets with the current base stake
-          and current model parameters.
+          Paste up to 500 spins (0–36), separated by spaces/commas/new lines.
+          This replaces your current live history and re-scores all bets using the current parameters.
         </p>
         <textarea id="bulkLiveInput" placeholder="Example:
 26 34 16 4 10 10 27 29 17 8 35 7 23 ..."></textarea>
-        <div>
-          <button class="btn btn-primary" id="loadBulkLiveBtn">Load Into Live Model</button>
-        </div>
+        <div><button class="btn btn-primary" id="loadBulkLiveBtn">Load Into Live Model</button></div>
       </div>
     </div>
 
@@ -308,13 +257,11 @@
     <div class="card">
       <h2>Simulator</h2>
       <p class="small">
-        Paste a list of spins (one per line or separated by spaces). The simulator will run the
-        same model + Martingale across that history and show performance stats, using the
-        current model parameters.
+        Paste a list of spins. The simulator runs the same model + Martingale over that history.
       </p>
       <label for="simInput">Spin sequence</label>
       <textarea id="simInput" placeholder="Example:
-26 34 16 4 10 10 27 29 17 8 35 7 23 36 36 25 10 21 8 19 ..."></textarea>
+26 34 16 4 10 10 27 29 17 8 35 7 23 ..."></textarea>
 
       <div>
         <button class="btn btn-primary" id="runSimBtn">Run Simulation</button>
@@ -324,34 +271,13 @@
       <div class="section" id="simResults" style="display:none;">
         <h3>Simulation Results</h3>
         <div class="stat-grid">
-          <div class="stat">
-            <span class="stat-label">Spins</span>
-            <span class="stat-value" id="simSpins">0</span>
-          </div>
-          <div class="stat">
-            <span class="stat-label">Total Bets</span>
-            <span class="stat-value" id="simTotalBets">0</span>
-          </div>
-          <div class="stat">
-            <span class="stat-label">Wins</span>
-            <span class="stat-value" id="simWins">0</span>
-          </div>
-          <div class="stat">
-            <span class="stat-label">Losses</span>
-            <span class="stat-value" id="simLosses">0</span>
-          </div>
-          <div class="stat">
-            <span class="stat-label">Hit Rate</span>
-            <span class="stat-value" id="simHitRate">–</span>
-          </div>
-          <div class="stat">
-            <span class="stat-label">Worst Losing Streak</span>
-            <span class="stat-value" id="simWorstStreak">0</span>
-          </div>
-          <div class="stat">
-            <span class="stat-label">Profit / Loss</span>
-            <span class="stat-value" id="simProfit">+0.00</span>
-          </div>
+          <div class="stat"><span class="stat-label">Spins</span><span class="stat-value" id="simSpins">0</span></div>
+          <div class="stat"><span class="stat-label">Total Bets</span><span class="stat-value" id="simTotalBets">0</span></div>
+          <div class="stat"><span class="stat-label">Wins</span><span class="stat-value" id="simWins">0</span></div>
+          <div class="stat"><span class="stat-label">Losses</span><span class="stat-value" id="simLosses">0</span></div>
+          <div class="stat"><span class="stat-label">Hit Rate</span><span class="stat-value" id="simHitRate">–</span></div>
+          <div class="stat"><span class="stat-label">Worst Losing Streak</span><span class="stat-value" id="simWorstStreak">0</span></div>
+          <div class="stat"><span class="stat-label">Profit / Loss</span><span class="stat-value" id="simProfit">+0.00</span></div>
         </div>
         <p class="small" id="simNotes"></p>
       </div>
@@ -360,22 +286,20 @@
       <div class="section">
         <h3>Day-by-Day CSV Simulation & Optimiser</h3>
         <p class="small">
-          Export your spreadsheet as a <strong>CSV</strong> where the first row has headers like
-          <span class="mono">Day 1,Day 2,Day 3,...</span> and each column contains that day's spins (0–36).
+          CSV columns = days. First row headers like <span class="mono">Day 1,Day 2,...</span>.
+          Each column contains that day’s spins (0–36).
         </p>
 
         <input type="file" id="dayCsvInput" accept=".csv" />
         <div style="margin-top:0.4rem;">
           <button class="btn btn-secondary" id="runDayCsvBtn">Run Day-by-Day (no optimisation)</button>
           <button class="btn btn-secondary" id="runRolling5Btn">Run Rolling 5-Day Optimised (Day 6+)</button>
-          <button class="btn btn-primary" id="optimiseFromCsvBtn">Optimise Model From CSV</button>
+          <button class="btn btn-primary" id="optimiseFromCsvBtn">Optimise Model From CSV (All Days)</button>
         </div>
 
         <div id="optimizerPanel" class="section" style="margin-top:0.6rem;">
           <p class="small" id="optimizerStatus">Optimizer idle.</p>
-          <div class="progress">
-            <div class="progress-bar" id="optimizerProgressBar"></div>
-          </div>
+          <div class="progress"><div class="progress-bar" id="optimizerProgressBar"></div></div>
         </div>
 
         <div id="dayCsvResults" style="display:none; margin-top:0.75rem;">
@@ -397,7 +321,7 @@
             </thead>
             <tbody id="dayCsvTbody"></tbody>
             <tfoot>
-              <tr id="dayCsvTotalRow">
+              <tr>
                 <td><strong>TOTAL</strong></td>
                 <td id="totalSpinsCell"></td>
                 <td id="totalBetsCell"></td>
@@ -411,7 +335,6 @@
               </tr>
             </tfoot>
           </table>
-
           <div id="dayCsvSummary" class="small" style="margin-top:0.75rem;"></div>
         </div>
       </div>
@@ -419,7 +342,9 @@
   </div>
 
   <script>
-    // ---------- MODEL CONSTANTS ----------
+    // =======================
+    // MODEL CONSTANTS
+    // =======================
 
     const WHEEL_ORDER = [
       0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6,
@@ -427,105 +352,35 @@
       16, 33, 1, 20, 14, 31, 9, 22, 18, 29,
       7, 28, 12, 35, 3, 26
     ];
-
     const INDEX_OF = {};
     WHEEL_ORDER.forEach((n, i) => { INDEX_OF[n] = i; });
 
     const HALF_SECTOR = 8;              // neighbours each side (17 numbers total)
     const LOSS_RESET_MARTINGALE = 11;   // reset stake after 11 consecutive losing bets
 
-    // localStorage key for saved next-day params
-    const LS_PARAMS_KEY = "roulette_saved_next_day_params_v1";
+    const LS_PARAMS_KEY = "roulette_saved_next_day_params_v2";
 
-    // auto-optimised parameters used by everything
-    let AUTO_PARAMS = {
-      extraShift: 2,
-      aFixed: 0.26,
-      bFixed: 0.60
-    };
+    // Active params (used by Live + Simulator + non-rolling day-by-day)
+    let AUTO_PARAMS = { extraShift: 2, aFixed: 0.26, bFixed: 0.60 };
 
-    // ---------- ROLLING 5-DAY PARAMS RULE ----------
-
+    // Rolling rule
     const ROLLING_WINDOW_DAYS = 5;
-
-    // Days 1–5 forced params
     const FIRST_5_PARAMS = { extraShift: 1, aFixed: 0.60, bFixed: 0.28 };
 
+    // Optimiser search space
     const EXTRA_SHIFT_OPTIONS = [0, 1, 2, 3, 4, 5];
-    const A_STEP = 0.02;
-    const B_STEP = 0.02;
 
-    const PARAM_GRID = (() => {
-      const grid = [];
-      for (let extraShift of EXTRA_SHIFT_OPTIONS) {
-        for (let a = 0.0; a <= 1.0001; a += A_STEP) {
-          for (let b = 0.0; b <= 1.0001; b += B_STEP) {
-            grid.push({
-              extraShift,
-              aFixed: parseFloat(a.toFixed(2)),
-              bFixed: parseFloat(b.toFixed(2))
-            });
-          }
-        }
-      }
-      return grid;
-    })();
+    // Coarse-to-fine settings (fast + stable)
+    const COARSE_STEP = 0.10;   // first pass
+    const FINE_STEP   = 0.02;   // refine pass
+    const FINE_RADIUS = 0.10;   // refine around coarse winner
 
-    function betterCandidate(candidate, best) {
-      if (!best) return true;
-      if (candidate.totalWorstStreak !== best.totalWorstStreak) {
-        return candidate.totalWorstStreak < best.totalWorstStreak;
-      }
-      if (candidate.losingDays !== best.losingDays) {
-        return candidate.losingDays < best.losingDays;
-      }
-      return candidate.totalProfit > best.totalProfit;
-    }
+    // =======================
+    // UTILITIES
+    // =======================
 
-    function optimiseParamsForDaysWindow(windowDaysSpins, baseUnit) {
-      let best = null;
-
-      for (const p of PARAM_GRID) {
-        const res = simulateAllDaysWithParams(windowDaysSpins, baseUnit, p);
-        if (!res || res.daysSimulated === 0) continue;
-
-        const candidate = { ...p, ...res };
-        if (betterCandidate(candidate, best)) best = candidate;
-      }
-
-      if (!best) return { ...FIRST_5_PARAMS };
-      return { extraShift: best.extraShift, aFixed: best.aFixed, bFixed: best.bFixed };
-    }
-
-    function saveParamsToLocalStorage(params, meta = {}) {
-      try {
-        localStorage.setItem(LS_PARAMS_KEY, JSON.stringify({
-          params,
-          meta,
-          savedAt: new Date().toISOString()
-        }));
-      } catch (e) {}
-    }
-
-    function loadParamsFromLocalStorage() {
-      try {
-        const raw = localStorage.getItem(LS_PARAMS_KEY);
-        if (!raw) return null;
-        const parsed = JSON.parse(raw);
-        if (!parsed || !parsed.params) return null;
-        const p = parsed.params;
-        if (
-          typeof p.extraShift !== "number" ||
-          typeof p.aFixed !== "number" ||
-          typeof p.bFixed !== "number"
-        ) return null;
-        return parsed;
-      } catch (e) {
-        return null;
-      }
-    }
-
-    // ---------- UTILITIES ----------
+    function clamp01(x) { return Math.max(0, Math.min(1, x)); }
+    function roundToStep(x, step) { return Math.round(x / step) * step; }
 
     function neighboursForCentre(centreNum) {
       const idx = INDEX_OF[centreNum];
@@ -538,16 +393,11 @@
       return nums;
     }
 
-    // direction pattern: assume spin index 0 = CW, 1 = CCW, 2 = CW, ...
-    function directionForIndex(i) {
-      return i % 2 === 0 ? "CW" : "CCW";
-    }
+    function directionForIndex(i) { return i % 2 === 0 ? "CW" : "CCW"; }
 
-    // Build directional distances from full spin history.
     function buildDirectionalDistances(spins) {
       const distances = [];
       if (spins.length < 2) return distances;
-
       for (let i = 1; i < spins.length; i++) {
         const prev = spins[i - 1];
         const curr = spins[i];
@@ -555,13 +405,11 @@
         const idxCurr = INDEX_OF[curr];
         if (idxPrev === undefined || idxCurr === undefined) continue;
 
-        const dir = directionForIndex(i); // direction of spin i
+        const dir = directionForIndex(i);
         let dist;
-        if (dir === "CW") {
-          dist = (idxCurr - idxPrev + 37) % 37;
-        } else {
-          dist = (idxPrev - idxCurr + 37) % 37;
-        }
+        if (dir === "CW") dist = (idxCurr - idxPrev + 37) % 37;
+        else dist = (idxPrev - idxCurr + 37) % 37;
+
         distances.push({ dir, dist });
       }
       return distances;
@@ -572,9 +420,7 @@
       const arr = [];
       for (const t of tokens) {
         const v = parseInt(t, 10);
-        if (!isNaN(v) && v >= 0 && v <= 36) {
-          arr.push(v);
-        }
+        if (!isNaN(v) && v >= 0 && v <= 36) arr.push(v);
       }
       return arr;
     }
@@ -582,8 +428,7 @@
     function getBaseUnit() {
       const input = document.getElementById("baseUnitInput");
       const v = parseFloat(input.value);
-      if (!isNaN(v) && v > 0) return v;
-      return 1;
+      return (!isNaN(v) && v > 0) ? v : 1;
     }
 
     function formatMoney(x) {
@@ -591,7 +436,29 @@
       return sign + x.toFixed(2);
     }
 
-    // ---------- CS MODEL USING AUTO_PARAMS ----------
+    function saveParamsToLocalStorage(params, meta = {}) {
+      try {
+        localStorage.setItem(LS_PARAMS_KEY, JSON.stringify({
+          params, meta, savedAt: new Date().toISOString()
+        }));
+      } catch (_) {}
+    }
+
+    function loadParamsFromLocalStorage() {
+      try {
+        const raw = localStorage.getItem(LS_PARAMS_KEY);
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        if (!parsed || !parsed.params) return null;
+        const p = parsed.params;
+        if (typeof p.extraShift !== "number" || typeof p.aFixed !== "number" || typeof p.bFixed !== "number") return null;
+        return parsed;
+      } catch (_) { return null; }
+    }
+
+    // =======================
+    // CS PREDICTION MODEL
+    // =======================
 
     function csPrediction(spins, params = AUTO_PARAMS) {
       if (spins.length < 4) {
@@ -600,20 +467,14 @@
 
       const lastNum = spins[spins.length - 1];
       const idxLast = INDEX_OF[lastNum];
-      if (idxLast === undefined) {
-        return { shouldBet: false, reason: "Last number not on wheel", debug: null };
-      }
+      if (idxLast === undefined) return { shouldBet: false, reason: "Last number not on wheel", debug: null };
 
       const distances = buildDirectionalDistances(spins);
 
-      // Direction of the upcoming spin
       const nextIndex = spins.length;
       const upcomingDir = directionForIndex(nextIndex);
 
-      const dirDistances = distances
-        .filter(d => d.dir === upcomingDir)
-        .map(d => d.dist);
-
+      const dirDistances = distances.filter(d => d.dir === upcomingDir).map(d => d.dist);
       if (dirDistances.length < 3) {
         return {
           shouldBet: false,
@@ -640,11 +501,8 @@
       const stepWithBias = (S4 + extraShift) % 37;
 
       let centreIdx;
-      if (upcomingDir === "CW") {
-        centreIdx = (idxLast + stepWithBias) % 37;
-      } else {
-        centreIdx = (idxLast - stepWithBias + 74) % 37;
-      }
+      if (upcomingDir === "CW") centreIdx = (idxLast + stepWithBias) % 37;
+      else centreIdx = (idxLast - stepWithBias + 74) % 37;
 
       const centreNum = WHEEL_ORDER[centreIdx];
       const neighbours = neighboursForCentre(centreNum);
@@ -654,27 +512,20 @@
         centreNum,
         neighbours,
         dominantStep: stepWithBias,
-        reason: `CS flow: S4 = S3 + aβ + bγ with a=${a.toFixed(2)}, b=${b.toFixed(2)}, extraShift=${extraShift}.`,
-        debug: {
-          upcomingDir, S1, S2, S3, beta, gamma, S4,
-          extraShift, stepWithBias, centreIdx, centreNum, a, b,
-          nDir: dirDistances.length
-        }
+        reason: `CS flow: a=${a.toFixed(2)}, b=${b.toFixed(2)}, extraShift=${extraShift}.`,
+        debug: { upcomingDir, S1, S2, S3, beta, gamma, S4, extraShift, stepWithBias, centreIdx, centreNum }
       };
     }
 
-    // ---------- LIVE UI LOGIC + MARTINGALE ----------
+    // =======================
+    // LIVE MODE + MARTINGALE
+    // =======================
 
     const spinsLive = [];
-    let liveTotalBets = 0;
-    let liveWins = 0;
-    let liveLosses = 0;
-    let liveCurrentLosingStreak = 0;
-    let liveWorstStreak = 0;
-
-    let liveProfit = 0;
-    let liveStakePerNumber = null;
-    let liveMartingaleLossCount = 0;
+    let liveTotalBets = 0, liveWins = 0, liveLosses = 0;
+    let liveCurrentLosingStreak = 0, liveWorstStreak = 0;
+    let liveProfit = 0, liveStakePerNumber = null, liveMartingaleLossCount = 0;
+    let lastPrediction = null;
 
     const spinInput = document.getElementById("spinInput");
     const addSpinBtn = document.getElementById("addSpinBtn");
@@ -683,6 +534,7 @@
     const historyInfo = document.getElementById("historyInfo");
     const historyList = document.getElementById("historyList");
     const recommendationDiv = document.getElementById("recommendation");
+
     const currentParamsText = document.getElementById("currentParamsText");
     const savedNextDayParamsText = document.getElementById("savedNextDayParamsText");
 
@@ -695,26 +547,24 @@
     const liveProfitEl = document.getElementById("liveProfit");
     const liveStakePerNumberEl = document.getElementById("liveStakePerNumber");
 
-    let lastPrediction = null;
-
-    function updateCurrentParamsSummary(extraInfo) {
-      const info = extraInfo || "Parameters active now (used in Live + Simulator).";
+    function updateCurrentParamsSummary(extraInfo = "") {
       currentParamsText.textContent =
-        `Current model parameters: extraShift=${AUTO_PARAMS.extraShift}, a=${AUTO_PARAMS.aFixed.toFixed(2)}, b=${AUTO_PARAMS.bFixed.toFixed(2)}. ${info}`;
+        `Current model parameters: extraShift=${AUTO_PARAMS.extraShift}, a=${AUTO_PARAMS.aFixed.toFixed(2)}, b=${AUTO_PARAMS.bFixed.toFixed(2)}. ` +
+        (extraInfo || "Used by Live + Simulator.");
     }
 
     function updateSavedParamsLine() {
       const loaded = loadParamsFromLocalStorage();
       if (!loaded) {
         savedNextDayParamsText.textContent =
-          "Saved Next Day Params: none yet. Run Rolling 5-day CSV and it will save the next-day params for Live Mode.";
+          "Saved Next Day Params: none yet. Run Rolling 5-day CSV to save params for Live Mode.";
         return;
       }
       const p = loaded.params;
       const meta = loaded.meta || {};
-      const extra = meta && meta.note ? ` — ${meta.note}` : "";
+      const note = meta.note ? ` — ${meta.note}` : "";
       savedNextDayParamsText.textContent =
-        `Saved Next Day Params: shift=${p.extraShift}, a=${p.aFixed.toFixed(2)}, b=${p.bFixed.toFixed(2)} (saved ${loaded.savedAt})${extra}`;
+        `Saved Next Day Params: shift=${p.extraShift}, a=${p.aFixed.toFixed(2)}, b=${p.bFixed.toFixed(2)} (saved ${loaded.savedAt})${note}`;
     }
 
     function updateHistoryUI() {
@@ -739,12 +589,7 @@
       liveLossesEl.textContent = liveLosses;
       liveCurrentStreakEl.textContent = liveCurrentLosingStreak;
       liveWorstStreakEl.textContent = liveWorstStreak;
-      if (liveTotalBets === 0) {
-        liveHitRateEl.textContent = "–";
-      } else {
-        const rate = (liveWins / liveTotalBets) * 100;
-        liveHitRateEl.textContent = rate.toFixed(1) + "%";
-      }
+      liveHitRateEl.textContent = liveTotalBets ? ((liveWins / liveTotalBets) * 100).toFixed(1) + "%" : "–";
       liveProfitEl.textContent = formatMoney(liveProfit);
       liveStakePerNumberEl.textContent = (liveStakePerNumber == null) ? "–" : liveStakePerNumber.toFixed(2);
     }
@@ -773,38 +618,37 @@
         p.className = "small";
         p.textContent = pred.reason || "Pattern not strong enough yet.";
         recommendationDiv.appendChild(p);
-      } else {
-        const pill = document.createElement("span");
-        pill.className = "pill pill-good";
-        pill.textContent = "BET";
-        recommendationDiv.appendChild(pill);
+        return;
+      }
 
-        const p1 = document.createElement("p");
-        p1.innerHTML =
-          `Centre: <strong>${pred.centreNum}</strong>` +
-          ` &mdash; Step: <span class="mono">${pred.dominantStep}</span>`;
-        recommendationDiv.appendChild(p1);
+      const pill = document.createElement("span");
+      pill.className = "pill pill-good";
+      pill.textContent = "BET";
+      recommendationDiv.appendChild(pill);
 
-        const p2 = document.createElement("p");
-        p2.className = "small";
-        p2.textContent = "Cover this number and its 8 neighbours each side on the wheel (17 numbers):";
-        recommendationDiv.appendChild(p2);
+      const p1 = document.createElement("p");
+      p1.innerHTML = `Centre: <strong>${pred.centreNum}</strong> — Step: <span class="mono">${pred.dominantStep}</span>`;
+      recommendationDiv.appendChild(p1);
 
-        const ul = document.createElement("ul");
-        ul.className = "list-inline mono";
-        pred.neighbours.forEach(n => {
-          const li = document.createElement("li");
-          li.textContent = n;
-          ul.appendChild(li);
-        });
-        recommendationDiv.appendChild(ul);
+      const p2 = document.createElement("p");
+      p2.className = "small";
+      p2.textContent = "Cover this number and its 8 neighbours each side on the wheel (17 numbers):";
+      recommendationDiv.appendChild(p2);
 
-        if (pred.reason) {
-          const p3 = document.createElement("p");
-          p3.className = "small";
-          p3.textContent = pred.reason;
-          recommendationDiv.appendChild(p3);
-        }
+      const ul = document.createElement("ul");
+      ul.className = "list-inline mono";
+      pred.neighbours.forEach(n => {
+        const li = document.createElement("li");
+        li.textContent = n;
+        ul.appendChild(li);
+      });
+      recommendationDiv.appendChild(ul);
+
+      if (pred.reason) {
+        const p3 = document.createElement("p");
+        p3.className = "small";
+        p3.textContent = pred.reason;
+        recommendationDiv.appendChild(p3);
       }
     }
 
@@ -817,32 +661,29 @@
 
       const baseUnit = getBaseUnit();
 
+      // settle previous bet
       if (lastPrediction && lastPrediction.shouldBet) {
         liveTotalBets++;
 
         const neighbours = lastPrediction.neighbours || [];
-        const numbersCovered = neighbours.length;
         const stakePerNumberNow = (liveStakePerNumber == null) ? baseUnit : liveStakePerNumber;
-        const totalStake = stakePerNumberNow * numbersCovered;
-
+        const totalStake = stakePerNumberNow * neighbours.length;
         const hit = neighbours.includes(v);
-        if (hit) {
-          const winReturn = stakePerNumberNow * 36;
-          const profit = winReturn - totalStake;
-          liveProfit += profit;
 
+        if (hit) {
+          const profit = (stakePerNumberNow * 36) - totalStake;
+          liveProfit += profit;
           liveWins++;
           liveCurrentLosingStreak = 0;
           liveMartingaleLossCount = 0;
           liveStakePerNumber = baseUnit;
         } else {
+          liveProfit -= totalStake;
           liveLosses++;
           liveCurrentLosingStreak++;
           if (liveCurrentLosingStreak > liveWorstStreak) liveWorstStreak = liveCurrentLosingStreak;
 
-          liveProfit -= totalStake;
-
-          liveMartingaleLossCount += 1;
+          liveMartingaleLossCount++;
           if (liveMartingaleLossCount >= LOSS_RESET_MARTINGALE) {
             liveStakePerNumber = baseUnit;
             liveMartingaleLossCount = 0;
@@ -850,6 +691,7 @@
             liveStakePerNumber = stakePerNumberNow * 2;
           }
         }
+
         updateStatsUI();
       }
 
@@ -857,19 +699,15 @@
       spinInput.value = "";
       updateHistoryUI();
 
-      const pred = csPrediction(spinsLive, AUTO_PARAMS);
-      lastPrediction = pred;
-      renderRecommendation(pred);
+      lastPrediction = csPrediction(spinsLive, AUTO_PARAMS);
+      renderRecommendation(lastPrediction);
     }
 
     function onResetSpins() {
       spinsLive.length = 0;
       lastPrediction = null;
-      liveTotalBets = 0;
-      liveWins = 0;
-      liveLosses = 0;
-      liveCurrentLosingStreak = 0;
-      liveWorstStreak = 0;
+      liveTotalBets = liveWins = liveLosses = 0;
+      liveCurrentLosingStreak = liveWorstStreak = 0;
       liveProfit = 0;
       liveStakePerNumber = null;
       liveMartingaleLossCount = 0;
@@ -879,10 +717,7 @@
     }
 
     function onExportSpins() {
-      if (spinsLive.length === 0) {
-        alert("No spins to export yet.");
-        return;
-      }
+      if (spinsLive.length === 0) { alert("No spins to export yet."); return; }
       const text = spinsLive.join("\n");
       const blob = new Blob([text], { type: "text/plain" });
       const url = URL.createObjectURL(blob);
@@ -902,26 +737,20 @@
     exportSpinsBtn.addEventListener("click", onExportSpins);
     spinInput.addEventListener("keyup", (e) => { if (e.key === "Enter") onAddSpin(); });
 
-    // ---------- BULK LOAD INTO LIVE MODE ----------
-
+    // Bulk load into live
     const bulkLiveInput = document.getElementById("bulkLiveInput");
     const loadBulkLiveBtn = document.getElementById("loadBulkLiveBtn");
 
     loadBulkLiveBtn.addEventListener("click", () => {
       const spins = parseSpinText(bulkLiveInput.value);
-      if (spins.length < 2) {
-        alert("Please paste at least 2 valid spins (0–36).");
-        return;
-      }
+      if (spins.length < 2) { alert("Please paste at least 2 valid spins (0–36)."); return; }
 
       const baseUnit = getBaseUnit();
 
+      // reset live stats
       spinsLive.length = 0;
-      liveTotalBets = 0;
-      liveWins = 0;
-      liveLosses = 0;
-      liveCurrentLosingStreak = 0;
-      liveWorstStreak = 0;
+      liveTotalBets = liveWins = liveLosses = 0;
+      liveCurrentLosingStreak = liveWorstStreak = 0;
       liveProfit = 0;
       liveStakePerNumber = null;
       liveMartingaleLossCount = 0;
@@ -934,31 +763,23 @@
 
         if (lastPredLocal && lastPredLocal.shouldBet) {
           liveTotalBets++;
-
           const neighbours = lastPredLocal.neighbours || [];
-          const numbersCovered = neighbours.length;
           const stakePerNumberNow = (liveStakePerNumber == null) ? baseUnit : liveStakePerNumber;
-          const totalStake = stakePerNumberNow * numbersCovered;
+          const totalStake = stakePerNumberNow * neighbours.length;
 
-          const hit = neighbours.includes(result);
-
-          if (hit) {
-            const winReturn = stakePerNumberNow * 36;
-            const profit = winReturn - totalStake;
-            liveProfit += profit;
-
+          if (neighbours.includes(result)) {
+            liveProfit += (stakePerNumberNow * 36) - totalStake;
             liveWins++;
             liveCurrentLosingStreak = 0;
             liveMartingaleLossCount = 0;
             liveStakePerNumber = baseUnit;
           } else {
+            liveProfit -= totalStake;
             liveLosses++;
             liveCurrentLosingStreak++;
             if (liveCurrentLosingStreak > liveWorstStreak) liveWorstStreak = liveCurrentLosingStreak;
 
-            liveProfit -= totalStake;
-
-            liveMartingaleLossCount += 1;
+            liveMartingaleLossCount++;
             if (liveMartingaleLossCount >= LOSS_RESET_MARTINGALE) {
               liveStakePerNumber = baseUnit;
               liveMartingaleLossCount = 0;
@@ -982,16 +803,15 @@
       alert(`Loaded ${spins.length} spins into Live Mode.`);
     });
 
-    // ---------- SIMULATOR SHARED LOGIC + MARTINGALE ----------
+    // =======================
+    // SIMULATOR LOGIC
+    // =======================
 
     function simulateSpinsArrayWithParams(spins, baseUnit, params) {
       if (spins.length < 2) return null;
 
-      let totalBets = 0;
-      let wins = 0;
-      let losses = 0;
-      let currentStreak = 0;
-      let worstStreak = 0;
+      let totalBets = 0, wins = 0, losses = 0;
+      let currentStreak = 0, worstStreak = 0;
 
       let simProfit = 0;
       let stakePerNumber = null;
@@ -1008,41 +828,33 @@
 
         if (lastPred && lastPred.shouldBet) {
           totalBets++;
-
           const neighbours = lastPred.neighbours || [];
-          const numbersCovered = neighbours.length;
           const stakeNow = (stakePerNumber == null) ? baseUnit : stakePerNumber;
-          const totalStake = stakeNow * numbersCovered;
+          const totalStake = stakeNow * neighbours.length;
 
-          const hit = neighbours.includes(result);
-          if (hit) {
-            const winReturn = stakeNow * 36;
-            const profit = winReturn - totalStake;
+          if (neighbours.includes(result)) {
+            const profit = (stakeNow * 36) - totalStake;
             simProfit += profit;
-
             wins++;
             currentStreak = 0;
             martingaleLossCount = 0;
             stakePerNumber = baseUnit;
-
             lastBetResult = "Win";
             lastBetPnL = profit;
           } else {
             const profit = -totalStake;
             simProfit += profit;
-
             losses++;
             currentStreak++;
             if (currentStreak > worstStreak) worstStreak = currentStreak;
 
-            martingaleLossCount += 1;
+            martingaleLossCount++;
             if (martingaleLossCount >= LOSS_RESET_MARTINGALE) {
               stakePerNumber = baseUnit;
               martingaleLossCount = 0;
             } else {
               stakePerNumber = stakeNow * 2;
             }
-
             lastBetResult = "Loss";
             lastBetPnL = profit;
           }
@@ -1052,14 +864,12 @@
         lastPred = csPrediction(history, params);
       }
 
-      const hitRate = totalBets ? (wins / totalBets) * 100 : null;
-
       return {
         spinsCount: spins.length,
         totalBets,
         wins,
         losses,
-        hitRate,
+        hitRate: totalBets ? (wins / totalBets) * 100 : null,
         worstStreak,
         profit: simProfit,
         lastBetResult,
@@ -1067,44 +877,180 @@
       };
     }
 
-    function simulateAllDaysWithParams(allDaysSpins, baseUnit, params) {
-      let totalSpins = 0;
-      let totalBets = 0;
-      let totalWins = 0;
-      let totalLosses = 0;
-      let totalProfit = 0;
+    // =======================
+    // OPTIMISER (FAST + PRUNING)
+    // =======================
+
+    // CAPPED simulation: EARLY ABORT as soon as worstStreak exceeds capWorstStreak
+    function simulateSpinsArrayWithParamsCapped(spins, baseUnit, params, capWorstStreak) {
+      if (spins.length < 2) return null;
+
+      let totalBets = 0, wins = 0, losses = 0;
+      let currentStreak = 0, worstStreak = 0;
+
+      let simProfit = 0;
+      let stakePerNumber = null;
+      let martingaleLossCount = 0;
+
+      let history = [];
+      let lastPred = null;
+
+      for (let i = 0; i < spins.length; i++) {
+        const result = spins[i];
+
+        if (lastPred && lastPred.shouldBet) {
+          totalBets++;
+          const neighbours = lastPred.neighbours || [];
+          const stakeNow = (stakePerNumber == null) ? baseUnit : stakePerNumber;
+          const totalStake = stakeNow * neighbours.length;
+
+          if (neighbours.includes(result)) {
+            simProfit += (stakeNow * 36) - totalStake;
+            wins++;
+            currentStreak = 0;
+            martingaleLossCount = 0;
+            stakePerNumber = baseUnit;
+          } else {
+            simProfit -= totalStake;
+            losses++;
+            currentStreak++;
+            if (currentStreak > worstStreak) worstStreak = currentStreak;
+
+            if (capWorstStreak != null && worstStreak > capWorstStreak) {
+              return { aborted: true, worstStreak };
+            }
+
+            martingaleLossCount++;
+            if (martingaleLossCount >= LOSS_RESET_MARTINGALE) {
+              stakePerNumber = baseUnit;
+              martingaleLossCount = 0;
+            } else {
+              stakePerNumber = stakeNow * 2;
+            }
+          }
+        }
+
+        history.push(result);
+        lastPred = csPrediction(history, params);
+      }
+
+      return {
+        aborted: false,
+        totalBets,
+        wins,
+        losses,
+        worstStreak,
+        profit: simProfit
+      };
+    }
+
+    function simulateAllDaysWithParamsCapped(allDaysSpins, baseUnit, params, capWorstStreak) {
       let totalWorstStreak = 0;
+      let totalProfit = 0;
       let losingDays = 0;
       let daysSimulated = 0;
 
       for (const spins of allDaysSpins) {
         if (!spins || spins.length < 2) continue;
-        const res = simulateSpinsArrayWithParams(spins, baseUnit, params);
-        if (!res) continue;
+
+        const dayRes = simulateSpinsArrayWithParamsCapped(spins, baseUnit, params, capWorstStreak);
+
+        if (!dayRes) continue;
+        if (dayRes.aborted) return { aborted: true };
 
         daysSimulated++;
-        totalSpins += res.spinsCount;
-        totalBets += res.totalBets;
-        totalWins += res.wins;
-        totalLosses += res.losses;
-        totalProfit += res.profit;
-        if (res.worstStreak > totalWorstStreak) totalWorstStreak = res.worstStreak;
-        if (res.profit < 0) losingDays++;
+        totalProfit += dayRes.profit;
+        if (dayRes.profit < 0) losingDays++;
+        if (dayRes.worstStreak > totalWorstStreak) totalWorstStreak = dayRes.worstStreak;
+
+        if (capWorstStreak != null && totalWorstStreak > capWorstStreak) {
+          return { aborted: true };
+        }
       }
 
-      return {
-        totalSpins,
-        totalBets,
-        totalWins,
-        totalLosses,
-        totalProfit,
-        totalWorstStreak,
-        losingDays,
-        daysSimulated
-      };
+      return { aborted: false, totalWorstStreak, totalProfit, losingDays, daysSimulated };
     }
 
-    // ---------- SIMULATOR UI ----------
+    function isBetterCandidate(res, best) {
+      if (!best) return true;
+      if (res.totalWorstStreak !== best.totalWorstStreak) return res.totalWorstStreak < best.totalWorstStreak;
+      if (res.losingDays !== best.losingDays) return res.losingDays < best.losingDays;
+      return res.totalProfit > best.totalProfit;
+    }
+
+    function buildGrid(step, centerA = null, centerB = null, radius = null) {
+      const grid = [];
+      for (const extraShift of EXTRA_SHIFT_OPTIONS) {
+        const aMin = (centerA == null) ? 0 : clamp01(centerA - radius);
+        const aMax = (centerA == null) ? 1 : clamp01(centerA + radius);
+        const bMin = (centerB == null) ? 0 : clamp01(centerB - radius);
+        const bMax = (centerB == null) ? 1 : clamp01(centerB + radius);
+
+        let aStart = roundToStep(aMin, step);
+        let bStart = roundToStep(bMin, step);
+
+        for (let a = aStart; a <= aMax + 1e-9; a += step) {
+          a = parseFloat(a.toFixed(2));
+          if (a < 0 || a > 1) continue;
+          for (let b = bStart; b <= bMax + 1e-9; b += step) {
+            b = parseFloat(b.toFixed(2));
+            if (b < 0 || b > 1) continue;
+            grid.push({ extraShift, aFixed: a, bFixed: b });
+          }
+        }
+      }
+      return grid;
+    }
+
+    // Coarse-to-fine optimiser for a set of days (uses pruning)
+    // Returns params only: {extraShift, aFixed, bFixed}
+    async function optimiseParamsCoarseToFine(allDaysSpins, baseUnit, progressCb) {
+      // Pass 1: coarse
+      let best = null;
+      const coarseGrid = buildGrid(COARSE_STEP, null, null, null);
+      for (let i = 0; i < coarseGrid.length; i++) {
+        const p = coarseGrid[i];
+        const cap = best ? best.totalWorstStreak : null;
+        const res = simulateAllDaysWithParamsCapped(allDaysSpins, baseUnit, p, cap);
+        if (res && !res.aborted && res.daysSimulated > 0) {
+          const candidate = { ...p, ...res };
+          if (isBetterCandidate(candidate, best)) best = candidate;
+        }
+
+        if (progressCb && (i % 50 === 0)) {
+          progressCb({ phase: "coarse", done: i + 1, total: coarseGrid.length, best });
+          await new Promise(r => requestAnimationFrame(r));
+        }
+      }
+
+      if (!best) return { ...FIRST_5_PARAMS };
+
+      // Pass 2: refine around coarse winner
+      const refineGrid = buildGrid(FINE_STEP, best.aFixed, best.bFixed, FINE_RADIUS);
+      for (let i = 0; i < refineGrid.length; i++) {
+        const p = refineGrid[i];
+        // keep extraShift fixed to best.extraShift? (much faster)
+        if (p.extraShift !== best.extraShift) continue;
+
+        const cap = best ? best.totalWorstStreak : null;
+        const res = simulateAllDaysWithParamsCapped(allDaysSpins, baseUnit, p, cap);
+        if (res && !res.aborted && res.daysSimulated > 0) {
+          const candidate = { ...p, ...res };
+          if (isBetterCandidate(candidate, best)) best = candidate;
+        }
+
+        if (progressCb && (i % 50 === 0)) {
+          progressCb({ phase: "refine", done: i + 1, total: refineGrid.length, best });
+          await new Promise(r => requestAnimationFrame(r));
+        }
+      }
+
+      return { extraShift: best.extraShift, aFixed: best.aFixed, bFixed: best.bFixed };
+    }
+
+    // =======================
+    // SIMULATOR UI
+    // =======================
 
     const simInput = document.getElementById("simInput");
     const runSimBtn = document.getElementById("runSimBtn");
@@ -1119,19 +1065,12 @@
     const simProfitEl = document.getElementById("simProfit");
     const simNotesEl = document.getElementById("simNotes");
 
-    function runSimulation() {
+    runSimBtn.addEventListener("click", () => {
       const spins = parseSpinText(simInput.value);
-      if (spins.length < 2) {
-        alert("Please paste at least 2 valid spins (0–36).");
-        return;
-      }
-
+      if (spins.length < 2) { alert("Please paste at least 2 valid spins (0–36)."); return; }
       const baseUnit = getBaseUnit();
       const res = simulateSpinsArrayWithParams(spins, baseUnit, AUTO_PARAMS);
-      if (!res) {
-        alert("Not enough spins to simulate.");
-        return;
-      }
+      if (!res) { alert("Not enough spins to simulate."); return; }
 
       simResults.style.display = "block";
       simSpinsEl.textContent = res.spinsCount;
@@ -1142,27 +1081,26 @@
       simWorstStreakEl.textContent = res.worstStreak;
       simProfitEl.textContent = formatMoney(res.profit);
       simNotesEl.textContent =
-        `CS model with a=${AUTO_PARAMS.aFixed.toFixed(2)}, b=${AUTO_PARAMS.bFixed.toFixed(2)}, extraShift=${AUTO_PARAMS.extraShift}. ` +
-        `Martingale per number (base ${getBaseUnit()}, doubles on each losing bet, resets after ${LOSS_RESET_MARTINGALE} consecutive losses).`;
-    }
+        `Params: shift=${AUTO_PARAMS.extraShift}, a=${AUTO_PARAMS.aFixed.toFixed(2)}, b=${AUTO_PARAMS.bFixed.toFixed(2)}. ` +
+        `Martingale doubles, resets after ${LOSS_RESET_MARTINGALE} losses.`;
+    });
 
-    function clearSimulation() {
+    clearSimBtn.addEventListener("click", () => {
       simInput.value = "";
       simResults.style.display = "none";
-    }
+    });
 
-    runSimBtn.addEventListener("click", runSimulation);
-    clearSimBtn.addEventListener("click", clearSimulation);
-
-    // ---------- DAY-BY-DAY CSV SIMULATION & OPTIMISER ----------
+    // =======================
+    // CSV SECTION
+    // =======================
 
     const dayCsvInput = document.getElementById("dayCsvInput");
     const runDayCsvBtn = document.getElementById("runDayCsvBtn");
     const runRolling5Btn = document.getElementById("runRolling5Btn");
     const optimiseFromCsvBtn = document.getElementById("optimiseFromCsvBtn");
+
     const dayCsvResultsDiv = document.getElementById("dayCsvResults");
     const dayCsvTbody = document.getElementById("dayCsvTbody");
-
     const totalSpinsCell = document.getElementById("totalSpinsCell");
     const totalBetsCell = document.getElementById("totalBetsCell");
     const totalWinsCell = document.getElementById("totalWinsCell");
@@ -1182,56 +1120,42 @@
 
     function loadCsvFile(callback) {
       const file = dayCsvInput.files && dayCsvInput.files[0];
-      if (!file) {
-        alert("Please choose a CSV file first.");
-        return;
-      }
+      if (!file) { alert("Please choose a CSV file first."); return; }
       const reader = new FileReader();
       reader.onload = (e) => {
         const text = e.target.result;
         const rows = parseCsv(text);
-        if (rows.length < 2) {
-          alert("CSV must have a header row and at least one data row.");
-          return;
-        }
+        if (rows.length < 2) { alert("CSV must have a header row and at least one data row."); return; }
         const headers = rows[0].map(h => h.trim());
         const numCols = headers.length;
 
         const colsSpins = Array.from({ length: numCols }, () => []);
-
         for (let r = 1; r < rows.length; r++) {
           const row = rows[r];
           for (let c = 0; c < numCols; c++) {
             const cell = (row[c] || "").trim();
-            if (cell === "") continue;
+            if (!cell) continue;
             const v = parseInt(cell, 10);
             if (!isNaN(v) && v >= 0 && v <= 36) colsSpins[c].push(v);
           }
         }
-
         callback({ headers, colsSpins });
       };
       reader.readAsText(file);
     }
 
-    // plain day-by-day using current AUTO_PARAMS
+    // Day-by-day (no optimisation)
     runDayCsvBtn.addEventListener("click", () => {
       loadCsvFile(({ headers, colsSpins }) => {
         dayCsvTbody.innerHTML = "";
         dayCsvSummary.innerHTML = "";
 
-        let totalSpins = 0;
-        let totalBets = 0;
-        let totalWins = 0;
-        let totalLosses = 0;
-        let totalProfit = 0;
-        let totalWorstStreak = 0;
-
+        let totalSpins = 0, totalBets = 0, totalWins = 0, totalLosses = 0, totalProfit = 0, totalWorstStreak = 0;
         const baseUnit = getBaseUnit();
         const dayStats = [];
 
         colsSpins.forEach((spins, colIdx) => {
-          if (spins.length < 2) return;
+          if (!spins || spins.length < 2) return;
           const res = simulateSpinsArrayWithParams(spins, baseUnit, AUTO_PARAMS);
           if (!res) return;
 
@@ -1271,70 +1195,72 @@
         totalWorstStreakCell.textContent = totalWorstStreak;
         totalProfitCell.textContent = formatMoney(totalProfit);
 
-        if (dayStats.length > 0) {
-          const daysSimulated = dayStats.length;
-          let winningDays = 0, losingDays = 0, flatDays = 0;
-          let longestLosingRun = 0, currentRun = 0;
-
-          let bestDay = dayStats[0];
-          let worstDay = dayStats[0];
-
-          dayStats.forEach(d => {
-            if (d.profit > 0) { winningDays++; currentRun = 0; }
-            else if (d.profit < 0) { losingDays++; currentRun++; if (currentRun > longestLosingRun) longestLosingRun = currentRun; }
-            else { flatDays++; currentRun = 0; }
-
-            if (d.profit > bestDay.profit) bestDay = d;
-            if (d.profit < worstDay.profit) worstDay = d;
-          });
-
-          const avgDailyPnL = totalProfit / daysSimulated;
-
-          dayCsvSummary.innerHTML =
-            `<strong>Overall Day Analysis:</strong><br>` +
-            `Days simulated: ${daysSimulated}<br>` +
-            `Winning days: ${winningDays}<br>` +
-            `Losing days: ${losingDays}<br>` +
-            `Flat days: ${flatDays}<br>` +
-            `Longest run of consecutive losing days: ${longestLosingRun}<br>` +
-            `Best day P&L: ${formatMoney(bestDay.profit)} (${bestDay.dayName})<br>` +
-            `Worst day P&L: ${formatMoney(worstDay.profit)} (${worstDay.dayName})<br>` +
-            `Average daily P&L: ${formatMoney(avgDailyPnL)}<br>`;
-        } else {
-          dayCsvSummary.textContent = "Overall Day Analysis: No valid days found in this CSV.";
-        }
-
+        dayCsvSummary.textContent = dayStats.length ? "Day-by-day run complete." : "No valid days found in this CSV.";
         dayCsvResultsDiv.style.display = "block";
       });
     });
 
-    // --------- ROLLING 5-DAY OPTIMISED RUN (Day 6+) ----------
-    runRolling5Btn.addEventListener("click", () => {
-      loadCsvFile(({ headers, colsSpins }) => {
+    // Rolling 5-day optimised (Day 6+), but efficiently:
+    // - For each day >= 6, optimise on previous 5 days using coarse-to-fine + pruning
+    runRolling5Btn.addEventListener("click", async () => {
+      loadCsvFile(async ({ headers, colsSpins }) => {
         dayCsvTbody.innerHTML = "";
         dayCsvSummary.innerHTML = "";
+        dayCsvResultsDiv.style.display = "none";
 
         const baseUnit = getBaseUnit();
 
+        // Disable buttons while running
+        runDayCsvBtn.classList.add("btn-disabled");
+        runRolling5Btn.classList.add("btn-disabled");
+        optimiseFromCsvBtn.classList.add("btn-disabled");
+
+        optimizerProgressBar.style.width = "0%";
+        optimizerStatus.textContent = "Rolling optimiser starting...";
+
         let totalSpins = 0, totalBets = 0, totalWins = 0, totalLosses = 0, totalProfit = 0, totalWorstStreak = 0;
         const dayStats = [];
-        const paramsUsed = [];
 
+        // For Next Day Params (last 5 valid days)
+        const validDayIndexes = colsSpins
+          .map((sp, idx) => ({ sp, idx }))
+          .filter(x => x.sp && x.sp.length >= 2)
+          .map(x => x.idx);
+
+        const totalDaysToShow = colsSpins.filter(d => d && d.length >= 2).length || 1;
+        let daysProcessed = 0;
+
+        // Optional warm-start: start refine around last found (we do that naturally by coarse-to-fine)
         for (let dayIdx = 0; dayIdx < colsSpins.length; dayIdx++) {
           const spins = colsSpins[dayIdx];
           if (!spins || spins.length < 2) continue;
 
-          let paramsForThisDay;
+          let paramsForThisDay = null;
 
           if (dayIdx < ROLLING_WINDOW_DAYS) {
-            paramsForThisDay = { ...FIRST_5_PARAMS }; // days 1–5
+            paramsForThisDay = { ...FIRST_5_PARAMS };
           } else {
             const windowDays = colsSpins.slice(dayIdx - ROLLING_WINDOW_DAYS, dayIdx).filter(d => d && d.length >= 2);
-            paramsForThisDay = windowDays.length ? optimiseParamsForDaysWindow(windowDays, baseUnit) : { ...FIRST_5_PARAMS };
+            optimizerStatus.textContent = `Optimising params for ${headers[dayIdx] || `Day ${dayIdx+1}`} using previous 5 days...`;
+            paramsForThisDay = await optimiseParamsCoarseToFine(windowDays, baseUnit, (p) => {
+              // small rolling progress (not exact combo count, but stable + responsive)
+              const fracPhase = (p.phase === "coarse")
+                ? (p.done / p.total) * 0.6
+                : 0.6 + (p.done / p.total) * 0.4;
+
+              const dayFrac = (daysProcessed / totalDaysToShow);
+              const overall = Math.min(99.5, (dayFrac + (1 / totalDaysToShow) * fracPhase) * 100);
+              optimizerProgressBar.style.width = overall.toFixed(1) + "%";
+              if (p.best) {
+                optimizerStatus.textContent =
+                  `Rolling optimise: ${headers[dayIdx] || `Day ${dayIdx+1}`} — phase=${p.phase} — best so far: ` +
+                  `streak=${p.best.totalWorstStreak}, shift=${p.best.extraShift}, a=${p.best.aFixed.toFixed(2)}, b=${p.best.bFixed.toFixed(2)}, ` +
+                  `losingDays=${p.best.losingDays}, P&L=${formatMoney(p.best.totalProfit)}`;
+              }
+            });
           }
 
-          paramsUsed[dayIdx] = paramsForThisDay;
-
+          // simulate this day with chosen params
           const res = simulateSpinsArrayWithParams(spins, baseUnit, paramsForThisDay);
           if (!res) continue;
 
@@ -1363,9 +1289,13 @@
           `;
           dayCsvTbody.appendChild(tr);
 
-          dayStats.push({ dayName, profit: res.profit, worstStreak: res.worstStreak });
+          dayStats.push({ dayName, profit: res.profit });
+          daysProcessed++;
+          optimizerProgressBar.style.width = Math.min(99.5, (daysProcessed / totalDaysToShow) * 100).toFixed(1) + "%";
+          await new Promise(r => requestAnimationFrame(r));
         }
 
+        // Totals
         totalSpinsCell.textContent = totalSpins;
         totalBetsCell.textContent = totalBets;
         totalWinsCell.textContent = totalWins;
@@ -1374,195 +1304,97 @@
         totalWorstStreakCell.textContent = totalWorstStreak;
         totalProfitCell.textContent = formatMoney(totalProfit);
 
-        // Compute "Next Day Params" from LAST 5 days in the CSV (so Live can use it)
-        const validDayIndexes = colsSpins
-          .map((sp, idx) => ({ sp, idx }))
-          .filter(x => x.sp && x.sp.length >= 2)
-          .map(x => x.idx);
-
+        // Next Day Params: best over last 5 valid days
         let nextDayParams = null;
         if (validDayIndexes.length >= ROLLING_WINDOW_DAYS) {
           const lastFiveIdx = validDayIndexes.slice(-ROLLING_WINDOW_DAYS);
           const lastFiveDays = lastFiveIdx.map(i => colsSpins[i]);
 
-          // This is “best params over previous 5 days”
-          nextDayParams = optimiseParamsForDaysWindow(lastFiveDays, baseUnit);
+          optimizerStatus.textContent = "Computing Next Day Params from last 5 valid days...";
+          optimizerProgressBar.style.width = "99.5%";
 
-          // Set + save so Live immediately uses them
+          nextDayParams = await optimiseParamsCoarseToFine(lastFiveDays, baseUnit, null);
+
           AUTO_PARAMS = { ...nextDayParams };
-          updateCurrentParamsSummary("Applied Next Day Params (based on last 5 valid days in your CSV) for Live Mode.");
+          updateCurrentParamsSummary("Applied Next Day Params (best over last 5 valid CSV days) for Live Mode.");
           saveParamsToLocalStorage(nextDayParams, {
             note: `Based on last 5 valid days: ${lastFiveIdx.map(i => headers[i] || `Day ${i+1}`).join(", ")}`
           });
           updateSavedParamsLine();
         }
 
-        if (dayStats.length > 0) {
-          const daysSimulated = dayStats.length;
-          let winningDays = 0, losingDays = 0, flatDays = 0;
-          let longestLosingRun = 0, currentRun = 0;
+        optimizerProgressBar.style.width = "100%";
+        optimizerStatus.textContent = nextDayParams
+          ? `Rolling complete. Next Day Params saved for Live: shift=${nextDayParams.extraShift}, a=${nextDayParams.aFixed.toFixed(2)}, b=${nextDayParams.bFixed.toFixed(2)}.`
+          : "Rolling complete. Not enough valid days to compute Next Day Params.";
 
-          let bestDay = dayStats[0];
-          let worstDay = dayStats[0];
-
-          dayStats.forEach(d => {
-            if (d.profit > 0) { winningDays++; currentRun = 0; }
-            else if (d.profit < 0) { losingDays++; currentRun++; if (currentRun > longestLosingRun) longestLosingRun = currentRun; }
-            else { flatDays++; currentRun = 0; }
-
-            if (d.profit > bestDay.profit) bestDay = d;
-            if (d.profit < worstDay.profit) worstDay = d;
-          });
-
-          const avgDailyPnL = totalProfit / daysSimulated;
-
-          const nextDayLine = nextDayParams
-            ? `<br><strong>Next Day Params saved for Live:</strong> shift=${nextDayParams.extraShift}, a=${nextDayParams.aFixed.toFixed(2)}, b=${nextDayParams.bFixed.toFixed(2)}<br>`
-            : `<br><strong>Next Day Params:</strong> not saved (need at least 5 valid days in CSV)<br>`;
-
-          dayCsvSummary.innerHTML =
-            `<strong>Rolling 5-Day Optimised Summary:</strong><br>` +
-            `Days simulated: ${daysSimulated}<br>` +
-            `Winning days: ${winningDays}<br>` +
-            `Losing days: ${losingDays}<br>` +
-            `Flat days: ${flatDays}<br>` +
-            `Longest run of consecutive losing days: ${longestLosingRun}<br>` +
-            `Best day P&L: ${formatMoney(bestDay.profit)} (${bestDay.dayName})<br>` +
-            `Worst day P&L: ${formatMoney(worstDay.profit)} (${worstDay.dayName})<br>` +
-            `Average daily P&L: ${formatMoney(avgDailyPnL)}<br>` +
-            nextDayLine;
-        } else {
-          dayCsvSummary.textContent = "No valid days found in this CSV.";
-        }
+        dayCsvSummary.innerHTML =
+          `<strong>Rolling run complete.</strong><br>` +
+          (nextDayParams
+            ? `Next Day Params saved for Live: shift=${nextDayParams.extraShift}, a=${nextDayParams.aFixed.toFixed(2)}, b=${nextDayParams.bFixed.toFixed(2)}.<br>`
+            : `Next Day Params not saved (need at least 5 valid days).<br>`);
 
         dayCsvResultsDiv.style.display = "block";
-        alert("Rolling 5-day optimisation run complete. Next Day Params (if available) were applied + saved for Live Mode.");
+
+        // Re-enable
+        runDayCsvBtn.classList.remove("btn-disabled");
+        runRolling5Btn.classList.remove("btn-disabled");
+        optimiseFromCsvBtn.classList.remove("btn-disabled");
       });
     });
 
-    // --------- ASYNC OPTIMISER WITH PROGRESS BAR (your original) ----------
-
+    // Optimise from CSV over ALL days (fast + async + progress)
     let optimiserRunning = false;
 
     optimiseFromCsvBtn.addEventListener("click", () => {
-      if (optimiserRunning) {
-        alert("Optimiser is already running.");
-        return;
-      }
+      if (optimiserRunning) { alert("Optimiser is already running."); return; }
 
-      loadCsvFile(({ headers, colsSpins }) => {
-        const validDays = colsSpins.filter(spins => spins.length >= 2).length;
-        if (validDays < 20) {
-          if (!confirm(`Only ${validDays} valid days found. Continue optimisation anyway?`)) return;
-        }
-
-        const baseUnit = getBaseUnit();
-        const allDaysSpins = colsSpins;
-
-        const extraShiftOptions = [0, 1, 2, 3, 4, 5];
-        const aStep = 0.02;
-        const bStep = 0.02;
-
-        const paramGrid = [];
-        for (let extraShift of extraShiftOptions) {
-          for (let a = 0.0; a <= 1.0001; a += aStep) {
-            for (let b = 0.0; b <= 1.0001; b += bStep) {
-              const aFixed = parseFloat(a.toFixed(2));
-              const bFixed = parseFloat(b.toFixed(2));
-              paramGrid.push({ extraShift, aFixed, bFixed });
-            }
-          }
-        }
-
-        const totalCombos = paramGrid.length;
-        if (!totalCombos) {
-          alert("No parameter combinations to scan.");
-          return;
-        }
+      loadCsvFile(async ({ headers, colsSpins }) => {
+        const allDaysSpins = colsSpins.filter(d => d && d.length >= 2);
+        if (allDaysSpins.length < 1) { alert("No valid days in CSV."); return; }
 
         optimiserRunning = true;
-        optimiseFromCsvBtn.classList.add("btn-disabled");
         runDayCsvBtn.classList.add("btn-disabled");
         runRolling5Btn.classList.add("btn-disabled");
-        optimiseFromCsvBtn.textContent = "Optimising...";
+        optimiseFromCsvBtn.classList.add("btn-disabled");
+
         optimizerProgressBar.style.width = "0%";
-        optimizerStatus.textContent = `Starting optimisation over ${totalCombos} combinations...`;
+        optimizerStatus.textContent = `Optimising over ${allDaysSpins.length} valid days (coarse→refine + pruning)...`;
 
-        let comboIndex = 0;
-        let best = null;
+        const baseUnit = getBaseUnit();
 
-        function processBatch() {
-          const batchSize = 10;
-          let processed = 0;
-
-          while (comboIndex < totalCombos && processed < batchSize) {
-            const p = paramGrid[comboIndex++];
-            const res = simulateAllDaysWithParams(allDaysSpins, baseUnit, p);
-            if (res && res.daysSimulated > 0) {
-              if (
-                !best ||
-                res.totalWorstStreak < best.totalWorstStreak ||
-                (res.totalWorstStreak === best.totalWorstStreak && res.losingDays < best.losingDays) ||
-                (res.totalWorstStreak === best.totalWorstStreak &&
-                 res.losingDays === best.losingDays &&
-                 res.totalProfit > best.totalProfit)
-              ) {
-                best = { ...p, ...res };
-              }
-            }
-            processed++;
-          }
-
-          const progress = (comboIndex / totalCombos) * 100;
-          optimizerProgressBar.style.width = progress.toFixed(1) + "%";
-
-          if (best) {
+        const params = await optimiseParamsCoarseToFine(allDaysSpins, baseUnit, (p) => {
+          const frac = (p.phase === "coarse")
+            ? (p.done / p.total) * 60
+            : 60 + (p.done / p.total) * 40;
+          optimizerProgressBar.style.width = Math.min(99.5, frac).toFixed(1) + "%";
+          if (p.best) {
             optimizerStatus.textContent =
-              `Scanning ${comboIndex}/${totalCombos} combos... ` +
-              `Current best worst streak=${best.totalWorstStreak} ` +
-              `(extraShift=${best.extraShift}, a=${best.aFixed.toFixed(2)}, b=${best.bFixed.toFixed(2)}, ` +
-              `losing days=${best.losingDays}, total P&L=${formatMoney(best.totalProfit)}).`;
-          } else {
-            optimizerStatus.textContent = `Scanning ${comboIndex}/${totalCombos} combos... (no valid result yet)`;
+              `Optimising (${p.phase}) — best: streak=${p.best.totalWorstStreak}, ` +
+              `shift=${p.best.extraShift}, a=${p.best.aFixed.toFixed(2)}, b=${p.best.bFixed.toFixed(2)}, ` +
+              `losingDays=${p.best.losingDays}, P&L=${formatMoney(p.best.totalProfit)}`;
           }
+        });
 
-          if (comboIndex < totalCombos) {
-            requestAnimationFrame(processBatch);
-          } else {
-            optimiserRunning = false;
-            optimiseFromCsvBtn.classList.remove("btn-disabled");
-            runDayCsvBtn.classList.remove("btn-disabled");
-            runRolling5Btn.classList.remove("btn-disabled");
-            optimiseFromCsvBtn.textContent = "Optimise Model From CSV";
-            optimizerProgressBar.style.width = "100%";
+        AUTO_PARAMS = { ...params };
+        updateCurrentParamsSummary("Optimised over all valid days (coarse→refine + pruning).");
 
-            if (!best) {
-              optimizerStatus.textContent = "Optimisation finished but no valid combos found.";
-              return;
-            }
+        optimizerProgressBar.style.width = "100%";
+        optimizerStatus.textContent =
+          `Done. Best params: shift=${params.extraShift}, a=${params.aFixed.toFixed(2)}, b=${params.bFixed.toFixed(2)}. Applied to Live/Simulator.`;
 
-            AUTO_PARAMS = { extraShift: best.extraShift, aFixed: best.aFixed, bFixed: best.bFixed };
-
-            optimizerStatus.textContent =
-              `Done. Best parameters (min worst streak): extraShift=${best.extraShift}, a=${best.aFixed.toFixed(2)}, b=${best.bFixed.toFixed(2)}. ` +
-              `Optimised over ${best.daysSimulated} days, ${totalCombos} combos. ` +
-              `Worst losing streak=${best.totalWorstStreak}; Losing days=${best.losingDays}; ` +
-              `Total P&L=${formatMoney(best.totalProfit)}.`;
-
-            updateCurrentParamsSummary(
-              `Optimised to minimise worst losing streak over ${best.daysSimulated} days. ` +
-              `Worst streak=${best.totalWorstStreak}, losing days=${best.losingDays}, total P&L=${formatMoney(best.totalProfit)}.`
-            );
-          }
-        }
-
-        requestAnimationFrame(processBatch);
+        optimiserRunning = false;
+        runDayCsvBtn.classList.remove("btn-disabled");
+        runRolling5Btn.classList.remove("btn-disabled");
+        optimiseFromCsvBtn.classList.remove("btn-disabled");
       });
     });
 
-    // ---------- INITIAL LOAD ----------
+    // =======================
+    // INITIAL LOAD
+    // =======================
+
     (function init() {
-      // restore saved next-day params if available
       const loaded = loadParamsFromLocalStorage();
       if (loaded && loaded.params) {
         AUTO_PARAMS = { ...loaded.params };
@@ -1570,13 +1402,13 @@
       } else {
         updateCurrentParamsSummary("Using defaults. Run CSV rolling/optimise to update.");
       }
-
       updateSavedParamsLine();
 
       updateHistoryUI();
       updateStatsUI();
       renderRecommendation(null);
     })();
+
   </script>
 </body>
 </html>
