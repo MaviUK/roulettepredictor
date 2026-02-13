@@ -86,6 +86,11 @@
       color: #f5f5f5;
     }
     .btn-secondary:hover { background: #2f385c; }
+    .btn-disabled {
+      opacity: 0.5;
+      cursor: default;
+      pointer-events: none;
+    }
 
     .pill {
       display: inline-flex;
@@ -162,12 +167,8 @@
       gap: 0.75rem;
       align-items: flex-end;
     }
-    .top-row label {
-      margin-bottom: 0.1rem;
-    }
-    .inline-input {
-      max-width: 160px;
-    }
+    .top-row label { margin-bottom: 0.1rem; }
+    .inline-input { max-width: 160px; }
 
     table {
       width: 100%;
@@ -180,12 +181,22 @@
       text-align: left;
       font-size: 0.8rem;
     }
-    th {
-      font-weight: 600;
-      opacity: 0.9;
+    th { font-weight: 600; opacity: 0.9; }
+    tfoot td { font-weight: 600; }
+
+    .progress {
+      width: 100%;
+      background: rgba(255,255,255,0.08);
+      border-radius: 999px;
+      overflow: hidden;
+      height: 10px;
+      margin-top: 0.4rem;
     }
-    tfoot td {
-      font-weight: 600;
+    .progress-bar {
+      height: 100%;
+      width: 0%;
+      background: #ff3366;
+      transition: width 0.1s linear;
     }
   </style>
 </head>
@@ -193,15 +204,14 @@
 
   <h1>Roulette Directional Distance Predictor</h1>
   <p class="small">
-    Spins are assumed to <strong>alternate direction</strong> (CW, CCW, CW, CCW, ...). For each spin it records the
-    <strong>wheel distance</strong> travelled in that spin's direction. To predict the next spin, it uses a
-    <strong>Callan–Symanzik style directional distance model</strong>:
+    Spins are assumed to <strong>alternate direction</strong> (CW, CCW, CW, CCW, ...).
+    For each spin it records the <strong>wheel distance</strong> travelled in that spin's direction.
+    To predict the next spin, it:
     <br />• Uses the last 3 distances in the upcoming direction,
-    <br />• Computes drift β and curvature γ,
-    <br />• Predicts S₄ = S₃ + a·β + b·γ,
-    <br />• a,b grow as we accumulate more distances in that direction,
-    <br />• Adds a configurable pocket shift in the spin direction,
-    <br />• A <strong>Martingale</strong> on stake per number, resetting to base after 11 consecutive losses.
+    <br />• <strong>Auto-fits the best formula</strong> from past examples in that same direction (rolling fit),
+    <br />• Predicts the <strong>4th distance</strong> in that direction, then converts it to a wheel step,
+    <br />• Covers the predicted centre number and its 8 neighbours each side (17 numbers),
+    <br />• Uses a <strong>Martingale</strong> doubling per-number stake on losses, resetting after 11 consecutive losses.
   </p>
 
   <div class="top-control">
@@ -211,15 +221,14 @@
           <label for="baseUnitInput">Base stake per number</label>
           <input type="number" id="baseUnitInput" min="0.01" step="0.01" value="1" />
         </div>
-        <div class="inline-input">
-          <label for="extraShiftInput">Extra pockets in spin direction</label>
-          <input type="number" id="extraShiftInput" min="0" max="18" step="1" value="5" />
-        </div>
         <p class="small">
-          Base = starting stake per number.<br/>
-          Extra pockets = how far ahead of the CS step to bias the centre, in the upcoming spin direction.
+          Base = starting stake per number for Live, Simulator, and CSV runs.
+          Martingale doubles this after each losing bet, and resets after 11 consecutive losses.
         </p>
       </div>
+      <p class="small" id="currentParamsText">
+        Current model parameters: auto-fit per prediction (uses recent history in the upcoming direction).
+      </p>
     </div>
   </div>
 
@@ -353,16 +362,18 @@
         <p class="small" id="simNotes"></p>
       </div>
 
-      <!-- DAY-BY-DAY CSV SIMULATION -->
+      <!-- DAY-BY-DAY CSV SIMULATION & OPTIMISER (kept for reporting; now auto-fit is done live) -->
       <div class="section">
-        <h3>Day-by-Day CSV Simulation</h3>
+        <h3>Day-by-Day CSV Simulation (reporting)</h3>
         <p class="small">
           Export your spreadsheet as a <strong>CSV</strong> where the first row has headers like
           <span class="mono">Day 1,Day 2,Day 3,...</span> and each column contains that day's spins (0–36).
-          This will run the same model + Martingale <strong>for each day separately</strong>.
+          This runs the same auto-fit model day-by-day and reports results.
         </p>
         <input type="file" id="dayCsvInput" accept=".csv" />
-        <button class="btn btn-primary" id="runDayCsvBtn">Run Day-by-Day</button>
+        <div style="margin-top:0.4rem;">
+          <button class="btn btn-primary" id="runDayCsvBtn">Run Day-by-Day</button>
+        </div>
 
         <div id="dayCsvResults" style="display:none; margin-top:0.75rem;">
           <h3>Day Breakdown</h3>
@@ -397,7 +408,6 @@
               </tr>
             </tfoot>
           </table>
-          <!-- Overall day analysis summary -->
           <div id="dayCsvSummary" class="small" style="margin-top:0.75rem;"></div>
         </div>
       </div>
@@ -481,24 +491,85 @@
       return 1;
     }
 
-    function getExtraShift() {
-      const input = document.getElementById("extraShiftInput");
-      const v = parseInt(input.value, 10);
-      if (!isNaN(v) && v >= 0 && v <= 18) return v;
-      return 0; // safe fallback
-    }
-
     function formatMoney(x) {
       const sign = x >= 0 ? "+" : "";
       return sign + x.toFixed(2);
     }
 
-    // ---------- MODEL: CS FLOW + CONFIGURABLE EXTRA SHIFT ----------
+    // ---------- AUTO-FIT MODEL: learn best formula for last 3 distances in upcoming direction ----------
+
+    // Search settings (keep small enough not to lag the browser)
+    const FIT_EXTRA_SHIFT_OPTIONS = [0, 1, 2, 3, 4, 5];
+    const FIT_A_MIN = 0.0, FIT_A_MAX = 1.0, FIT_A_STEP = 0.05;
+    const FIT_B_MIN = 0.0, FIT_B_MAX = 1.0, FIT_B_STEP = 0.05;
+
+    // How many training examples to use (most recent)
+    // Each example needs 4 distances (S1,S2,S3 -> target S4)
+    const FIT_MAX_EXAMPLES = 120;
+
+    // Circular distance error on 0..36 ring
+    function circularDiff(a, b, mod = 37) {
+      const d = ((a - b) % mod + mod) % mod;
+      return Math.min(d, mod - d);
+    }
+
+    // Fit params for ONE direction from its distance history
+    function fitBestParamsFromDirDistances(dirDistances) {
+      if (!dirDistances || dirDistances.length < 4) return null;
+
+      const examples = [];
+      for (let i = 3; i < dirDistances.length; i++) {
+        const S1 = dirDistances[i - 3];
+        const S2 = dirDistances[i - 2];
+        const S3 = dirDistances[i - 1];
+        const target = dirDistances[i];
+        examples.push({ S1, S2, S3, target });
+      }
+
+      const useExamples = examples.slice(-FIT_MAX_EXAMPLES);
+      let best = null;
+
+      for (const extraShift of FIT_EXTRA_SHIFT_OPTIONS) {
+        for (let a = FIT_A_MIN; a <= FIT_A_MAX + 1e-9; a += FIT_A_STEP) {
+          const aFixed = parseFloat(a.toFixed(2));
+          for (let b = FIT_B_MIN; b <= FIT_B_MAX + 1e-9; b += FIT_B_STEP) {
+            const bFixed = parseFloat(b.toFixed(2));
+
+            let sse = 0;
+            let worstErr = 0;
+
+            for (const ex of useExamples) {
+              const { S1, S2, S3, target } = ex;
+
+              const beta = S3 - S2;
+              const gamma = (S3 - S2) - (S2 - S1);
+
+              let pred = S3 + aFixed * beta + bFixed * gamma;
+              pred = Math.round(pred);
+              pred = ((pred % 37) + 37) % 37;
+
+              pred = (pred + extraShift) % 37;
+
+              const err = circularDiff(pred, target, 37);
+              sse += err * err;
+              if (err > worstErr) worstErr = err;
+            }
+
+            if (!best || sse < best.sse || (sse === best.sse && worstErr < best.worstErr)) {
+              best = { extraShift, aFixed, bFixed, sse, worstErr, n: useExamples.length };
+            }
+          }
+        }
+      }
+      return best;
+    }
+
+    // Predict next bet zone using fitted formula for upcoming direction
     function csPrediction(spins) {
       if (spins.length < 4) {
         return {
           shouldBet: false,
-          reason: "Need at least 4 spins for the CS flow model.",
+          reason: "Need at least 4 spins to start (so we can form directional distances).",
           debug: null
         };
       }
@@ -511,7 +582,6 @@
 
       const distances = buildDirectionalDistances(spins);
 
-      // Direction of the upcoming spin
       const nextIndex = spins.length;
       const upcomingDir = directionForIndex(nextIndex);
 
@@ -527,61 +597,62 @@
         };
       }
 
-      // Last three distances
+      // Fit best params from history in this direction (needs >=4 distances for training)
+      const fitted = fitBestParamsFromDirDistances(dirDistances);
+
+      // Fallback if not enough history to fit
+      const params = fitted || { extraShift: 2, aFixed: 0.30, bFixed: 0.60, n: 0, sse: null, worstErr: null };
+
       const S1 = dirDistances[dirDistances.length - 3];
       const S2 = dirDistances[dirDistances.length - 2];
       const S3 = dirDistances[dirDistances.length - 1];
 
-      // CS drift and curvature
       const beta  = S3 - S2;
       const gamma = (S3 - S2) - (S2 - S1);
 
-      // Dynamic coefficients based on available directional history
-      const nDir = dirDistances.length;
-      const nClamped = Math.max(3, Math.min(nDir, 20));
-      const t = (nClamped - 3) / (20 - 3);
+      // Predict the 4th distance (next step size in this direction)
+      let S4 = S3 + params.aFixed * beta + params.bFixed * gamma;
+      S4 = Math.round(S4);
+      S4 = ((S4 % 37) + 37) % 37;
 
-      const a = 0.75 - 0.15 * t;   // drift weight
-      const b = 0.25 + 0.15 * t;   // curvature weight
+      const stepWithBias = (S4 + (params.extraShift || 0)) % 37;
 
-      // Predict next step
-      let S4 = S3 + a * beta + b * gamma;
-      S4 = Math.round(S4) % 37;
-      if (S4 < 0) S4 += 37;
-
-      // Configurable extra shift in spin direction
-      const extraShift = getExtraShift();
-      const stepWithBias = (S4 + extraShift) % 37;
-
-      // Convert to wheel index in upcoming direction
       let centreIdx;
       if (upcomingDir === "CW") {
         centreIdx = (idxLast + stepWithBias) % 37;
       } else {
-        // move backwards by stepWithBias; add 37*2 to avoid negatives with JS %
         centreIdx = (idxLast - stepWithBias + 74) % 37;
       }
 
       const centreNum = WHEEL_ORDER[centreIdx];
       const neighbours = neighboursForCentre(centreNum);
 
+      const fitNote = fitted
+        ? `Auto-fit on last ${params.n} examples in ${upcomingDir} (SSE=${params.sse.toFixed(1)}, worstErr=${params.worstErr}).`
+        : `Not enough ${upcomingDir} history to fit yet; using fallback params.`;
+
       return {
         shouldBet: true,
         centreNum,
         neighbours,
         dominantStep: stepWithBias,
-        reason: `CS flow with +${extraShift} pocket bias in ${upcomingDir}: S4 = S3 + aβ + bγ, then shifted.`,
+        reason:
+          `Auto-fit formula on ${upcomingDir}: S4 = round(S3 + aβ + bγ) then +extraShift. ` +
+          `a=${params.aFixed.toFixed(2)}, b=${params.bFixed.toFixed(2)}, extraShift=${params.extraShift}. ` +
+          fitNote,
         debug: {
           upcomingDir,
           S1, S2, S3,
           beta, gamma,
-          S4Base: S4,
-          extraShift,
+          S4,
+          extraShift: params.extraShift,
           stepWithBias,
           centreIdx,
           centreNum,
-          a, b,
-          nDir
+          a: params.aFixed,
+          b: params.bFixed,
+          nDir: dirDistances.length,
+          fitted
         }
       };
     }
@@ -607,6 +678,7 @@
     const historyInfo = document.getElementById("historyInfo");
     const historyList = document.getElementById("historyList");
     const recommendationDiv = document.getElementById("recommendation");
+    const currentParamsText = document.getElementById("currentParamsText");
 
     const liveTotalBetsEl = document.getElementById("liveTotalBets");
     const liveWinsEl = document.getElementById("liveWins");
@@ -618,6 +690,12 @@
     const liveStakePerNumberEl = document.getElementById("liveStakePerNumber");
 
     let lastPrediction = null; // for scoring wins/losses
+
+    function updateCurrentParamsSummary(extraInfo) {
+      currentParamsText.textContent =
+        `Current model parameters: auto-fit per prediction (uses recent history in the upcoming direction). ` +
+        (extraInfo ? extraInfo : "");
+    }
 
     function updateHistoryUI() {
       if (spinsLive.length === 0) {
@@ -772,10 +850,20 @@
       spinInput.value = "";
       updateHistoryUI();
 
-      // Compute new prediction for NEXT spin
+      // Compute new prediction for NEXT spin (auto-fit)
       const pred = csPrediction(spinsLive);
       lastPrediction = pred;
       renderRecommendation(pred);
+
+      // Update top params text with last fit info if available
+      if (pred && pred.debug && pred.debug.fitted) {
+        updateCurrentParamsSummary(
+          `Latest fit (${pred.debug.upcomingDir}): a=${pred.debug.a.toFixed(2)}, b=${pred.debug.b.toFixed(2)}, extraShift=${pred.debug.extraShift}, ` +
+          `examples=${pred.debug.fitted.n}, SSE=${pred.debug.fitted.sse.toFixed(1)}, worstErr=${pred.debug.fitted.worstErr}.`
+        );
+      } else {
+        updateCurrentParamsSummary("Not enough directional examples yet to fit strongly.");
+      }
     }
 
     function onResetSpins() {
@@ -792,6 +880,7 @@
       updateHistoryUI();
       updateStatsUI();
       renderRecommendation(null);
+      updateCurrentParamsSummary("");
     }
 
     function onExportSpins() {
@@ -900,15 +989,22 @@
       updateStatsUI();
       renderRecommendation(lastPredLocal);
 
+      if (lastPredLocal && lastPredLocal.debug && lastPredLocal.debug.fitted) {
+        updateCurrentParamsSummary(
+          `Latest fit (${lastPredLocal.debug.upcomingDir}): a=${lastPredLocal.debug.a.toFixed(2)}, b=${lastPredLocal.debug.b.toFixed(2)}, extraShift=${lastPredLocal.debug.extraShift}, ` +
+          `examples=${lastPredLocal.debug.fitted.n}, SSE=${lastPredLocal.debug.fitted.sse.toFixed(1)}, worstErr=${lastPredLocal.debug.fitted.worstErr}.`
+        );
+      } else {
+        updateCurrentParamsSummary("Not enough directional examples yet to fit strongly.");
+      }
+
       alert(`Loaded ${spins.length} spins into Live Mode.`);
     });
 
     // ---------- SIMULATOR SHARED LOGIC + MARTINGALE ----------
 
-    function simulateSpinsArray(spins, baseUnit) {
-      if (spins.length < 2) {
-        return null;
-      }
+    function simulateSpinsArrayAutoFit(spins, baseUnit) {
+      if (spins.length < 2) return null;
 
       let totalBets = 0;
       let wins = 0;
@@ -929,7 +1025,6 @@
       for (let i = 0; i < spins.length; i++) {
         const result = spins[i];
 
-        // settle bet from previous prediction
         if (lastPred && lastPred.shouldBet) {
           totalBets++;
 
@@ -973,7 +1068,6 @@
         }
 
         history.push(result);
-        // compute new prediction for next spin
         lastPred = csPrediction(history);
       }
 
@@ -1015,7 +1109,7 @@
       }
 
       const baseUnit = getBaseUnit();
-      const res = simulateSpinsArray(spins, baseUnit);
+      const res = simulateSpinsArrayAutoFit(spins, baseUnit);
       if (!res) {
         alert("Not enough spins to simulate.");
         return;
@@ -1034,7 +1128,8 @@
       simWorstStreakEl.textContent = res.worstStreak;
       simProfitEl.textContent = formatMoney(res.profit);
       simNotesEl.textContent =
-        `CS direct model with +${getExtraShift()} pocket directional bias. Martingale per number (base ${baseUnit}, doubles on each losing bet, resets after ${LOSS_RESET_MARTINGALE} consecutive losses).`;
+        `Auto-fit model re-learns a,b,extraShift from the upcoming-direction history at each step. ` +
+        `Martingale per number (base ${baseUnit}, doubles on each losing bet, resets after ${LOSS_RESET_MARTINGALE} consecutive losses).`;
     }
 
     function clearSimulation() {
@@ -1045,7 +1140,7 @@
     runSimBtn.addEventListener("click", runSimulation);
     clearSimBtn.addEventListener("click", clearSimulation);
 
-    // ---------- DAY-BY-DAY CSV SIMULATION ----------
+    // ---------- DAY-BY-DAY CSV SIMULATION (reporting) ----------
 
     const dayCsvInput = document.getElementById("dayCsvInput");
     const runDayCsvBtn = document.getElementById("runDayCsvBtn");
@@ -1066,13 +1161,12 @@
       return lines.map(line => line.split(/,|\t/));
     }
 
-    runDayCsvBtn.addEventListener("click", () => {
+    function loadCsvFile(callback) {
       const file = dayCsvInput.files && dayCsvInput.files[0];
       if (!file) {
         alert("Please choose a CSV file first.");
         return;
       }
-
       const reader = new FileReader();
       reader.onload = (e) => {
         const text = e.target.result;
@@ -1081,11 +1175,9 @@
           alert("CSV must have a header row and at least one data row.");
           return;
         }
-
         const headers = rows[0].map(h => h.trim());
         const numCols = headers.length;
 
-        // Collect spins per column (per day)
         const colsSpins = Array.from({ length: numCols }, () => []);
 
         for (let r = 1; r < rows.length; r++) {
@@ -1100,6 +1192,13 @@
           }
         }
 
+        callback({ headers, colsSpins });
+      };
+      reader.readAsText(file);
+    }
+
+    runDayCsvBtn.addEventListener("click", () => {
+      loadCsvFile(({ headers, colsSpins }) => {
         dayCsvTbody.innerHTML = "";
         dayCsvSummary.innerHTML = "";
 
@@ -1114,11 +1213,9 @@
         const dayStats = [];
 
         colsSpins.forEach((spins, colIdx) => {
-          if (spins.length < 2) {
-            // skip days with less than 2 spins (can't simulate)
-            return;
-          }
-          const res = simulateSpinsArray(spins, baseUnit);
+          if (spins.length < 2) return;
+
+          const res = simulateSpinsArrayAutoFit(spins, baseUnit);
           if (!res) return;
 
           totalSpins += res.spinsCount;
@@ -1126,9 +1223,7 @@
           totalWins += res.wins;
           totalLosses += res.losses;
           totalProfit += res.profit;
-          if (res.worstStreak > totalWorstStreak) {
-            totalWorstStreak = res.worstStreak;
-          }
+          if (res.worstStreak > totalWorstStreak) totalWorstStreak = res.worstStreak;
 
           const dayName = headers[colIdx] || `Day ${colIdx + 1}`;
           const hitStr = res.totalBets ? res.hitRate.toFixed(1) + "%" : "–";
@@ -1148,49 +1243,29 @@
           `;
           dayCsvTbody.appendChild(tr);
 
-          dayStats.push({
-            dayName,
-            profit: res.profit
-          });
+          dayStats.push({ dayName, profit: res.profit });
         });
 
-        // Totals row
         totalSpinsCell.textContent = totalSpins;
         totalBetsCell.textContent = totalBets;
         totalWinsCell.textContent = totalWins;
         totalLossesCell.textContent = totalLosses;
-        if (totalBets > 0) {
-          totalHitRateCell.textContent = ((totalWins / totalBets) * 100).toFixed(1) + "%";
-        } else {
-          totalHitRateCell.textContent = "–";
-        }
+        totalHitRateCell.textContent = totalBets ? ((totalWins / totalBets) * 100).toFixed(1) + "%" : "–";
         totalWorstStreakCell.textContent = totalWorstStreak;
         totalProfitCell.textContent = formatMoney(totalProfit);
 
-        // Overall day analysis
         if (dayStats.length > 0) {
           const daysSimulated = dayStats.length;
-          let winningDays = 0;
-          let losingDays = 0;
-          let flatDays = 0;
-          let longestLosingRun = 0;
-          let currentRun = 0;
+          let winningDays = 0, losingDays = 0, flatDays = 0;
+          let longestLosingRun = 0, currentRun = 0;
 
           let bestDay = dayStats[0];
           let worstDay = dayStats[0];
 
           dayStats.forEach(d => {
-            if (d.profit > 0) {
-              winningDays++;
-              currentRun = 0;
-            } else if (d.profit < 0) {
-              losingDays++;
-              currentRun++;
-              if (currentRun > longestLosingRun) longestLosingRun = currentRun;
-            } else {
-              flatDays++;
-              currentRun = 0;
-            }
+            if (d.profit > 0) { winningDays++; currentRun = 0; }
+            else if (d.profit < 0) { losingDays++; currentRun++; longestLosingRun = Math.max(longestLosingRun, currentRun); }
+            else { flatDays++; currentRun = 0; }
 
             if (d.profit > bestDay.profit) bestDay = d;
             if (d.profit < worstDay.profit) worstDay = d;
@@ -1213,9 +1288,7 @@
         }
 
         dayCsvResultsDiv.style.display = "block";
-      };
-
-      reader.readAsText(file);
+      });
     });
 
     // initial UI
