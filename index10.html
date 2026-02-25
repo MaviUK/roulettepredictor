@@ -89,7 +89,6 @@
     .btn-disabled {
       opacity: 0.5;
       cursor: default;
-      pointer-events: none;
     }
 
     .pill {
@@ -167,8 +166,12 @@
       gap: 0.75rem;
       align-items: flex-end;
     }
-    .top-row label { margin-bottom: 0.1rem; }
-    .inline-input { max-width: 160px; }
+    .top-row label {
+      margin-bottom: 0.1rem;
+    }
+    .inline-input {
+      max-width: 160px;
+    }
 
     table {
       width: 100%;
@@ -181,8 +184,13 @@
       text-align: left;
       font-size: 0.8rem;
     }
-    th { font-weight: 600; opacity: 0.9; }
-    tfoot td { font-weight: 600; }
+    th {
+      font-weight: 600;
+      opacity: 0.9;
+    }
+    tfoot td {
+      font-weight: 600;
+    }
 
     .progress {
       width: 100%;
@@ -202,16 +210,12 @@
 </head>
 <body>
 
-  <h1>Roulette Directional Distance Predictor</h1>
+  <h1>Roulette Sweep Neighbours Predictor</h1>
   <p class="small">
-    Spins are assumed to <strong>alternate direction</strong> (CW, CCW, CW, CCW, ...).
-    For each spin it records the <strong>wheel distance</strong> travelled in that spin's direction.
-    To predict the next spin, it:
-    <br />• Uses the last 3 distances in the upcoming direction,
-    <br />• <strong>Auto-fits the best formula</strong> from past examples in that same direction (rolling fit),
-    <br />• Predicts the <strong>4th distance</strong> in that direction, then converts it to a wheel step,
-    <br />• Covers the predicted centre number and its 8 neighbours each side (17 numbers),
-    <br />• Uses a <strong>Martingale</strong> doubling per-number stake on losses, resetting after 11 consecutive losses.
+    **Prediction model changed** ✅<br>
+    The bet now **sweeps centre numbers from 1 → 36**, one at a time, then restarts at **1**.
+    For each centre it covers the **centre + 8 neighbours each side on the wheel** (17 numbers total).<br>
+    Martingale still doubles stake per number after each losing bet, and resets after 11 consecutive losses.
   </p>
 
   <div class="top-control">
@@ -227,7 +231,7 @@
         </p>
       </div>
       <p class="small" id="currentParamsText">
-        Current model parameters: auto-fit per prediction (uses recent history in the upcoming direction).
+        Current sweep centre starts at <strong>1</strong> and increments to <strong>36</strong>, then restarts at <strong>1</strong>.
       </p>
     </div>
   </div>
@@ -255,7 +259,7 @@
         <h3>Next Spin Recommendation</h3>
         <div id="recommendation">
           <span class="pill pill-neutral">No Data</span>
-          <p class="small">Enter some spins or bulk-load history to get started.</p>
+          <p class="small">Enter a spin to begin the 1→36 sweep betting cycle.</p>
         </div>
       </div>
 
@@ -302,6 +306,7 @@
         <p class="small">
           Paste up to 500 past spins (0–36), separated by spaces, commas, or new lines.
           This will replace your current live history and re-score all bets with the current base stake.
+          The sweep centre will restart at 1 for the replay.
         </p>
         <textarea id="bulkLiveInput" placeholder="Example:
 26 34 16 4 10 10 27 29 17 8 35 7 23 ..."></textarea>
@@ -311,12 +316,13 @@
       </div>
     </div>
 
-    <!-- SIMULATOR -->
+    <!-- SIMULATOR + DAY CSV -->
     <div class="card">
       <h2>Simulator</h2>
       <p class="small">
         Paste a list of spins (one per line or separated by spaces). The simulator will run the
-        same model + Martingale across that history and show performance stats.
+        same sweep model + Martingale across that history.
+        Sweep centre restarts at 1 for each simulation run.
       </p>
       <label for="simInput">Spin sequence</label>
       <textarea id="simInput" placeholder="Example:
@@ -362,13 +368,13 @@
         <p class="small" id="simNotes"></p>
       </div>
 
-      <!-- DAY-BY-DAY CSV SIMULATION & OPTIMISER (kept for reporting; now auto-fit is done live) -->
       <div class="section">
-        <h3>Day-by-Day CSV Simulation (reporting)</h3>
+        <h3>Day-by-Day CSV Simulation</h3>
         <p class="small">
           Export your spreadsheet as a <strong>CSV</strong> where the first row has headers like
           <span class="mono">Day 1,Day 2,Day 3,...</span> and each column contains that day's spins (0–36).
-          This runs the same auto-fit model day-by-day and reports results.
+          This runs the sweep model + Martingale for each day separately.
+          The sweep centre restarts at 1 for each day.
         </p>
         <input type="file" id="dayCsvInput" accept=".csv" />
         <div style="margin-top:0.4rem;">
@@ -416,7 +422,6 @@
 
   <script>
     // ---------- MODEL CONSTANTS ----------
-
     const WHEEL_ORDER = [
       0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6,
       27, 13, 36, 11, 30, 8, 23, 10, 5, 24,
@@ -431,7 +436,6 @@
     const LOSS_RESET_MARTINGALE = 11;   // reset stake after 11 consecutive losing bets
 
     // ---------- UTILITIES ----------
-
     function neighboursForCentre(centreNum) {
       const idx = INDEX_OF[centreNum];
       if (idx === undefined) return [];
@@ -443,43 +447,12 @@
       return nums;
     }
 
-    // direction pattern: assume spin index 0 = CW, 1 = CCW, 2 = CW, ...
-    function directionForIndex(i) {
-      return i % 2 === 0 ? "CW" : "CCW";
-    }
-
-    // Build directional distances from full spin history.
-    function buildDirectionalDistances(spins) {
-      const distances = [];
-      if (spins.length < 2) return distances;
-
-      for (let i = 1; i < spins.length; i++) {
-        const prev = spins[i - 1];
-        const curr = spins[i];
-        const idxPrev = INDEX_OF[prev];
-        const idxCurr = INDEX_OF[curr];
-        if (idxPrev === undefined || idxCurr === undefined) continue;
-
-        const dir = directionForIndex(i); // direction of spin i
-        let dist;
-        if (dir === "CW") {
-          dist = (idxCurr - idxPrev + 37) % 37;
-        } else {
-          dist = (idxPrev - idxCurr + 37) % 37;
-        }
-        distances.push({ dir, dist });
-      }
-      return distances;
-    }
-
     function parseSpinText(text) {
       const tokens = text.split(/[\s,;]+/).filter(Boolean);
       const arr = [];
       for (const t of tokens) {
         const v = parseInt(t, 10);
-        if (!isNaN(v) && v >= 0 && v <= 36) {
-          arr.push(v);
-        }
+        if (!isNaN(v) && v >= 0 && v <= 36) arr.push(v);
       }
       return arr;
     }
@@ -496,169 +469,25 @@
       return sign + x.toFixed(2);
     }
 
-    // ---------- AUTO-FIT MODEL: learn best formula for last 3 distances in upcoming direction ----------
-
-    // Search settings (keep small enough not to lag the browser)
-    const FIT_EXTRA_SHIFT_OPTIONS = [0, 1, 2, 3, 4, 5];
-    const FIT_A_MIN = 0.0, FIT_A_MAX = 1.0, FIT_A_STEP = 0.05;
-    const FIT_B_MIN = 0.0, FIT_B_MAX = 1.0, FIT_B_STEP = 0.05;
-
-    // How many training examples to use (most recent)
-    // Each example needs 4 distances (S1,S2,S3 -> target S4)
-    const FIT_MAX_EXAMPLES = 120;
-
-    // Circular distance error on 0..36 ring
-    function circularDiff(a, b, mod = 37) {
-      const d = ((a - b) % mod + mod) % mod;
-      return Math.min(d, mod - d);
+    // ---------- NEW PREDICTION MODEL: 1→36 SWEEP ----------
+    function nextSweepCentre(currentCentre) {
+      // sweep: 1,2,3,...,36, then back to 1
+      if (typeof currentCentre !== "number" || currentCentre < 1 || currentCentre > 36) return 1;
+      return currentCentre === 36 ? 1 : (currentCentre + 1);
     }
 
-    // Fit params for ONE direction from its distance history
-    function fitBestParamsFromDirDistances(dirDistances) {
-      if (!dirDistances || dirDistances.length < 4) return null;
-
-      const examples = [];
-      for (let i = 3; i < dirDistances.length; i++) {
-        const S1 = dirDistances[i - 3];
-        const S2 = dirDistances[i - 2];
-        const S3 = dirDistances[i - 1];
-        const target = dirDistances[i];
-        examples.push({ S1, S2, S3, target });
-      }
-
-      const useExamples = examples.slice(-FIT_MAX_EXAMPLES);
-      let best = null;
-
-      for (const extraShift of FIT_EXTRA_SHIFT_OPTIONS) {
-        for (let a = FIT_A_MIN; a <= FIT_A_MAX + 1e-9; a += FIT_A_STEP) {
-          const aFixed = parseFloat(a.toFixed(2));
-          for (let b = FIT_B_MIN; b <= FIT_B_MAX + 1e-9; b += FIT_B_STEP) {
-            const bFixed = parseFloat(b.toFixed(2));
-
-            let sse = 0;
-            let worstErr = 0;
-
-            for (const ex of useExamples) {
-              const { S1, S2, S3, target } = ex;
-
-              const beta = S3 - S2;
-              const gamma = (S3 - S2) - (S2 - S1);
-
-              let pred = S3 + aFixed * beta + bFixed * gamma;
-              pred = Math.round(pred);
-              pred = ((pred % 37) + 37) % 37;
-
-              pred = (pred + extraShift) % 37;
-
-              const err = circularDiff(pred, target, 37);
-              sse += err * err;
-              if (err > worstErr) worstErr = err;
-            }
-
-            if (!best || sse < best.sse || (sse === best.sse && worstErr < best.worstErr)) {
-              best = { extraShift, aFixed, bFixed, sse, worstErr, n: useExamples.length };
-            }
-          }
-        }
-      }
-      return best;
-    }
-
-    // Predict next bet zone using fitted formula for upcoming direction
-    function csPrediction(spins) {
-      if (spins.length < 4) {
-        return {
-          shouldBet: false,
-          reason: "Need at least 4 spins to start (so we can form directional distances).",
-          debug: null
-        };
-      }
-
-      const lastNum = spins[spins.length - 1];
-      const idxLast = INDEX_OF[lastNum];
-      if (idxLast === undefined) {
-        return { shouldBet: false, reason: "Last number not on wheel", debug: null };
-      }
-
-      const distances = buildDirectionalDistances(spins);
-
-      const nextIndex = spins.length;
-      const upcomingDir = directionForIndex(nextIndex);
-
-      const dirDistances = distances
-        .filter(d => d.dir === upcomingDir)
-        .map(d => d.dist);
-
-      if (dirDistances.length < 3) {
-        return {
-          shouldBet: false,
-          reason: `Need at least 3 distances in ${upcomingDir} direction (have ${dirDistances.length})`,
-          debug: { upcomingDir, dirDistances }
-        };
-      }
-
-      // Fit best params from history in this direction (needs >=4 distances for training)
-      const fitted = fitBestParamsFromDirDistances(dirDistances);
-
-      // Fallback if not enough history to fit
-      const params = fitted || { extraShift: 2, aFixed: 0.30, bFixed: 0.60, n: 0, sse: null, worstErr: null };
-
-      const S1 = dirDistances[dirDistances.length - 3];
-      const S2 = dirDistances[dirDistances.length - 2];
-      const S3 = dirDistances[dirDistances.length - 1];
-
-      const beta  = S3 - S2;
-      const gamma = (S3 - S2) - (S2 - S1);
-
-      // Predict the 4th distance (next step size in this direction)
-      let S4 = S3 + params.aFixed * beta + params.bFixed * gamma;
-      S4 = Math.round(S4);
-      S4 = ((S4 % 37) + 37) % 37;
-
-      const stepWithBias = (S4 + (params.extraShift || 0)) % 37;
-
-      let centreIdx;
-      if (upcomingDir === "CW") {
-        centreIdx = (idxLast + stepWithBias) % 37;
-      } else {
-        centreIdx = (idxLast - stepWithBias + 74) % 37;
-      }
-
-      const centreNum = WHEEL_ORDER[centreIdx];
+    function sweepPrediction(currentCentre) {
+      const centreNum = currentCentre;
       const neighbours = neighboursForCentre(centreNum);
-
-      const fitNote = fitted
-        ? `Auto-fit on last ${params.n} examples in ${upcomingDir} (SSE=${params.sse.toFixed(1)}, worstErr=${params.worstErr}).`
-        : `Not enough ${upcomingDir} history to fit yet; using fallback params.`;
-
       return {
         shouldBet: true,
         centreNum,
         neighbours,
-        dominantStep: stepWithBias,
-        reason:
-          `Auto-fit formula on ${upcomingDir}: S4 = round(S3 + aβ + bγ) then +extraShift. ` +
-          `a=${params.aFixed.toFixed(2)}, b=${params.bFixed.toFixed(2)}, extraShift=${params.extraShift}. ` +
-          fitNote,
-        debug: {
-          upcomingDir,
-          S1, S2, S3,
-          beta, gamma,
-          S4,
-          extraShift: params.extraShift,
-          stepWithBias,
-          centreIdx,
-          centreNum,
-          a: params.aFixed,
-          b: params.bFixed,
-          nDir: dirDistances.length,
-          fitted
-        }
+        reason: `Sweep model: centre=${centreNum} (covers centre + 8 neighbours each side). Next centre will be ${nextSweepCentre(centreNum)}.`
       };
     }
 
     // ---------- LIVE UI LOGIC + MARTINGALE ----------
-
     const spinsLive = [];
     let liveTotalBets = 0;
     let liveWins = 0;
@@ -671,6 +500,9 @@
     let liveStakePerNumber = null;       // current stake per number
     let liveMartingaleLossCount = 0;     // consecutive losing bets for stake reset
 
+    // NEW: sweep centre state
+    let liveSweepCentre = 1;
+
     const spinInput = document.getElementById("spinInput");
     const addSpinBtn = document.getElementById("addSpinBtn");
     const resetSpinsBtn = document.getElementById("resetSpinsBtn");
@@ -678,7 +510,6 @@
     const historyInfo = document.getElementById("historyInfo");
     const historyList = document.getElementById("historyList");
     const recommendationDiv = document.getElementById("recommendation");
-    const currentParamsText = document.getElementById("currentParamsText");
 
     const liveTotalBetsEl = document.getElementById("liveTotalBets");
     const liveWinsEl = document.getElementById("liveWins");
@@ -690,12 +521,6 @@
     const liveStakePerNumberEl = document.getElementById("liveStakePerNumber");
 
     let lastPrediction = null; // for scoring wins/losses
-
-    function updateCurrentParamsSummary(extraInfo) {
-      currentParamsText.textContent =
-        `Current model parameters: auto-fit per prediction (uses recent history in the upcoming direction). ` +
-        (extraInfo ? extraInfo : "");
-    }
 
     function updateHistoryUI() {
       if (spinsLive.length === 0) {
@@ -719,13 +544,16 @@
       liveLossesEl.textContent = liveLosses;
       liveCurrentStreakEl.textContent = liveCurrentLosingStreak;
       liveWorstStreakEl.textContent = liveWorstStreak;
+
       if (liveTotalBets === 0) {
         liveHitRateEl.textContent = "–";
       } else {
         const rate = (liveWins / liveTotalBets) * 100;
         liveHitRateEl.textContent = rate.toFixed(1) + "%";
       }
+
       liveProfitEl.textContent = formatMoney(liveProfit);
+
       if (liveStakePerNumber == null) {
         liveStakePerNumberEl.textContent = "–";
       } else {
@@ -733,7 +561,7 @@
       }
     }
 
-    function renderRecommendation(pred) {
+    function renderRecommendation(pred, sweepCentre) {
       recommendationDiv.innerHTML = "";
 
       if (!pred) {
@@ -741,55 +569,41 @@
         pill.className = "pill pill-neutral";
         pill.textContent = "No Data";
         recommendationDiv.appendChild(pill);
+
         const p = document.createElement("p");
         p.className = "small";
-        p.textContent = "Enter more spins to get a prediction.";
+        p.textContent = "Enter a spin to begin the 1→36 sweep betting cycle.";
         recommendationDiv.appendChild(p);
         return;
       }
 
-      if (!pred.shouldBet) {
-        const pill = document.createElement("span");
-        pill.className = "pill pill-neutral";
-        pill.textContent = "NO BET";
-        recommendationDiv.appendChild(pill);
-        const p = document.createElement("p");
-        p.className = "small";
-        p.textContent = pred.reason || "Pattern not strong enough yet.";
-        recommendationDiv.appendChild(p);
-      } else {
-        const pill = document.createElement("span");
-        pill.className = "pill pill-good";
-        pill.textContent = "BET";
-        recommendationDiv.appendChild(pill);
+      const pill = document.createElement("span");
+      pill.className = "pill pill-good";
+      pill.textContent = "BET";
+      recommendationDiv.appendChild(pill);
 
-        const p1 = document.createElement("p");
-        p1.innerHTML =
-          `Centre: <strong>${pred.centreNum}</strong>` +
-          ` &mdash; Step: <span class="mono">${pred.dominantStep}</span>`;
-        recommendationDiv.appendChild(p1);
+      const p1 = document.createElement("p");
+      p1.innerHTML = `Centre: <strong>${pred.centreNum}</strong> &mdash; Sweep position: <span class="mono">${sweepCentre}</span>`;
+      recommendationDiv.appendChild(p1);
 
-        const p2 = document.createElement("p");
-        p2.className = "small";
-        p2.textContent = "Cover this number and its 8 neighbours each side on the wheel (17 numbers):";
-        recommendationDiv.appendChild(p2);
+      const p2 = document.createElement("p");
+      p2.className = "small";
+      p2.textContent = "Cover this number and its 8 neighbours each side on the wheel (17 numbers):";
+      recommendationDiv.appendChild(p2);
 
-        const ul = document.createElement("ul");
-        ul.className = "list-inline mono";
-        pred.neighbours.forEach(n => {
-          const li = document.createElement("li");
-          li.textContent = n;
-          ul.appendChild(li);
-        });
-        recommendationDiv.appendChild(ul);
+      const ul = document.createElement("ul");
+      ul.className = "list-inline mono";
+      pred.neighbours.forEach(n => {
+        const li = document.createElement("li");
+        li.textContent = n;
+        ul.appendChild(li);
+      });
+      recommendationDiv.appendChild(ul);
 
-        if (pred.reason) {
-          const p3 = document.createElement("p");
-          p3.className = "small";
-          p3.textContent = pred.reason;
-          recommendationDiv.appendChild(p3);
-        }
-      }
+      const p3 = document.createElement("p");
+      p3.className = "small";
+      p3.textContent = pred.reason || "";
+      recommendationDiv.appendChild(p3);
     }
 
     function onAddSpin() {
@@ -801,19 +615,19 @@
 
       const baseUnit = getBaseUnit();
 
-      // Score previous prediction (if any) NOW that we know the outcome
+      // Settle previous bet (if any) now that outcome is known
       if (lastPrediction && lastPrediction.shouldBet) {
         liveTotalBets++;
 
         const neighbours = lastPrediction.neighbours || [];
-        const numbersCovered = neighbours.length;
+        const numbersCovered = neighbours.length; // 17
         const stakePerNumberNow = (liveStakePerNumber == null) ? baseUnit : liveStakePerNumber;
         const totalStake = stakePerNumberNow * numbersCovered;
 
         const hit = neighbours.includes(v);
+
         if (hit) {
-          // roulette: 35:1 payout => return 36x stake on the winning number
-          const winReturn = stakePerNumberNow * 36;
+          const winReturn = stakePerNumberNow * 36; // 35:1 payout + stake
           const profit = winReturn - totalStake;
           liveProfit += profit;
 
@@ -824,51 +638,41 @@
         } else {
           liveLosses++;
           liveCurrentLosingStreak++;
-          if (liveCurrentLosingStreak > liveWorstStreak) {
-            liveWorstStreak = liveCurrentLosingStreak;
-          }
+          if (liveCurrentLosingStreak > liveWorstStreak) liveWorstStreak = liveCurrentLosingStreak;
 
-          // lose stake
           liveProfit -= totalStake;
 
-          // martingale loss tracking
           liveMartingaleLossCount += 1;
-
           if (liveMartingaleLossCount >= LOSS_RESET_MARTINGALE) {
-            // reset stake after 11 consecutive losses
             liveStakePerNumber = baseUnit;
             liveMartingaleLossCount = 0;
           } else {
-            // double per-number stake for next bet
             liveStakePerNumber = stakePerNumberNow * 2;
           }
         }
+
         updateStatsUI();
       }
 
+      // record spin
       spinsLive.push(v);
       spinInput.value = "";
       updateHistoryUI();
 
-      // Compute new prediction for NEXT spin (auto-fit)
-      const pred = csPrediction(spinsLive);
+      // New: compute next prediction based on sweep centre
+      const pred = sweepPrediction(liveSweepCentre);
       lastPrediction = pred;
-      renderRecommendation(pred);
 
-      // Update top params text with last fit info if available
-      if (pred && pred.debug && pred.debug.fitted) {
-        updateCurrentParamsSummary(
-          `Latest fit (${pred.debug.upcomingDir}): a=${pred.debug.a.toFixed(2)}, b=${pred.debug.b.toFixed(2)}, extraShift=${pred.debug.extraShift}, ` +
-          `examples=${pred.debug.fitted.n}, SSE=${pred.debug.fitted.sse.toFixed(1)}, worstErr=${pred.debug.fitted.worstErr}.`
-        );
-      } else {
-        updateCurrentParamsSummary("Not enough directional examples yet to fit strongly.");
-      }
+      // advance sweep centre for NEXT time
+      liveSweepCentre = nextSweepCentre(liveSweepCentre);
+
+      renderRecommendation(pred, pred.centreNum);
     }
 
     function onResetSpins() {
       spinsLive.length = 0;
       lastPrediction = null;
+
       liveTotalBets = 0;
       liveWins = 0;
       liveLosses = 0;
@@ -877,10 +681,12 @@
       liveProfit = 0;
       liveStakePerNumber = null;
       liveMartingaleLossCount = 0;
+
+      liveSweepCentre = 1;
+
       updateHistoryUI();
       updateStatsUI();
       renderRecommendation(null);
-      updateCurrentParamsSummary("");
     }
 
     function onExportSpins() {
@@ -910,7 +716,6 @@
     });
 
     // ---------- BULK LOAD INTO LIVE MODE ----------
-
     const bulkLiveInput = document.getElementById("bulkLiveInput");
     const loadBulkLiveBtn = document.getElementById("loadBulkLiveBtn");
 
@@ -923,7 +728,7 @@
 
       const baseUnit = getBaseUnit();
 
-      // Reset all live stats
+      // Reset all live state
       spinsLive.length = 0;
       liveTotalBets = 0;
       liveWins = 0;
@@ -934,7 +739,8 @@
       liveStakePerNumber = null;
       liveMartingaleLossCount = 0;
 
-      let history = [];
+      liveSweepCentre = 1;
+
       let lastPredLocal = null;
 
       for (let i = 0; i < spins.length; i++) {
@@ -946,13 +752,13 @@
 
           const neighbours = lastPredLocal.neighbours || [];
           const numbersCovered = neighbours.length;
-          const stakePerNumberNow = (liveStakePerNumber == null) ? baseUnit : liveStakePerNumber;
-          const totalStake = stakePerNumberNow * numbersCovered;
+          const stakeNow = (liveStakePerNumber == null) ? baseUnit : liveStakePerNumber;
+          const totalStake = stakeNow * numbersCovered;
 
           const hit = neighbours.includes(result);
 
           if (hit) {
-            const winReturn = stakePerNumberNow * 36;
+            const winReturn = stakeNow * 36;
             const profit = winReturn - totalStake;
             liveProfit += profit;
 
@@ -963,9 +769,8 @@
           } else {
             liveLosses++;
             liveCurrentLosingStreak++;
-            if (liveCurrentLosingStreak > liveWorstStreak) {
-              liveWorstStreak = liveCurrentLosingStreak;
-            }
+            if (liveCurrentLosingStreak > liveWorstStreak) liveWorstStreak = liveCurrentLosingStreak;
+
             liveProfit -= totalStake;
 
             liveMartingaleLossCount += 1;
@@ -973,37 +778,29 @@
               liveStakePerNumber = baseUnit;
               liveMartingaleLossCount = 0;
             } else {
-              liveStakePerNumber = stakePerNumberNow * 2;
+              liveStakePerNumber = stakeNow * 2;
             }
           }
         }
 
-        history.push(result);
         spinsLive.push(result);
-        lastPredLocal = csPrediction(history);
+
+        // compute new prediction for next spin using sweep centre
+        lastPredLocal = sweepPrediction(liveSweepCentre);
+        liveSweepCentre = nextSweepCentre(liveSweepCentre);
       }
 
       lastPrediction = lastPredLocal;
 
       updateHistoryUI();
       updateStatsUI();
-      renderRecommendation(lastPredLocal);
+      renderRecommendation(lastPredLocal, lastPredLocal ? lastPredLocal.centreNum : null);
 
-      if (lastPredLocal && lastPredLocal.debug && lastPredLocal.debug.fitted) {
-        updateCurrentParamsSummary(
-          `Latest fit (${lastPredLocal.debug.upcomingDir}): a=${lastPredLocal.debug.a.toFixed(2)}, b=${lastPredLocal.debug.b.toFixed(2)}, extraShift=${lastPredLocal.debug.extraShift}, ` +
-          `examples=${lastPredLocal.debug.fitted.n}, SSE=${lastPredLocal.debug.fitted.sse.toFixed(1)}, worstErr=${lastPredLocal.debug.fitted.worstErr}.`
-        );
-      } else {
-        updateCurrentParamsSummary("Not enough directional examples yet to fit strongly.");
-      }
-
-      alert(`Loaded ${spins.length} spins into Live Mode.`);
+      alert(`Loaded ${spins.length} spins into Live Mode (sweep replay from centre 1).`);
     });
 
     // ---------- SIMULATOR SHARED LOGIC + MARTINGALE ----------
-
-    function simulateSpinsArrayAutoFit(spins, baseUnit) {
+    function simulateSpinsArraySweep(spins, baseUnit) {
       if (spins.length < 2) return null;
 
       let totalBets = 0;
@@ -1019,12 +816,14 @@
       let lastBetResult = "No Bet";
       let lastBetPnL = 0;
 
-      let history = [];
+      // sweep restarts at 1 for each sim
+      let sweepCentre = 1;
       let lastPred = null;
 
       for (let i = 0; i < spins.length; i++) {
         const result = spins[i];
 
+        // settle bet from previous prediction
         if (lastPred && lastPred.shouldBet) {
           totalBets++;
 
@@ -1034,6 +833,7 @@
           const totalStake = stakeNow * numbersCovered;
 
           const hit = neighbours.includes(result);
+
           if (hit) {
             const winReturn = stakeNow * 36;
             const profit = winReturn - totalStake;
@@ -1067,8 +867,9 @@
           }
         }
 
-        history.push(result);
-        lastPred = csPrediction(history);
+        // compute next prediction (always) and advance sweep
+        lastPred = sweepPrediction(sweepCentre);
+        sweepCentre = nextSweepCentre(sweepCentre);
       }
 
       const hitRate = totalBets ? (wins / totalBets) * 100 : null;
@@ -1087,7 +888,6 @@
     }
 
     // ---------- SIMULATOR UI ----------
-
     const simInput = document.getElementById("simInput");
     const runSimBtn = document.getElementById("runSimBtn");
     const clearSimBtn = document.getElementById("clearSimBtn");
@@ -1109,7 +909,7 @@
       }
 
       const baseUnit = getBaseUnit();
-      const res = simulateSpinsArrayAutoFit(spins, baseUnit);
+      const res = simulateSpinsArraySweep(spins, baseUnit);
       if (!res) {
         alert("Not enough spins to simulate.");
         return;
@@ -1120,15 +920,18 @@
       simTotalBetsEl.textContent = res.totalBets;
       simWinsEl.textContent = res.wins;
       simLossesEl.textContent = res.losses;
+
       if (res.totalBets === 0) {
         simHitRateEl.textContent = "–";
       } else {
         simHitRateEl.textContent = res.hitRate.toFixed(1) + "%";
       }
+
       simWorstStreakEl.textContent = res.worstStreak;
       simProfitEl.textContent = formatMoney(res.profit);
+
       simNotesEl.textContent =
-        `Auto-fit model re-learns a,b,extraShift from the upcoming-direction history at each step. ` +
+        `Sweep model (centre 1→36, restart). ` +
         `Martingale per number (base ${baseUnit}, doubles on each losing bet, resets after ${LOSS_RESET_MARTINGALE} consecutive losses).`;
     }
 
@@ -1140,8 +943,7 @@
     runSimBtn.addEventListener("click", runSimulation);
     clearSimBtn.addEventListener("click", clearSimulation);
 
-    // ---------- DAY-BY-DAY CSV SIMULATION (reporting) ----------
-
+    // ---------- DAY-BY-DAY CSV SIMULATION ----------
     const dayCsvInput = document.getElementById("dayCsvInput");
     const runDayCsvBtn = document.getElementById("runDayCsvBtn");
     const dayCsvResultsDiv = document.getElementById("dayCsvResults");
@@ -1178,6 +980,7 @@
         const headers = rows[0].map(h => h.trim());
         const numCols = headers.length;
 
+        // Collect spins per column (per day)
         const colsSpins = Array.from({ length: numCols }, () => []);
 
         for (let r = 1; r < rows.length; r++) {
@@ -1213,9 +1016,10 @@
         const dayStats = [];
 
         colsSpins.forEach((spins, colIdx) => {
-          if (spins.length < 2) return;
+          if (!spins || spins.length < 2) return;
 
-          const res = simulateSpinsArrayAutoFit(spins, baseUnit);
+          // Sweep restarts at 1 for each day inside simulateSpinsArraySweep
+          const res = simulateSpinsArraySweep(spins, baseUnit);
           if (!res) return;
 
           totalSpins += res.spinsCount;
@@ -1250,22 +1054,33 @@
         totalBetsCell.textContent = totalBets;
         totalWinsCell.textContent = totalWins;
         totalLossesCell.textContent = totalLosses;
-        totalHitRateCell.textContent = totalBets ? ((totalWins / totalBets) * 100).toFixed(1) + "%" : "–";
+        totalHitRateCell.textContent = totalBets > 0 ? ((totalWins / totalBets) * 100).toFixed(1) + "%" : "–";
         totalWorstStreakCell.textContent = totalWorstStreak;
         totalProfitCell.textContent = formatMoney(totalProfit);
 
         if (dayStats.length > 0) {
           const daysSimulated = dayStats.length;
-          let winningDays = 0, losingDays = 0, flatDays = 0;
-          let longestLosingRun = 0, currentRun = 0;
+          let winningDays = 0;
+          let losingDays = 0;
+          let flatDays = 0;
+          let longestLosingRun = 0;
+          let currentRun = 0;
 
           let bestDay = dayStats[0];
           let worstDay = dayStats[0];
 
           dayStats.forEach(d => {
-            if (d.profit > 0) { winningDays++; currentRun = 0; }
-            else if (d.profit < 0) { losingDays++; currentRun++; longestLosingRun = Math.max(longestLosingRun, currentRun); }
-            else { flatDays++; currentRun = 0; }
+            if (d.profit > 0) {
+              winningDays++;
+              currentRun = 0;
+            } else if (d.profit < 0) {
+              losingDays++;
+              currentRun++;
+              if (currentRun > longestLosingRun) longestLosingRun = currentRun;
+            } else {
+              flatDays++;
+              currentRun = 0;
+            }
 
             if (d.profit > bestDay.profit) bestDay = d;
             if (d.profit < worstDay.profit) worstDay = d;
