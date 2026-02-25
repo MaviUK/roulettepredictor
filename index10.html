@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Roulette Sweep Neighbours Predictor</title>
+  <title>Roulette Neighbours Predictor (Hold-on-Win)</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
     * { box-sizing: border-box; }
@@ -36,7 +36,7 @@
     }
 
     label { display:block; margin-bottom:0.35rem; font-size:0.9rem; opacity:0.9; }
-    input[type="number"], textarea {
+    input[type="number"], textarea, input[type="file"] {
       width: 100%;
       padding: 0.6rem 0.7rem;
       border-radius: 8px;
@@ -46,7 +46,7 @@
       font-size: 0.95rem;
       outline: none;
     }
-    input[type="number"]:focus, textarea:focus {
+    input[type="number"]:focus, textarea:focus, input[type="file"]:focus {
       border-color: #58d5ff;
       box-shadow: 0 0 0 1px rgba(88,213,255,0.3);
     }
@@ -112,17 +112,25 @@
     .stat span { display:block; }
     .stat-label { opacity:0.7; margin-bottom:0.1rem; }
     .stat-value { font-weight:700; font-size:0.95rem; }
+
+    table { width:100%; border-collapse:collapse; margin-top:0.5rem; }
+    th, td {
+      padding:0.3rem 0.4rem;
+      border-bottom:1px solid rgba(255,255,255,0.06);
+      text-align:left;
+      font-size:0.8rem;
+    }
+    th { font-weight:600; opacity:0.9; }
+    tfoot td { font-weight:700; }
   </style>
 </head>
 <body>
 
   <h1>Roulette Neighbours Predictor (Hold-on-Win)</h1>
   <p class="small">
-    **Model updated** ✅<br>
-    You now bet the **same centre number again after a WIN** (hold the centre).<br>
-    You **only change the centre number when you LOSE**, moving 1 → 36, then restarting at 1.<br>
-    Each bet covers **centre + 8 neighbours each side** (17 numbers).
-    Martingale still doubles stake per number after each losing bet, and resets after 11 consecutive losses.
+    Bet covers <strong>centre + 8 neighbours each side</strong> (17 numbers).<br>
+    <strong>Hold centre on WIN</strong>, and <strong>only change centre on LOSS</strong> (1 → 36 → 1).<br>
+    Martingale doubles stake per number after each losing bet, and resets after 11 consecutive losses.
   </p>
 
   <div class="top-control">
@@ -137,7 +145,7 @@
         </p>
       </div>
       <p class="small" id="currentParamsText">
-        Centre progression: start at 1. **Hold on win. Advance on loss.**
+        Centre progression: start at 1. <strong>Hold on win. Advance on loss.</strong>
       </p>
     </div>
   </div>
@@ -186,7 +194,7 @@
       <div class="section">
         <h3>Bulk Load Spins</h3>
         <p class="small">
-          Paste up to 500 past spins (0–36). This will replace your current history and replay the hold-on-win model from centre 1.
+          Paste up to 500 past spins (0–36). This will replace your current history and replay from centre 1.
         </p>
         <textarea id="bulkLiveInput" placeholder="Example:
 26 34 16 4 10 10 27 29 17 8 35 7 23 ..."></textarea>
@@ -200,7 +208,7 @@
     <div class="card">
       <h2>Simulator</h2>
       <p class="small">
-        Runs the same **hold-on-win** sweep model + Martingale across the pasted history.
+        Runs the same hold-on-win model + Martingale across the pasted history.
         Centre starts at 1 for each simulation.
       </p>
       <label for="simInput">Spin sequence</label>
@@ -229,7 +237,8 @@
       <div class="section">
         <h3>Day-by-Day CSV Simulation</h3>
         <p class="small">
-          CSV format: headers in row 1 (Day 1, Day 2, ...), each column is that day's spins. Each day restarts centre at 1.
+          CSV format: first row headers (Day 1, Day 2, ...). Each column is that day's spins (0–36).<br>
+          Each day simulation restarts at centre 1.
         </p>
         <input type="file" id="dayCsvInput" accept=".csv" />
         <div style="margin-top:0.4rem;">
@@ -238,34 +247,34 @@
 
         <div id="dayCsvResults" style="display:none; margin-top:0.75rem;">
           <h3>Day Breakdown</h3>
-          <table class="mono" style="width:100%; border-collapse:collapse; margin-top:0.5rem;">
+          <table class="mono">
             <thead>
               <tr>
-                <th style="padding:0.3rem 0.4rem; border-bottom:1px solid rgba(255,255,255,0.06); text-align:left; font-size:0.8rem;">Day</th>
-                <th style="padding:0.3rem 0.4rem; border-bottom:1px solid rgba(255,255,255,0.06); text-align:left; font-size:0.8rem;">Spins</th>
-                <th style="padding:0.3rem 0.4rem; border-bottom:1px solid rgba(255,255,255,0.06); text-align:left; font-size:0.8rem;">Total Bets</th>
-                <th style="padding:0.3rem 0.4rem; border-bottom:1px solid rgba(255,255,255,0.06); text-align:left; font-size:0.8rem;">Wins</th>
-                <th style="padding:0.3rem 0.4rem; border-bottom:1px solid rgba(255,255,255,0.06); text-align:left; font-size:0.8rem;">Losses</th>
-                <th style="padding:0.3rem 0.4rem; border-bottom:1px solid rgba(255,255,255,0.06); text-align:left; font-size:0.8rem;">Hit %</th>
-                <th style="padding:0.3rem 0.4rem; border-bottom:1px solid rgba(255,255,255,0.06); text-align:left; font-size:0.8rem;">Worst Losing Streak</th>
-                <th style="padding:0.3rem 0.4rem; border-bottom:1px solid rgba(255,255,255,0.06); text-align:left; font-size:0.8rem;">P&amp;L</th>
-                <th style="padding:0.3rem 0.4rem; border-bottom:1px solid rgba(255,255,255,0.06); text-align:left; font-size:0.8rem;">Last Bet</th>
-                <th style="padding:0.3rem 0.4rem; border-bottom:1px solid rgba(255,255,255,0.06); text-align:left; font-size:0.8rem;">Last Bet P&amp;L</th>
+                <th>Day</th>
+                <th>Spins</th>
+                <th>Total Bets</th>
+                <th>Wins</th>
+                <th>Losses</th>
+                <th>Hit %</th>
+                <th>Worst Losing Streak</th>
+                <th>P&amp;L</th>
+                <th>Last Bet</th>
+                <th>Last Bet P&amp;L</th>
               </tr>
             </thead>
             <tbody id="dayCsvTbody"></tbody>
             <tfoot>
               <tr>
-                <td style="padding:0.3rem 0.4rem; border-bottom:1px solid rgba(255,255,255,0.06); font-weight:700;">TOTAL</td>
-                <td style="padding:0.3rem 0.4rem; border-bottom:1px solid rgba(255,255,255,0.06);" id="totalSpinsCell"></td>
-                <td style="padding:0.3rem 0.4rem; border-bottom:1px solid rgba(255,255,255,0.06);" id="totalBetsCell"></td>
-                <td style="padding:0.3rem 0.4rem; border-bottom:1px solid rgba(255,255,255,0.06);" id="totalWinsCell"></td>
-                <td style="padding:0.3rem 0.4rem; border-bottom:1px solid rgba(255,255,255,0.06);" id="totalLossesCell"></td>
-                <td style="padding:0.3rem 0.4rem; border-bottom:1px solid rgba(255,255,255,0.06);" id="totalHitRateCell"></td>
-                <td style="padding:0.3rem 0.4rem; border-bottom:1px solid rgba(255,255,255,0.06);" id="totalWorstStreakCell"></td>
-                <td style="padding:0.3rem 0.4rem; border-bottom:1px solid rgba(255,255,255,0.06);" id="totalProfitCell"></td>
-                <td style="padding:0.3rem 0.4rem; border-bottom:1px solid rgba(255,255,255,0.06);"></td>
-                <td style="padding:0.3rem 0.4rem; border-bottom:1px solid rgba(255,255,255,0.06);"></td>
+                <td><strong>TOTAL</strong></td>
+                <td id="totalSpinsCell"></td>
+                <td id="totalBetsCell"></td>
+                <td id="totalWinsCell"></td>
+                <td id="totalLossesCell"></td>
+                <td id="totalHitRateCell"></td>
+                <td id="totalWorstStreakCell"></td>
+                <td id="totalProfitCell"></td>
+                <td></td>
+                <td></td>
               </tr>
             </tfoot>
           </table>
@@ -337,9 +346,95 @@
       return sign + x.toFixed(2);
     }
 
+    // ---------- SIM CORE (used by Simulator + Day-by-Day) ----------
+    function simulateHoldOnWin(spins, baseUnit) {
+      if (!spins || spins.length < 2) return null;
+
+      let totalBets = 0, wins = 0, losses = 0;
+      let currentStreak = 0, worstStreak = 0;
+      let profit = 0;
+
+      let stakePerNumber = null;
+      let martingaleLossCount = 0;
+
+      let centre = 1;       // resets per run/day
+      let lastPred = null;
+
+      let lastBetResult = "No Bet";
+      let lastBetPnL = 0;
+
+      for (let i = 0; i < spins.length; i++) {
+        const result = spins[i];
+
+        // settle previous bet
+        if (lastPred && lastPred.shouldBet) {
+          totalBets++;
+
+          const covered = lastPred.neighbours || [];
+          const numbersCovered = covered.length; // 17
+          const stakeNow = (stakePerNumber == null) ? baseUnit : stakePerNumber;
+          const totalStake = stakeNow * numbersCovered;
+
+          const hit = covered.includes(result);
+
+          if (hit) {
+            const winReturn = stakeNow * 36;
+            const betProfit = winReturn - totalStake;
+            profit += betProfit;
+
+            wins++;
+            currentStreak = 0;
+
+            martingaleLossCount = 0;
+            stakePerNumber = baseUnit;
+
+            lastBetResult = "Win";
+            lastBetPnL = betProfit;
+
+            // HOLD centre
+          } else {
+            const betProfit = -totalStake;
+            profit += betProfit;
+
+            losses++;
+            currentStreak++;
+            if (currentStreak > worstStreak) worstStreak = currentStreak;
+
+            martingaleLossCount += 1;
+            if (martingaleLossCount >= LOSS_RESET_MARTINGALE) {
+              stakePerNumber = baseUnit;
+              martingaleLossCount = 0;
+            } else {
+              stakePerNumber = stakeNow * 2;
+            }
+
+            lastBetResult = "Loss";
+            lastBetPnL = betProfit;
+
+            // ADVANCE centre on loss
+            centre = nextSweepCentre(centre);
+          }
+        }
+
+        // create next bet for next spin
+        lastPred = holdOnWinPrediction(centre);
+      }
+
+      return {
+        spinsCount: spins.length,
+        totalBets,
+        wins,
+        losses,
+        hitRate: totalBets ? (wins / totalBets) * 100 : null,
+        worstStreak,
+        profit,
+        lastBetResult,
+        lastBetPnL
+      };
+    }
+
     // ---------- LIVE STATE ----------
     const spinsLive = [];
-
     let liveTotalBets = 0, liveWins = 0, liveLosses = 0;
     let liveCurrentLosingStreak = 0, liveWorstStreak = 0;
 
@@ -351,8 +446,7 @@
     let liveCentre = 1;
 
     let lastPrediction = null;
-    // Tracks outcome of last settled bet to decide centre advance
-    // (We decide centre advance when we settle the bet.)
+
     const spinInput = document.getElementById("spinInput");
     const addSpinBtn = document.getElementById("addSpinBtn");
     const resetSpinsBtn = document.getElementById("resetSpinsBtn");
@@ -455,12 +549,12 @@
 
       const baseUnit = getBaseUnit();
 
-      // 1) SETTLE previous bet (if any) using this spin as outcome
+      // Settle previous bet
       if (lastPrediction && lastPrediction.shouldBet) {
         liveTotalBets++;
 
         const covered = lastPrediction.neighbours || [];
-        const numbersCovered = covered.length; // 17
+        const numbersCovered = covered.length;
         const stakeNow = (liveStakePerNumber == null) ? baseUnit : liveStakePerNumber;
         const totalStake = stakeNow * numbersCovered;
 
@@ -468,8 +562,8 @@
 
         if (hit) {
           const winReturn = stakeNow * 36;
-          const profit = winReturn - totalStake;
-          liveProfit += profit;
+          const betProfit = winReturn - totalStake;
+          liveProfit += betProfit;
 
           liveWins++;
           liveCurrentLosingStreak = 0;
@@ -477,7 +571,7 @@
           liveMartingaleLossCount = 0;
           liveStakePerNumber = baseUnit;
 
-          // HOLD centre on win (do nothing)
+          // HOLD centre on win
         } else {
           liveLosses++;
           liveCurrentLosingStreak++;
@@ -493,22 +587,21 @@
             liveStakePerNumber = stakeNow * 2;
           }
 
-          // ADVANCE centre ONLY on loss
+          // ADVANCE centre on loss
           liveCentre = nextSweepCentre(liveCentre);
         }
 
         updateStatsUI();
       }
 
-      // 2) Record spin
+      // record spin
       spinsLive.push(v);
       spinInput.value = "";
       updateHistoryUI();
 
-      // 3) Compute prediction for NEXT spin using current centre state
-      const pred = holdOnWinPrediction(liveCentre);
-      lastPrediction = pred;
-      renderRecommendation(pred, liveCentre);
+      // compute NEXT prediction using current centre
+      lastPrediction = holdOnWinPrediction(liveCentre);
+      renderRecommendation(lastPrediction, liveCentre);
     }
 
     function onResetSpins() {
@@ -549,7 +642,7 @@
     exportSpinsBtn.addEventListener("click", onExportSpins);
     spinInput.addEventListener("keyup", (e) => { if (e.key === "Enter") onAddSpin(); });
 
-    // ---------- BULK LOAD (replay) ----------
+    // ---------- BULK LOAD (replay live) ----------
     const bulkLiveInput = document.getElementById("bulkLiveInput");
     const loadBulkLiveBtn = document.getElementById("loadBulkLiveBtn");
 
@@ -562,14 +655,13 @@
 
       const baseUnit = getBaseUnit();
 
-      // reset state
+      // reset live state
       spinsLive.length = 0;
       liveTotalBets = 0; liveWins = 0; liveLosses = 0;
       liveCurrentLosingStreak = 0; liveWorstStreak = 0;
       liveProfit = 0;
       liveStakePerNumber = null;
       liveMartingaleLossCount = 0;
-
       liveCentre = 1;
 
       let lastPredLocal = null;
@@ -577,36 +669,28 @@
       for (let i = 0; i < spins.length; i++) {
         const result = spins[i];
 
-        // settle previous bet
         if (lastPredLocal && lastPredLocal.shouldBet) {
           liveTotalBets++;
 
           const covered = lastPredLocal.neighbours || [];
-          const numbersCovered = covered.length;
           const stakeNow = (liveStakePerNumber == null) ? baseUnit : liveStakePerNumber;
-          const totalStake = stakeNow * numbersCovered;
+          const totalStake = stakeNow * covered.length;
 
           const hit = covered.includes(result);
 
           if (hit) {
-            const winReturn = stakeNow * 36;
-            const profit = winReturn - totalStake;
-            liveProfit += profit;
-
+            liveProfit += (stakeNow * 36 - totalStake);
             liveWins++;
             liveCurrentLosingStreak = 0;
-
             liveMartingaleLossCount = 0;
             liveStakePerNumber = baseUnit;
-            // hold centre
           } else {
+            liveProfit -= totalStake;
             liveLosses++;
             liveCurrentLosingStreak++;
             if (liveCurrentLosingStreak > liveWorstStreak) liveWorstStreak = liveCurrentLosingStreak;
 
-            liveProfit -= totalStake;
-
-            liveMartingaleLossCount += 1;
+            liveMartingaleLossCount++;
             if (liveMartingaleLossCount >= LOSS_RESET_MARTINGALE) {
               liveStakePerNumber = baseUnit;
               liveMartingaleLossCount = 0;
@@ -614,14 +698,11 @@
               liveStakePerNumber = stakeNow * 2;
             }
 
-            // advance centre on loss
             liveCentre = nextSweepCentre(liveCentre);
           }
         }
 
         spinsLive.push(result);
-
-        // compute bet for next spin using current centre
         lastPredLocal = holdOnWinPrediction(liveCentre);
       }
 
@@ -629,12 +710,12 @@
 
       updateHistoryUI();
       updateStatsUI();
-      renderRecommendation(lastPredLocal, liveCentre);
+      renderRecommendation(lastPrediction, liveCentre);
 
-      alert(`Loaded ${spins.length} spins into Live Mode (hold-on-win; centre advances only on loss).`);
+      alert(`Loaded ${spins.length} spins into Live Mode.`);
     });
 
-    // ---------- SIMULATOR ----------
+    // ---------- SIMULATOR UI ----------
     const simInput = document.getElementById("simInput");
     const runSimBtn = document.getElementById("runSimBtn");
     const clearSimBtn = document.getElementById("clearSimBtn");
@@ -648,78 +729,6 @@
     const simWorstStreakEl = document.getElementById("simWorstStreak");
     const simProfitEl = document.getElementById("simProfit");
     const simNotesEl = document.getElementById("simNotes");
-
-    function simulateHoldOnWin(spins, baseUnit) {
-      if (spins.length < 2) return null;
-
-      let totalBets = 0, wins = 0, losses = 0;
-      let currentStreak = 0, worstStreak = 0;
-      let profit = 0;
-
-      let stakePerNumber = null;
-      let martingaleLossCount = 0;
-
-      let centre = 1;
-      let lastPred = null;
-
-      for (let i = 0; i < spins.length; i++) {
-        const result = spins[i];
-
-        if (lastPred && lastPred.shouldBet) {
-          totalBets++;
-
-          const covered = lastPred.neighbours || [];
-          const numbersCovered = covered.length;
-          const stakeNow = (stakePerNumber == null) ? baseUnit : stakePerNumber;
-          const totalStake = stakeNow * numbersCovered;
-
-          const hit = covered.includes(result);
-
-          if (hit) {
-            const winReturn = stakeNow * 36;
-            profit += (winReturn - totalStake);
-
-            wins++;
-            currentStreak = 0;
-
-            martingaleLossCount = 0;
-            stakePerNumber = baseUnit;
-
-            // hold centre
-          } else {
-            profit -= totalStake;
-
-            losses++;
-            currentStreak++;
-            if (currentStreak > worstStreak) worstStreak = currentStreak;
-
-            martingaleLossCount += 1;
-            if (martingaleLossCount >= LOSS_RESET_MARTINGALE) {
-              stakePerNumber = baseUnit;
-              martingaleLossCount = 0;
-            } else {
-              stakePerNumber = stakeNow * 2;
-            }
-
-            // advance centre on loss
-            centre = nextSweepCentre(centre);
-          }
-        }
-
-        // create next bet using current centre
-        lastPred = holdOnWinPrediction(centre);
-      }
-
-      return {
-        spinsCount: spins.length,
-        totalBets,
-        wins,
-        losses,
-        hitRate: totalBets ? (wins / totalBets) * 100 : null,
-        worstStreak,
-        profit
-      };
-    }
 
     function runSimulation() {
       const spins = parseSpinText(simInput.value);
@@ -740,7 +749,7 @@
 
       simNotesEl.textContent =
         `Hold-on-win centre model (start centre=1; advance only on loss). ` +
-        `Martingale per number (base ${baseUnit}, doubles on each losing bet, resets after ${LOSS_RESET_MARTINGALE} losses).`;
+        `Martingale per number (base ${baseUnit}, doubles on loss, resets after ${LOSS_RESET_MARTINGALE} losses).`;
     }
 
     function clearSimulation() {
@@ -750,6 +759,156 @@
 
     runSimBtn.addEventListener("click", runSimulation);
     clearSimBtn.addEventListener("click", clearSimulation);
+
+    // ---------- DAY-BY-DAY CSV (FIXED) ----------
+    const dayCsvInput = document.getElementById("dayCsvInput");
+    const runDayCsvBtn = document.getElementById("runDayCsvBtn");
+    const dayCsvResultsDiv = document.getElementById("dayCsvResults");
+    const dayCsvTbody = document.getElementById("dayCsvTbody");
+
+    const totalSpinsCell = document.getElementById("totalSpinsCell");
+    const totalBetsCell = document.getElementById("totalBetsCell");
+    const totalWinsCell = document.getElementById("totalWinsCell");
+    const totalLossesCell = document.getElementById("totalLossesCell");
+    const totalHitRateCell = document.getElementById("totalHitRateCell");
+    const totalWorstStreakCell = document.getElementById("totalWorstStreakCell");
+    const totalProfitCell = document.getElementById("totalProfitCell");
+    const dayCsvSummary = document.getElementById("dayCsvSummary");
+
+    function parseCsv(text) {
+      // simple CSV parse: split lines and commas/tabs
+      const lines = text.split(/\r?\n/).filter(l => l.trim() !== "");
+      return lines.map(line => line.split(/,|\t/));
+    }
+
+    function loadCsvFile(callback) {
+      const file = dayCsvInput.files && dayCsvInput.files[0];
+      if (!file) {
+        alert("Please choose a CSV file first.");
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const text = e.target.result;
+        const rows = parseCsv(text);
+        if (rows.length < 2) {
+          alert("CSV must have a header row and at least one data row.");
+          return;
+        }
+
+        const headers = rows[0].map(h => (h || "").trim());
+        const numCols = headers.length;
+        const colsSpins = Array.from({ length: numCols }, () => []);
+
+        for (let r = 1; r < rows.length; r++) {
+          const row = rows[r];
+          for (let c = 0; c < numCols; c++) {
+            const cell = (row[c] || "").trim();
+            if (cell === "") continue;
+            const v = parseInt(cell, 10);
+            if (!isNaN(v) && v >= 0 && v <= 36) colsSpins[c].push(v);
+          }
+        }
+
+        callback({ headers, colsSpins });
+      };
+      reader.readAsText(file);
+    }
+
+    runDayCsvBtn.addEventListener("click", () => {
+      loadCsvFile(({ headers, colsSpins }) => {
+        dayCsvTbody.innerHTML = "";
+        dayCsvSummary.innerHTML = "";
+
+        const baseUnit = getBaseUnit();
+
+        let totalSpins = 0;
+        let totalBets = 0;
+        let totalWins = 0;
+        let totalLosses = 0;
+        let totalProfit = 0;
+        let totalWorstStreak = 0;
+
+        const dayStats = [];
+
+        colsSpins.forEach((spins, colIdx) => {
+          if (!spins || spins.length < 2) return;
+
+          const res = simulateHoldOnWin(spins, baseUnit);
+          if (!res) return;
+
+          totalSpins += res.spinsCount;
+          totalBets += res.totalBets;
+          totalWins += res.wins;
+          totalLosses += res.losses;
+          totalProfit += res.profit;
+          if (res.worstStreak > totalWorstStreak) totalWorstStreak = res.worstStreak;
+
+          const dayName = headers[colIdx] || `Day ${colIdx + 1}`;
+          const hitStr = res.totalBets ? res.hitRate.toFixed(1) + "%" : "–";
+
+          const tr = document.createElement("tr");
+          tr.innerHTML = `
+            <td>${dayName}</td>
+            <td>${res.spinsCount}</td>
+            <td>${res.totalBets}</td>
+            <td>${res.wins}</td>
+            <td>${res.losses}</td>
+            <td>${hitStr}</td>
+            <td>${res.worstStreak}</td>
+            <td>${formatMoney(res.profit)}</td>
+            <td>${res.lastBetResult}</td>
+            <td>${formatMoney(res.lastBetPnL)}</td>
+          `;
+          dayCsvTbody.appendChild(tr);
+
+          dayStats.push({ dayName, profit: res.profit });
+        });
+
+        totalSpinsCell.textContent = totalSpins;
+        totalBetsCell.textContent = totalBets;
+        totalWinsCell.textContent = totalWins;
+        totalLossesCell.textContent = totalLosses;
+        totalHitRateCell.textContent = totalBets ? ((totalWins / totalBets) * 100).toFixed(1) + "%" : "–";
+        totalWorstStreakCell.textContent = totalWorstStreak;
+        totalProfitCell.textContent = formatMoney(totalProfit);
+
+        if (dayStats.length > 0) {
+          const daysSimulated = dayStats.length;
+          let winningDays = 0, losingDays = 0, flatDays = 0;
+          let longestLosingRun = 0, currentRun = 0;
+
+          let bestDay = dayStats[0];
+          let worstDay = dayStats[0];
+
+          dayStats.forEach(d => {
+            if (d.profit > 0) { winningDays++; currentRun = 0; }
+            else if (d.profit < 0) { losingDays++; currentRun++; if (currentRun > longestLosingRun) longestLosingRun = currentRun; }
+            else { flatDays++; currentRun = 0; }
+
+            if (d.profit > bestDay.profit) bestDay = d;
+            if (d.profit < worstDay.profit) worstDay = d;
+          });
+
+          const avgDailyPnL = totalProfit / daysSimulated;
+
+          dayCsvSummary.innerHTML =
+            `<strong>Overall Day Analysis:</strong><br>` +
+            `Days simulated: ${daysSimulated}<br>` +
+            `Winning days: ${winningDays}<br>` +
+            `Losing days: ${losingDays}<br>` +
+            `Flat days: ${flatDays}<br>` +
+            `Longest run of consecutive losing days: ${longestLosingRun}<br>` +
+            `Best day P&L: ${formatMoney(bestDay.profit)} (${bestDay.dayName})<br>` +
+            `Worst day P&L: ${formatMoney(worstDay.profit)} (${worstDay.dayName})<br>` +
+            `Average daily P&L: ${formatMoney(avgDailyPnL)}<br>`;
+        } else {
+          dayCsvSummary.textContent = "Overall Day Analysis: No valid days found in this CSV.";
+        }
+
+        dayCsvResultsDiv.style.display = "block";
+      });
+    });
 
     // initial UI
     updateHistoryUI();
