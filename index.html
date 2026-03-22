@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Roulette Pocket Bias Predictor</title>
+  <title>Roulette Directional Distance Predictor</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
     * { box-sizing: border-box; }
@@ -13,7 +13,10 @@
       background: #0b1020;
       color: #f5f5f5;
     }
-    h1, h2, h3 { margin-top: 0; font-weight: 700; }
+    h1, h2, h3 {
+      margin-top: 0;
+      font-weight: 700;
+    }
     h1 { font-size: 1.8rem; }
     h2 { font-size: 1.3rem; margin-top: 1.5rem; }
     h3 { font-size: 1.1rem; margin-top: 1rem; }
@@ -25,6 +28,7 @@
       grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
       gap: 1.5rem;
     }
+
     @media (max-width: 900px) {
       .container { grid-template-columns: 1fr; }
     }
@@ -52,7 +56,10 @@
       border-color: #58d5ff;
       box-shadow: 0 0 0 1px rgba(88,213,255,0.3);
     }
-    textarea { min-height: 120px; resize: vertical; }
+    textarea {
+      min-height: 120px;
+      resize: vertical;
+    }
 
     .btn {
       display: inline-flex;
@@ -71,12 +78,18 @@
     .btn-primary {
       background: #ff3366;
       color: #fff;
-      box-shadow: 0 0 0 1px rgba(255,255,255,0.05), 0 10px 25px rgba(255,51,102,0.4);
+      box-shadow: 0 0 0 1px rgba(255,255,255,0.05),0 10px 25px rgba(255,51,102,0.4);
     }
     .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 14px 30px rgba(255,51,102,0.5); }
-    .btn-secondary { background: #232b49; color: #f5f5f5; }
+    .btn-secondary {
+      background: #232b49;
+      color: #f5f5f5;
+    }
     .btn-secondary:hover { background: #2f385c; }
-    .btn-disabled { opacity: 0.5; cursor: default; }
+    .btn-disabled {
+      opacity: 0.5;
+      cursor: default;
+    }
 
     .pill {
       display: inline-flex;
@@ -89,6 +102,7 @@
       letter-spacing: 0.04em;
     }
     .pill-good { background: rgba(0,200,140,0.15); color: #4cf3b6; }
+    .pill-bad  { background: rgba(255,120,80,0.15); color: #ffb899; }
     .pill-neutral { background: rgba(130,150,255,0.15); color: #b3bfff; }
 
     .section {
@@ -113,7 +127,6 @@
     }
 
     .mono { font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.85rem; }
-    .small { font-size: 0.8rem; opacity: 0.8; }
 
     .stat-grid {
       display: grid;
@@ -134,6 +147,8 @@
     .stat-label { opacity: 0.7; margin-bottom: 0.1rem; }
     .stat-value { font-weight: 700; font-size: 0.95rem; }
 
+    .small { font-size: 0.8rem; opacity: 0.8; }
+
     .top-control {
       max-width: 1100px;
       margin: 0 auto 1rem auto;
@@ -151,7 +166,12 @@
       gap: 0.75rem;
       align-items: flex-end;
     }
-    .inline-input { max-width: 160px; }
+    .top-row label {
+      margin-bottom: 0.1rem;
+    }
+    .inline-input {
+      max-width: 160px;
+    }
 
     table {
       width: 100%;
@@ -163,10 +183,14 @@
       border-bottom: 1px solid rgba(255,255,255,0.06);
       text-align: left;
       font-size: 0.8rem;
-      vertical-align: top;
     }
-    th { font-weight: 600; opacity: 0.9; }
-    tfoot td { font-weight: 600; }
+    th {
+      font-weight: 600;
+      opacity: 0.9;
+    }
+    tfoot td {
+      font-weight: 600;
+    }
 
     .progress {
       width: 100%;
@@ -186,17 +210,16 @@
 </head>
 <body>
 
-  <h1>Roulette Pocket Bias Predictor</h1>
+  <h1>Roulette Directional Distance Predictor</h1>
   <p class="small">
-    This version uses a more exact <strong>pocket-level Dirichlet model</strong>.
-    <br>• Each pocket 0–36 gets its own posterior probability
-    <br>• Prior: <span class="mono">Dir(α, α, ..., α)</span>
-    <br>• Posterior: <span class="mono">Dir(α+n₀, α+n₁, ..., α+n₃₆)</span>
-    <br>• Posterior mean for each pocket: <span class="mono">(α+nᵢ) / Σ(α+nⱼ)</span>
-    <br>• Edge for each pocket: <span class="mono">Eᵢ = p̂ᵢ × 36 − 1</span>
-    <br>• This script does <strong>not restrict betting by a confidence threshold</strong>; it always ranks all pockets and bets the top N pockets by posterior mean
-    <br>• CSV optimiser objective: <strong>lowest worst losing streak</strong>, then <strong>fewest losing days</strong>, then <strong>highest hit rate</strong>, then <strong>best P&amp;L</strong>
-    <br>• Martingale doubles stake per number on each loss and resets after 11 consecutive losses.
+    Spins are assumed to <strong>alternate direction</strong> (CW, CCW, CW, CCW, ...).
+    For each spin it records the <strong>wheel distance</strong> travelled in that spin's direction.
+    To predict the next spin, it uses a <strong>Callan–Symanzik style directional distance model</strong>:
+    <br />• Uses the last 3 distances in the upcoming direction,
+    <br />• Computes drift β and curvature γ,
+    <br />• Predicts S₄ = S₃ + a·β + b·γ, then adds an extra pocket shift in the spin direction,
+    <br />• a, b and the pocket shift are <strong>auto-optimised from your multi-day CSV data</strong>,
+    <br />• A <strong>Martingale</strong> on stake per number, resetting to base after 11 consecutive losses.
   </p>
 
   <div class="top-control">
@@ -208,17 +231,18 @@
         </div>
         <p class="small">
           Base = starting stake per number for Live, Simulator, and CSV runs.
-          If you cover multiple pockets, total stake = stake per number × number of covered pockets.
+          Martingale doubles this after each losing bet, and resets after 11 consecutive losses.
         </p>
       </div>
       <p class="small" id="currentParamsText">
-        Current model parameters: alpha=1.00, lookback=ALL, coverCount=6.
-        Upload and optimise from CSV to tune for lower losing streaks.
+        Current model parameters: using defaults (extraShift=3, a=0.33, b=0.67).  
+        Upload and optimise from CSV to auto-tune these.
       </p>
     </div>
   </div>
 
   <div class="container">
+    <!-- LIVE INPUT / OUTPUT -->
     <div class="card">
       <h2>Live Mode</h2>
 
@@ -285,8 +309,9 @@
       <div class="section">
         <h3>Bulk Load Spins</h3>
         <p class="small">
-          Paste up to 1000 past spins (0–36), separated by spaces, commas, or new lines.
-          This replaces your current live history and re-scores all bets with the current parameters.
+          Paste up to 500 past spins (0–36), separated by spaces, commas, or new lines.
+          This will replace your current live history and re-score all bets with the current base stake
+          and current auto-optimised model parameters.
         </p>
         <textarea id="bulkLiveInput" placeholder="Example:
 26 34 16 4 10 10 27 29 17 8 35 7 23 ..."></textarea>
@@ -296,10 +321,13 @@
       </div>
     </div>
 
+    <!-- SIMULATOR -->
     <div class="card">
       <h2>Simulator</h2>
       <p class="small">
-        Paste a list of spins. The simulator will run the same pocket-level Bayesian model + Martingale across that history.
+        Paste a list of spins (one per line or separated by spaces). The simulator will run the
+        same model + Martingale across that history and show performance stats, using the
+        current auto-optimised parameters.
       </p>
       <label for="simInput">Spin sequence</label>
       <textarea id="simInput" placeholder="Example:
@@ -345,16 +373,15 @@
         <p class="small" id="simNotes"></p>
       </div>
 
+      <!-- DAY-BY-DAY CSV SIMULATION & OPTIMISER -->
       <div class="section">
         <h3>Day-by-Day CSV Simulation & Optimiser</h3>
         <p class="small">
           Export your spreadsheet as a <strong>CSV</strong> where the first row has headers like
           <span class="mono">Day 1,Day 2,Day 3,...</span> and each column contains that day's spins (0–36).
-          The optimiser scans:
-          <br>• prior strength <span class="mono">alpha</span>
-          <br>• lookback window (including ALL history)
-          <br>• number of top pockets to cover
-          <br>Objective: <strong>keep losing streaks as low as possible</strong>.
+          You can:
+          <br />• Run the same model + Martingale for each day separately, or
+          <br />• Automatically scan a wide range of <code>a</code>, <code>b</code> and pocket shift values and pick the most profitable setting.
         </p>
         <input type="file" id="dayCsvInput" accept=".csv" />
         <div style="margin-top:0.4rem;">
@@ -402,6 +429,7 @@
               </tr>
             </tfoot>
           </table>
+          <!-- Overall day analysis summary -->
           <div id="dayCsvSummary" class="small" style="margin-top:0.75rem;"></div>
         </div>
       </div>
@@ -409,24 +437,78 @@
   </div>
 
   <script>
-    // ---------- MODEL PARAMETERS ----------
+    // ---------- MODEL CONSTANTS ----------
 
+    const WHEEL_ORDER = [
+      0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6,
+      27, 13, 36, 11, 30, 8, 23, 10, 5, 24,
+      16, 33, 1, 20, 14, 31, 9, 22, 18, 29,
+      7, 28, 12, 35, 3, 26
+    ];
+
+    const INDEX_OF = {};
+    WHEEL_ORDER.forEach((n, i) => { INDEX_OF[n] = i; });
+
+    const HALF_SECTOR = 8;              // neighbours each side (17 numbers total)
+    const LOSS_RESET_MARTINGALE = 11;   // reset stake after 11 consecutive losing bets
+
+    // auto-optimised parameters used by everything
     let AUTO_PARAMS = {
-      alphaBase: 1.0,
-      lookback: 0,   // 0 = use all history
-      coverCount: 6
+      extraShift: 3,
+      aFixed: 0.33,
+      bFixed: 0.67
     };
 
-    const LOSS_RESET_MARTINGALE = 11;
-
     // ---------- UTILITIES ----------
+
+    function neighboursForCentre(centreNum) {
+      const idx = INDEX_OF[centreNum];
+      if (idx === undefined) return [];
+      const nums = [];
+      for (let offset = -HALF_SECTOR; offset <= HALF_SECTOR; offset++) {
+        const j = (idx + offset + 37) % 37;
+        nums.push(WHEEL_ORDER[j]);
+      }
+      return nums;
+    }
+
+    // direction pattern: assume spin index 0 = CW, 1 = CCW, 2 = CW, ...
+    function directionForIndex(i) {
+      return i % 2 === 0 ? "CW" : "CCW";
+    }
+
+    // Build directional distances from full spin history.
+    function buildDirectionalDistances(spins) {
+      const distances = [];
+      if (spins.length < 2) return distances;
+
+      for (let i = 1; i < spins.length; i++) {
+        const prev = spins[i - 1];
+        const curr = spins[i];
+        const idxPrev = INDEX_OF[prev];
+        const idxCurr = INDEX_OF[curr];
+        if (idxPrev === undefined || idxCurr === undefined) continue;
+
+        const dir = directionForIndex(i); // direction of spin i
+        let dist;
+        if (dir === "CW") {
+          dist = (idxCurr - idxPrev + 37) % 37;
+        } else {
+          dist = (idxPrev - idxCurr + 37) % 37;
+        }
+        distances.push({ dir, dist });
+      }
+      return distances;
+    }
 
     function parseSpinText(text) {
       const tokens = text.split(/[\s,;]+/).filter(Boolean);
       const arr = [];
       for (const t of tokens) {
         const v = parseInt(t, 10);
-        if (!isNaN(v) && v >= 0 && v <= 36) arr.push(v);
+        if (!isNaN(v) && v >= 0 && v <= 36) {
+          arr.push(v);
+        }
       }
       return arr;
     }
@@ -434,7 +516,8 @@
     function getBaseUnit() {
       const input = document.getElementById("baseUnitInput");
       const v = parseFloat(input.value);
-      return (!isNaN(v) && v > 0) ? v : 1;
+      if (!isNaN(v) && v > 0) return v;
+      return 1;
     }
 
     function formatMoney(x) {
@@ -442,112 +525,95 @@
       return sign + x.toFixed(2);
     }
 
-    function erf(x) {
-      const sign = x >= 0 ? 1 : -1;
-      x = Math.abs(x);
+    // ---------- CS MODEL USING AUTO_PARAMS ----------
 
-      const a1 = 0.254829592;
-      const a2 = -0.284496736;
-      const a3 = 1.421413741;
-      const a4 = -1.453152027;
-      const a5 = 1.061405429;
-      const p = 0.3275911;
-
-      const t = 1 / (1 + p * x);
-      const y = 1 - (((((a5 * t + a4) * t) + a3) * t + a2) * t + a1) * t * Math.exp(-x * x);
-
-      return sign * y;
-    }
-
-    function normalCDF(x, mean = 0, std = 1) {
-      if (std <= 0) return x < mean ? 0 : 1;
-      return 0.5 * (1 + erf((x - mean) / (std * Math.sqrt(2))));
-    }
-
-    // ---------- EXACT POCKET-LEVEL DIRICHLET MODEL ----------
-
-    function getObservationSpins(spins, lookback) {
-      if (!spins || spins.length === 0) return [];
-      if (!lookback || lookback <= 0) return spins.slice();
-      return spins.slice(-lookback);
-    }
-
-    function pocketPosterior(spins, params = AUTO_PARAMS) {
-      const alphaBase = params.alphaBase ?? 1.0;
-      const lookback = params.lookback ?? 0;
-
-      const obs = getObservationSpins(spins, lookback);
-      const counts = new Array(37).fill(0);
-
-      for (const n of obs) {
-        if (n >= 0 && n <= 36) counts[n] += 1;
-      }
-
-      const posteriorAlpha = counts.map(c => alphaBase + c);
-      const totalAlpha = posteriorAlpha.reduce((a, b) => a + b, 0);
-
-      const items = posteriorAlpha.map((a, i) => {
-        const mean = a / totalAlpha;
-        const variance = (a * (totalAlpha - a)) / (totalAlpha * totalAlpha * (totalAlpha + 1));
-        const sd = Math.sqrt(Math.max(variance, 0));
-
-        // break-even threshold for a 35:1 payout with stake returned = 1/36
-        const threshold = 1 / 36;
-        const confAboveBreakEven = 1 - normalCDF(threshold, mean, sd);
-
-        return {
-          pocket: i,
-          count: counts[i],
-          alpha: a,
-          mean,
-          edge: (mean * 36) - 1,
-          confAboveBreakEven,
-          sd
-        };
-      });
-
-      items.sort((x, y) => {
-        if (y.mean !== x.mean) return y.mean - x.mean;
-        if (y.count !== x.count) return y.count - x.count;
-        return x.pocket - y.pocket;
-      });
-
-      return {
-        observationCount: obs.length,
-        counts,
-        posteriorAlpha,
-        totalAlpha,
-        ranking: items
-      };
-    }
-
-    function pocketBiasPrediction(spins, params = AUTO_PARAMS) {
-      if (spins.length < 1) {
+    function csPrediction(spins, params = AUTO_PARAMS) {
+      if (spins.length < 4) {
         return {
           shouldBet: false,
-          reason: "Need at least 1 spin.",
+          reason: "Need at least 4 spins for the CS flow model.",
           debug: null
         };
       }
 
-      const posterior = pocketPosterior(spins, params);
-      const coverCount = Math.max(1, Math.min(36, params.coverCount || 6));
-      const selected = posterior.ranking.slice(0, coverCount);
+      const lastNum = spins[spins.length - 1];
+      const idxLast = INDEX_OF[lastNum];
+      if (idxLast === undefined) {
+        return { shouldBet: false, reason: "Last number not on wheel", debug: null };
+      }
+
+      const distances = buildDirectionalDistances(spins);
+
+      // Direction of the upcoming spin
+      const nextIndex = spins.length;
+      const upcomingDir = directionForIndex(nextIndex);
+
+      const dirDistances = distances
+        .filter(d => d.dir === upcomingDir)
+        .map(d => d.dist);
+
+      if (dirDistances.length < 3) {
+        return {
+          shouldBet: false,
+          reason: `Need at least 3 distances in ${upcomingDir} direction (have ${dirDistances.length})`,
+          debug: { upcomingDir, dirDistances }
+        };
+      }
+
+      // Last three distances
+      const S1 = dirDistances[dirDistances.length - 3];
+      const S2 = dirDistances[dirDistances.length - 2];
+      const S3 = dirDistances[dirDistances.length - 1];
+
+      // CS drift and curvature
+      const beta  = S3 - S2;
+      const gamma = (S3 - S2) - (S2 - S1);
+
+      const a = params.aFixed;
+      const b = params.bFixed;
+
+      // Predict next step
+      let S4 = S3 + a * beta + b * gamma;
+      S4 = Math.round(S4);
+      // wrap S4 into [0,36]
+      S4 = ((S4 % 37) + 37) % 37;
+
+      const extraShift = params.extraShift || 0;
+      const stepWithBias = (S4 + extraShift) % 37;
+
+      // Convert to wheel index in upcoming direction
+      let centreIdx;
+      if (upcomingDir === "CW") {
+        centreIdx = (idxLast + stepWithBias) % 37;
+      } else {
+        centreIdx = (idxLast - stepWithBias + 74) % 37; // +74 avoids negatives
+      }
+
+      const centreNum = WHEEL_ORDER[centreIdx];
+      const neighbours = neighboursForCentre(centreNum);
 
       return {
         shouldBet: true,
-        selectedPockets: selected.map(x => x.pocket),
-        selectedDetails: selected,
-        topPocket: selected[0]?.pocket ?? null,
-        coverCount,
-        reason:
-          `Pocket-level Dirichlet model using alpha=${(params.alphaBase ?? 1).toFixed(2)}, ` +
-          `lookback=${(params.lookback ?? 0) <= 0 ? "ALL" : params.lookback}, coverCount=${coverCount}.`,
-        debug: posterior
+        centreNum,
+        neighbours,
+        dominantStep: stepWithBias,
+        reason: `CS flow: S4 = S3 + aβ + bγ with a=${a.toFixed(2)}, b=${b.toFixed(2)}, extraShift=${extraShift}.`,
+        debug: {
+          upcomingDir,
+          S1, S2, S3,
+          beta, gamma,
+          S4,
+          extraShift,
+          stepWithBias,
+          centreIdx,
+          centreNum,
+          a, b,
+          nDir: dirDistances.length
+        }
       };
     }
 
-    // ---------- LIVE STATE ----------
+    // ---------- LIVE UI LOGIC + MARTINGALE ----------
 
     const spinsLive = [];
     let liveTotalBets = 0;
@@ -555,12 +621,11 @@
     let liveLosses = 0;
     let liveCurrentLosingStreak = 0;
     let liveWorstStreak = 0;
-    let liveProfit = 0;
-    let liveStakePerNumber = null;
-    let liveMartingaleLossCount = 0;
-    let lastPrediction = null;
 
-    // ---------- DOM ----------
+    // Martingale state for live mode
+    let liveProfit = 0;                  // total P&L
+    let liveStakePerNumber = null;       // current stake per number
+    let liveMartingaleLossCount = 0;     // consecutive losing bets for stake reset
 
     const spinInput = document.getElementById("spinInput");
     const addSpinBtn = document.getElementById("addSpinBtn");
@@ -580,45 +645,12 @@
     const liveProfitEl = document.getElementById("liveProfit");
     const liveStakePerNumberEl = document.getElementById("liveStakePerNumber");
 
-    const bulkLiveInput = document.getElementById("bulkLiveInput");
-    const loadBulkLiveBtn = document.getElementById("loadBulkLiveBtn");
-
-    const simInput = document.getElementById("simInput");
-    const runSimBtn = document.getElementById("runSimBtn");
-    const clearSimBtn = document.getElementById("clearSimBtn");
-    const simResults = document.getElementById("simResults");
-    const simSpinsEl = document.getElementById("simSpins");
-    const simTotalBetsEl = document.getElementById("simTotalBets");
-    const simWinsEl = document.getElementById("simWins");
-    const simLossesEl = document.getElementById("simLosses");
-    const simHitRateEl = document.getElementById("simHitRate");
-    const simWorstStreakEl = document.getElementById("simWorstStreak");
-    const simProfitEl = document.getElementById("simProfit");
-    const simNotesEl = document.getElementById("simNotes");
-
-    const dayCsvInput = document.getElementById("dayCsvInput");
-    const runDayCsvBtn = document.getElementById("runDayCsvBtn");
-    const optimiseFromCsvBtn = document.getElementById("optimiseFromCsvBtn");
-    const dayCsvResultsDiv = document.getElementById("dayCsvResults");
-    const dayCsvTbody = document.getElementById("dayCsvTbody");
-    const totalSpinsCell = document.getElementById("totalSpinsCell");
-    const totalBetsCell = document.getElementById("totalBetsCell");
-    const totalWinsCell = document.getElementById("totalWinsCell");
-    const totalLossesCell = document.getElementById("totalLossesCell");
-    const totalHitRateCell = document.getElementById("totalHitRateCell");
-    const totalWorstStreakCell = document.getElementById("totalWorstStreakCell");
-    const totalProfitCell = document.getElementById("totalProfitCell");
-    const dayCsvSummary = document.getElementById("dayCsvSummary");
-    const optimizerStatus = document.getElementById("optimizerStatus");
-    const optimizerProgressBar = document.getElementById("optimizerProgressBar");
-
-    // ---------- UI HELPERS ----------
+    let lastPrediction = null; // for scoring wins/losses
 
     function updateCurrentParamsSummary(extraInfo) {
-      const lookbackText = AUTO_PARAMS.lookback <= 0 ? "ALL" : AUTO_PARAMS.lookback;
       const info = extraInfo || "Optimised parameters.";
       currentParamsText.textContent =
-        `Current model parameters: alpha=${AUTO_PARAMS.alphaBase.toFixed(2)}, lookback=${lookbackText}, coverCount=${AUTO_PARAMS.coverCount}. ${info}`;
+        `Current model parameters: extraShift=${AUTO_PARAMS.extraShift}, a=${AUTO_PARAMS.aFixed.toFixed(2)}, b=${AUTO_PARAMS.bFixed.toFixed(2)}. ${info}`;
     }
 
     function updateHistoryUI() {
@@ -643,9 +675,18 @@
       liveLossesEl.textContent = liveLosses;
       liveCurrentStreakEl.textContent = liveCurrentLosingStreak;
       liveWorstStreakEl.textContent = liveWorstStreak;
-      liveHitRateEl.textContent = liveTotalBets === 0 ? "–" : ((liveWins / liveTotalBets) * 100).toFixed(1) + "%";
+      if (liveTotalBets === 0) {
+        liveHitRateEl.textContent = "–";
+      } else {
+        const rate = (liveWins / liveTotalBets) * 100;
+        liveHitRateEl.textContent = rate.toFixed(1) + "%";
+      }
       liveProfitEl.textContent = formatMoney(liveProfit);
-      liveStakePerNumberEl.textContent = liveStakePerNumber == null ? "–" : liveStakePerNumber.toFixed(2);
+      if (liveStakePerNumber == null) {
+        liveStakePerNumberEl.textContent = "–";
+      } else {
+        liveStakePerNumberEl.textContent = liveStakePerNumber.toFixed(2);
+      }
     }
 
     function renderRecommendation(pred) {
@@ -656,7 +697,6 @@
         pill.className = "pill pill-neutral";
         pill.textContent = "No Data";
         recommendationDiv.appendChild(pill);
-
         const p = document.createElement("p");
         p.className = "small";
         p.textContent = "Enter more spins to get a prediction.";
@@ -669,93 +709,44 @@
         pill.className = "pill pill-neutral";
         pill.textContent = "NO BET";
         recommendationDiv.appendChild(pill);
-
         const p = document.createElement("p");
         p.className = "small";
-        p.textContent = pred.reason || "Not enough data yet.";
+        p.textContent = pred.reason || "Pattern not strong enough yet.";
         recommendationDiv.appendChild(p);
-        return;
+      } else {
+        const pill = document.createElement("span");
+        pill.className = "pill pill-good";
+        pill.textContent = "BET";
+        recommendationDiv.appendChild(pill);
+
+        const p1 = document.createElement("p");
+        p1.innerHTML =
+          `Centre: <strong>${pred.centreNum}</strong>` +
+          ` &mdash; Step: <span class="mono">${pred.dominantStep}</span>`;
+        recommendationDiv.appendChild(p1);
+
+        const p2 = document.createElement("p");
+        p2.className = "small";
+        p2.textContent = "Cover this number and its 8 neighbours each side on the wheel (17 numbers):";
+        recommendationDiv.appendChild(p2);
+
+        const ul = document.createElement("ul");
+        ul.className = "list-inline mono";
+        pred.neighbours.forEach(n => {
+          const li = document.createElement("li");
+          li.textContent = n;
+          ul.appendChild(li);
+        });
+        recommendationDiv.appendChild(ul);
+
+        if (pred.reason) {
+          const p3 = document.createElement("p");
+          p3.className = "small";
+          p3.textContent = pred.reason;
+          recommendationDiv.appendChild(p3);
+        }
       }
-
-      const pill = document.createElement("span");
-      pill.className = "pill pill-good";
-      pill.textContent = "BET";
-      recommendationDiv.appendChild(pill);
-
-      const p1 = document.createElement("p");
-      p1.innerHTML = `Cover top <strong>${pred.coverCount}</strong> pocket(s) by posterior mean:`;
-      recommendationDiv.appendChild(p1);
-
-      const ul = document.createElement("ul");
-      ul.className = "list-inline mono";
-      pred.selectedPockets.forEach(n => {
-        const li = document.createElement("li");
-        li.textContent = n;
-        ul.appendChild(li);
-      });
-      recommendationDiv.appendChild(ul);
-
-      const table = document.createElement("table");
-      table.className = "mono";
-      table.innerHTML = `
-        <thead>
-          <tr>
-            <th>Pocket</th>
-            <th>Count</th>
-            <th>Post. Mean</th>
-            <th>Edge</th>
-            <th>Conf(p&gt;1/36)</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${pred.selectedDetails.map(x => `
-            <tr>
-              <td>${x.pocket}</td>
-              <td>${x.count}</td>
-              <td>${(x.mean * 100).toFixed(2)}%</td>
-              <td>${(x.edge * 100).toFixed(2)}%</td>
-              <td>${(x.confAboveBreakEven * 100).toFixed(1)}%</td>
-            </tr>
-          `).join("")}
-        </tbody>
-      `;
-      recommendationDiv.appendChild(table);
-
-      const p2 = document.createElement("p");
-      p2.className = "small";
-      p2.textContent = pred.reason;
-      recommendationDiv.appendChild(p2);
-
-      const obs = pred.debug?.observationCount ?? 0;
-      const p3 = document.createElement("p");
-      p3.className = "small";
-      p3.textContent = `Observed spins used in posterior: ${obs}.`;
-      recommendationDiv.appendChild(p3);
     }
-
-    // ---------- CORE BET SETTLEMENT ----------
-
-    function settlePrediction(resultNumber, prediction, stakePerNumberNow) {
-      const selected = prediction.selectedPockets || [];
-      const coverCount = selected.length;
-      const totalStake = stakePerNumberNow * coverCount;
-      const hit = selected.includes(resultNumber);
-
-      if (hit) {
-        const winReturn = stakePerNumberNow * 36;
-        return {
-          hit: true,
-          profit: winReturn - totalStake
-        };
-      }
-
-      return {
-        hit: false,
-        profit: -totalStake
-      };
-    }
-
-    // ---------- LIVE HANDLERS ----------
 
     function onAddSpin() {
       const v = parseInt(spinInput.value, 10);
@@ -766,33 +757,48 @@
 
       const baseUnit = getBaseUnit();
 
+      // Score previous prediction (if any) NOW that we know the outcome
       if (lastPrediction && lastPrediction.shouldBet) {
         liveTotalBets++;
 
+        const neighbours = lastPrediction.neighbours || [];
+        const numbersCovered = neighbours.length;
         const stakePerNumberNow = (liveStakePerNumber == null) ? baseUnit : liveStakePerNumber;
-        const settled = settlePrediction(v, lastPrediction, stakePerNumberNow);
+        const totalStake = stakePerNumberNow * numbersCovered;
 
-        liveProfit += settled.profit;
+        const hit = neighbours.includes(v);
+        if (hit) {
+          // roulette: 35:1 payout => return 36x stake on the winning number
+          const winReturn = stakePerNumberNow * 36;
+          const profit = winReturn - totalStake;
+          liveProfit += profit;
 
-        if (settled.hit) {
           liveWins++;
           liveCurrentLosingStreak = 0;
           liveMartingaleLossCount = 0;
-          liveStakePerNumber = baseUnit;
+          liveStakePerNumber = baseUnit; // reset on win
         } else {
           liveLosses++;
           liveCurrentLosingStreak++;
-          if (liveCurrentLosingStreak > liveWorstStreak) liveWorstStreak = liveCurrentLosingStreak;
+          if (liveCurrentLosingStreak > liveWorstStreak) {
+            liveWorstStreak = liveCurrentLosingStreak;
+          }
 
+          // lose stake
+          liveProfit -= totalStake;
+
+          // martingale loss tracking
           liveMartingaleLossCount += 1;
+
           if (liveMartingaleLossCount >= LOSS_RESET_MARTINGALE) {
+            // reset stake after 11 consecutive losses
             liveStakePerNumber = baseUnit;
             liveMartingaleLossCount = 0;
           } else {
+            // double per-number stake for next bet
             liveStakePerNumber = stakePerNumberNow * 2;
           }
         }
-
         updateStatsUI();
       }
 
@@ -800,7 +806,8 @@
       spinInput.value = "";
       updateHistoryUI();
 
-      const pred = pocketBiasPrediction(spinsLive, AUTO_PARAMS);
+      // Compute new prediction for NEXT spin
+      const pred = csPrediction(spinsLive, AUTO_PARAMS);
       lastPrediction = pred;
       renderRecommendation(pred);
     }
@@ -847,7 +854,10 @@
       if (e.key === "Enter") onAddSpin();
     });
 
-    // ---------- BULK LOAD ----------
+    // ---------- BULK LOAD INTO LIVE MODE ----------
+
+    const bulkLiveInput = document.getElementById("bulkLiveInput");
+    const loadBulkLiveBtn = document.getElementById("loadBulkLiveBtn");
 
     loadBulkLiveBtn.addEventListener("click", () => {
       const spins = parseSpinText(bulkLiveInput.value);
@@ -858,6 +868,7 @@
 
       const baseUnit = getBaseUnit();
 
+      // Reset all live stats
       spinsLive.length = 0;
       liveTotalBets = 0;
       liveWins = 0;
@@ -874,14 +885,22 @@
       for (let i = 0; i < spins.length; i++) {
         const result = spins[i];
 
+        // settle bet from previous prediction
         if (lastPredLocal && lastPredLocal.shouldBet) {
           liveTotalBets++;
+
+          const neighbours = lastPredLocal.neighbours || [];
+          const numbersCovered = neighbours.length;
           const stakePerNumberNow = (liveStakePerNumber == null) ? baseUnit : liveStakePerNumber;
-          const settled = settlePrediction(result, lastPredLocal, stakePerNumberNow);
+          const totalStake = stakePerNumberNow * numbersCovered;
 
-          liveProfit += settled.profit;
+          const hit = neighbours.includes(result);
 
-          if (settled.hit) {
+          if (hit) {
+            const winReturn = stakePerNumberNow * 36;
+            const profit = winReturn - totalStake;
+            liveProfit += profit;
+
             liveWins++;
             liveCurrentLosingStreak = 0;
             liveMartingaleLossCount = 0;
@@ -889,7 +908,10 @@
           } else {
             liveLosses++;
             liveCurrentLosingStreak++;
-            if (liveCurrentLosingStreak > liveWorstStreak) liveWorstStreak = liveCurrentLosingStreak;
+            if (liveCurrentLosingStreak > liveWorstStreak) {
+              liveWorstStreak = liveCurrentLosingStreak;
+            }
+            liveProfit -= totalStake;
 
             liveMartingaleLossCount += 1;
             if (liveMartingaleLossCount >= LOSS_RESET_MARTINGALE) {
@@ -903,10 +925,11 @@
 
         history.push(result);
         spinsLive.push(result);
-        lastPredLocal = pocketBiasPrediction(history, AUTO_PARAMS);
+        lastPredLocal = csPrediction(history, AUTO_PARAMS);
       }
 
       lastPrediction = lastPredLocal;
+
       updateHistoryUI();
       updateStatsUI();
       renderRecommendation(lastPredLocal);
@@ -914,10 +937,12 @@
       alert(`Loaded ${spins.length} spins into Live Mode.`);
     });
 
-    // ---------- SIMULATION ----------
+    // ---------- SIMULATOR SHARED LOGIC + MARTINGALE ----------
 
     function simulateSpinsArrayWithParams(spins, baseUnit, params) {
-      if (spins.length < 2) return null;
+      if (spins.length < 2) {
+        return null;
+      }
 
       let totalBets = 0;
       let wins = 0;
@@ -938,22 +963,32 @@
       for (let i = 0; i < spins.length; i++) {
         const result = spins[i];
 
+        // settle bet from previous prediction
         if (lastPred && lastPred.shouldBet) {
           totalBets++;
 
+          const neighbours = lastPred.neighbours || [];
+          const numbersCovered = neighbours.length;
           const stakeNow = (stakePerNumber == null) ? baseUnit : stakePerNumber;
-          const settled = settlePrediction(result, lastPred, stakeNow);
-          simProfit += settled.profit;
+          const totalStake = stakeNow * numbersCovered;
 
-          if (settled.hit) {
+          const hit = neighbours.includes(result);
+          if (hit) {
+            const winReturn = stakeNow * 36;
+            const profit = winReturn - totalStake;
+            simProfit += profit;
+
             wins++;
             currentStreak = 0;
             martingaleLossCount = 0;
             stakePerNumber = baseUnit;
 
             lastBetResult = "Win";
-            lastBetPnL = settled.profit;
+            lastBetPnL = profit;
           } else {
+            const profit = -totalStake;
+            simProfit += profit;
+
             losses++;
             currentStreak++;
             if (currentStreak > worstStreak) worstStreak = currentStreak;
@@ -967,12 +1002,13 @@
             }
 
             lastBetResult = "Loss";
-            lastBetPnL = settled.profit;
+            lastBetPnL = profit;
           }
         }
 
         history.push(result);
-        lastPred = pocketBiasPrediction(history, params);
+        // compute new prediction for next spin
+        lastPred = csPrediction(history, params);
       }
 
       const hitRate = totalBets ? (wins / totalBets) * 100 : null;
@@ -990,6 +1026,7 @@
       };
     }
 
+    // aggregate over many days
     function simulateAllDaysWithParams(allDaysSpins, baseUnit, params) {
       let totalSpins = 0;
       let totalBets = 0;
@@ -999,9 +1036,6 @@
       let totalWorstStreak = 0;
       let losingDays = 0;
       let daysSimulated = 0;
-      let sumDailyHitRates = 0;
-      let daysWithBets = 0;
-      let sumWorstStreaks = 0;
 
       for (const spins of allDaysSpins) {
         if (!spins || spins.length < 2) continue;
@@ -1014,14 +1048,10 @@
         totalWins += res.wins;
         totalLosses += res.losses;
         totalProfit += res.profit;
-        if (res.worstStreak > totalWorstStreak) totalWorstStreak = res.worstStreak;
-        if (res.profit < 0) losingDays++;
-        sumWorstStreaks += res.worstStreak;
-
-        if (res.totalBets > 0 && res.hitRate != null) {
-          sumDailyHitRates += res.hitRate;
-          daysWithBets++;
+        if (res.worstStreak > totalWorstStreak) {
+          totalWorstStreak = res.worstStreak;
         }
+        if (res.profit < 0) losingDays++;
       }
 
       return {
@@ -1032,14 +1062,24 @@
         totalProfit,
         totalWorstStreak,
         losingDays,
-        daysSimulated,
-        totalHitRate: totalBets > 0 ? (totalWins / totalBets) * 100 : null,
-        avgDailyHitRate: daysWithBets > 0 ? (sumDailyHitRates / daysWithBets) : null,
-        avgWorstStreak: daysSimulated > 0 ? (sumWorstStreaks / daysSimulated) : null
+        daysSimulated
       };
     }
 
     // ---------- SIMULATOR UI ----------
+
+    const simInput = document.getElementById("simInput");
+    const runSimBtn = document.getElementById("runSimBtn");
+    const clearSimBtn = document.getElementById("clearSimBtn");
+    const simResults = document.getElementById("simResults");
+    const simSpinsEl = document.getElementById("simSpins");
+    const simTotalBetsEl = document.getElementById("simTotalBets");
+    const simWinsEl = document.getElementById("simWins");
+    const simLossesEl = document.getElementById("simLosses");
+    const simHitRateEl = document.getElementById("simHitRate");
+    const simWorstStreakEl = document.getElementById("simWorstStreak");
+    const simProfitEl = document.getElementById("simProfit");
+    const simNotesEl = document.getElementById("simNotes");
 
     function runSimulation() {
       const spins = parseSpinText(simInput.value);
@@ -1060,12 +1100,16 @@
       simTotalBetsEl.textContent = res.totalBets;
       simWinsEl.textContent = res.wins;
       simLossesEl.textContent = res.losses;
-      simHitRateEl.textContent = res.totalBets === 0 ? "–" : res.hitRate.toFixed(1) + "%";
+      if (res.totalBets === 0) {
+        simHitRateEl.textContent = "–";
+      } else {
+        simHitRateEl.textContent = res.hitRate.toFixed(1) + "%";
+      }
       simWorstStreakEl.textContent = res.worstStreak;
       simProfitEl.textContent = formatMoney(res.profit);
       simNotesEl.textContent =
-        `Pocket-level Dirichlet model with alpha=${AUTO_PARAMS.alphaBase.toFixed(2)}, lookback=${AUTO_PARAMS.lookback <= 0 ? "ALL" : AUTO_PARAMS.lookback}, coverCount=${AUTO_PARAMS.coverCount}. ` +
-        `Martingale per number (base ${baseUnit}, resets after ${LOSS_RESET_MARTINGALE} consecutive losses).`;
+        `CS model with a=${AUTO_PARAMS.aFixed.toFixed(2)}, b=${AUTO_PARAMS.bFixed.toFixed(2)}, extraShift=${AUTO_PARAMS.extraShift}. ` +
+        `Martingale per number (base ${baseUnit}, doubles on each losing bet, resets after ${LOSS_RESET_MARTINGALE} consecutive losses).`;
     }
 
     function clearSimulation() {
@@ -1076,7 +1120,25 @@
     runSimBtn.addEventListener("click", runSimulation);
     clearSimBtn.addEventListener("click", clearSimulation);
 
-    // ---------- CSV ----------
+    // ---------- DAY-BY-DAY CSV SIMULATION & OPTIMISER ----------
+
+    const dayCsvInput = document.getElementById("dayCsvInput");
+    const runDayCsvBtn = document.getElementById("runDayCsvBtn");
+    const optimiseFromCsvBtn = document.getElementById("optimiseFromCsvBtn");
+    const dayCsvResultsDiv = document.getElementById("dayCsvResults");
+    const dayCsvTbody = document.getElementById("dayCsvTbody");
+
+    const totalSpinsCell = document.getElementById("totalSpinsCell");
+    const totalBetsCell = document.getElementById("totalBetsCell");
+    const totalWinsCell = document.getElementById("totalWinsCell");
+    const totalLossesCell = document.getElementById("totalLossesCell");
+    const totalHitRateCell = document.getElementById("totalHitRateCell");
+    const totalWorstStreakCell = document.getElementById("totalWorstStreakCell");
+    const totalProfitCell = document.getElementById("totalProfitCell");
+    const dayCsvSummary = document.getElementById("dayCsvSummary");
+
+    const optimizerStatus = document.getElementById("optimizerStatus");
+    const optimizerProgressBar = document.getElementById("optimizerProgressBar");
 
     function parseCsv(text) {
       const lines = text.split(/\r?\n/).filter(line => line.trim() !== "");
@@ -1097,9 +1159,10 @@
           alert("CSV must have a header row and at least one data row.");
           return;
         }
-
         const headers = rows[0].map(h => h.trim());
         const numCols = headers.length;
+
+        // Collect spins per column (per day)
         const colsSpins = Array.from({ length: numCols }, () => []);
 
         for (let r = 1; r < rows.length; r++) {
@@ -1108,7 +1171,9 @@
             const cell = (row[c] || "").trim();
             if (cell === "") continue;
             const v = parseInt(cell, 10);
-            if (!isNaN(v) && v >= 0 && v <= 36) colsSpins[c].push(v);
+            if (!isNaN(v) && v >= 0 && v <= 36) {
+              colsSpins[c].push(v);
+            }
           }
         }
 
@@ -1117,6 +1182,7 @@
       reader.readAsText(file);
     }
 
+    // plain day-by-day using current AUTO_PARAMS
     runDayCsvBtn.addEventListener("click", () => {
       loadCsvFile(({ headers, colsSpins }) => {
         dayCsvTbody.innerHTML = "";
@@ -1133,7 +1199,9 @@
         const dayStats = [];
 
         colsSpins.forEach((spins, colIdx) => {
-          if (spins.length < 2) return;
+          if (spins.length < 2) {
+            return;
+          }
           const res = simulateSpinsArrayWithParams(spins, baseUnit, AUTO_PARAMS);
           if (!res) return;
 
@@ -1142,7 +1210,9 @@
           totalWins += res.wins;
           totalLosses += res.losses;
           totalProfit += res.profit;
-          if (res.worstStreak > totalWorstStreak) totalWorstStreak = res.worstStreak;
+          if (res.worstStreak > totalWorstStreak) {
+            totalWorstStreak = res.worstStreak;
+          }
 
           const dayName = headers[colIdx] || `Day ${colIdx + 1}`;
           const hitStr = res.totalBets ? res.hitRate.toFixed(1) + "%" : "–";
@@ -1164,10 +1234,7 @@
 
           dayStats.push({
             dayName,
-            profit: res.profit,
-            hitRate: res.hitRate,
-            bets: res.totalBets,
-            worstStreak: res.worstStreak
+            profit: res.profit
           });
         });
 
@@ -1175,14 +1242,21 @@
         totalBetsCell.textContent = totalBets;
         totalWinsCell.textContent = totalWins;
         totalLossesCell.textContent = totalLosses;
-        totalHitRateCell.textContent = totalBets > 0 ? ((totalWins / totalBets) * 100).toFixed(1) + "%" : "–";
+        if (totalBets > 0) {
+          totalHitRateCell.textContent = ((totalWins / totalBets) * 100).toFixed(1) + "%";
+        } else {
+          totalHitRateCell.textContent = "–";
+        }
         totalWorstStreakCell.textContent = totalWorstStreak;
         totalProfitCell.textContent = formatMoney(totalProfit);
 
         if (dayStats.length > 0) {
           const daysSimulated = dayStats.length;
-          let winningDays = 0, losingDays = 0, flatDays = 0;
-          let longestLosingRun = 0, currentRun = 0;
+          let winningDays = 0;
+          let losingDays = 0;
+          let flatDays = 0;
+          let longestLosingRun = 0;
+          let currentRun = 0;
 
           let bestDay = dayStats[0];
           let worstDay = dayStats[0];
@@ -1205,11 +1279,6 @@
           });
 
           const avgDailyPnL = totalProfit / daysSimulated;
-          const daysWithBets = dayStats.filter(d => d.bets > 0 && d.hitRate != null);
-          const avgDailyHit = daysWithBets.length
-            ? (daysWithBets.reduce((s, d) => s + d.hitRate, 0) / daysWithBets.length)
-            : null;
-          const avgWorstStreak = dayStats.reduce((s, d) => s + d.worstStreak, 0) / dayStats.length;
 
           dayCsvSummary.innerHTML =
             `<strong>Overall Day Analysis:</strong><br>` +
@@ -1218,11 +1287,9 @@
             `Losing days: ${losingDays}<br>` +
             `Flat days: ${flatDays}<br>` +
             `Longest run of consecutive losing days: ${longestLosingRun}<br>` +
-            `Average worst streak per day: ${avgWorstStreak.toFixed(2)}<br>` +
             `Best day P&L: ${formatMoney(bestDay.profit)} (${bestDay.dayName})<br>` +
             `Worst day P&L: ${formatMoney(worstDay.profit)} (${worstDay.dayName})<br>` +
-            `Average daily P&L: ${formatMoney(avgDailyPnL)}<br>` +
-            `Average daily hit rate: ${avgDailyHit == null ? "–" : avgDailyHit.toFixed(2) + "%"}<br>`;
+            `Average daily P&L: ${formatMoney(avgDailyPnL)}<br>`;
         } else {
           dayCsvSummary.textContent = "Overall Day Analysis: No valid days found in this CSV.";
         }
@@ -1231,49 +1298,9 @@
       });
     });
 
-    // ---------- OPTIMISER ----------
+    // --------- ASYNC OPTIMISER WITH PROGRESS BAR ----------
 
     let optimiserRunning = false;
-
-    function betterByLowStreak(candidate, bestSoFar) {
-      // 1) lowest worst losing streak
-      if (candidate.totalWorstStreak !== bestSoFar.totalWorstStreak) {
-        return candidate.totalWorstStreak < bestSoFar.totalWorstStreak;
-      }
-
-      // 2) fewest losing days
-      if (candidate.losingDays !== bestSoFar.losingDays) {
-        return candidate.losingDays < bestSoFar.losingDays;
-      }
-
-      // 3) lower average worst streak
-      const cAWS = candidate.avgWorstStreak ?? Infinity;
-      const bAWS = bestSoFar.avgWorstStreak ?? Infinity;
-      if (cAWS !== bAWS) {
-        return cAWS < bAWS;
-      }
-
-      // 4) higher hit rate
-      const cHR = candidate.totalHitRate ?? -Infinity;
-      const bHR = bestSoFar.totalHitRate ?? -Infinity;
-      if (cHR !== bHR) {
-        return cHR > bHR;
-      }
-
-      // 5) higher avg daily hit rate
-      const cAHR = candidate.avgDailyHitRate ?? -Infinity;
-      const bAHR = bestSoFar.avgDailyHitRate ?? -Infinity;
-      if (cAHR !== bAHR) {
-        return cAHR > bAHR;
-      }
-
-      // 6) better profit
-      if (candidate.totalProfit !== bestSoFar.totalProfit) {
-        return candidate.totalProfit > bestSoFar.totalProfit;
-      }
-
-      return false;
-    }
 
     optimiseFromCsvBtn.addEventListener("click", () => {
       if (optimiserRunning) {
@@ -1281,22 +1308,30 @@
         return;
       }
 
-      loadCsvFile(({ colsSpins }) => {
-        const baseUnit = getBaseUnit();
+      loadCsvFile(({ headers, colsSpins }) => {
+        // ensure we have enough days
         const validDays = colsSpins.filter(spins => spins.length >= 2).length;
-        if (validDays < 5) {
-          alert(`Only ${validDays} valid days found. Optimiser works best with more days.`);
+        if (validDays < 20) {
+          if (!confirm(`Only ${validDays} valid days found. Continue optimisation anyway?`)) {
+            return;
+          }
         }
 
-        const alphaOptions = [0.25, 0.50, 1.00, 2.00, 4.00];
-        const lookbackOptions = [0, 37, 74, 111, 148, 222];
-        const coverCountOptions = [1, 2, 3, 4, 5, 6, 8, 10, 12];
+        const baseUnit = getBaseUnit();
+        const allDaysSpins = colsSpins;
+
+        // build parameter grid
+        const extraShiftOptions = [0, 1, 2, 3, 4, 5];
+        const aStep = 0.02;
+        const bStep = 0.02;
 
         const paramGrid = [];
-        for (const alphaBase of alphaOptions) {
-          for (const lookback of lookbackOptions) {
-            for (const coverCount of coverCountOptions) {
-              paramGrid.push({ alphaBase, lookback, coverCount });
+        for (let extraShift of extraShiftOptions) {
+          for (let a = 0.0; a <= 1.0001; a += aStep) {
+            for (let b = 0.0; b <= 1.0001; b += bStep) {
+              const aFixed = parseFloat(a.toFixed(2));
+              const bFixed = parseFloat(b.toFixed(2));
+              paramGrid.push({ extraShift, aFixed, bFixed });
             }
           }
         }
@@ -1312,44 +1347,49 @@
         runDayCsvBtn.classList.add("btn-disabled");
         optimiseFromCsvBtn.textContent = "Optimising...";
         optimizerProgressBar.style.width = "0%";
-        optimizerStatus.textContent = `Starting optimisation over ${totalCombos} combinations (minimise losing streaks)...`;
+        optimizerStatus.textContent = `Starting optimisation over ${totalCombos} combinations...`;
 
         let comboIndex = 0;
         let best = null;
 
         function processBatch() {
-          const batchSize = 10;
+          const batchSize = 10; // adjust if you want to go faster/slower
           let processed = 0;
 
           while (comboIndex < totalCombos && processed < batchSize) {
             const p = paramGrid[comboIndex++];
-            const res = simulateAllDaysWithParams(colsSpins, baseUnit, p);
-
-            if (res && res.daysSimulated > 0 && res.totalBets > 0) {
-              const candidate = { ...p, ...res };
-              if (!best || betterByLowStreak(candidate, best)) best = candidate;
+            const res = simulateAllDaysWithParams(allDaysSpins, baseUnit, p);
+            if (res && res.daysSimulated > 0) {
+              if (!best || res.totalProfit > best.totalProfit) {
+                best = {
+                  ...p,
+                  ...res
+                };
+              }
             }
-
             processed++;
           }
 
+          // update progress UI
           const progress = (comboIndex / totalCombos) * 100;
           optimizerProgressBar.style.width = progress.toFixed(1) + "%";
 
           if (best) {
             optimizerStatus.textContent =
-              `Scanning ${comboIndex}/${totalCombos}... ` +
-              `Best worst streak=${best.totalWorstStreak}, losing days=${best.losingDays}, avg worst/day=${best.avgWorstStreak.toFixed(2)} ` +
-              `| alpha=${best.alphaBase.toFixed(2)}, lookback=${best.lookback <= 0 ? "ALL" : best.lookback}, cover=${best.coverCount} ` +
-              `| hit=${best.totalHitRate == null ? "–" : best.totalHitRate.toFixed(2) + "%"} ` +
-              `| P&L=${formatMoney(best.totalProfit)}`;
+              `Scanning ${comboIndex}/${totalCombos} combos... ` +
+              `Current best P&L ${formatMoney(best.totalProfit)} ` +
+              `(extraShift=${best.extraShift}, a=${best.aFixed.toFixed(2)}, b=${best.bFixed.toFixed(2)}, ` +
+              `losing days=${best.losingDays}, worst losing streak=${best.totalWorstStreak}).`;
           } else {
-            optimizerStatus.textContent = `Scanning ${comboIndex}/${totalCombos}... (no valid result yet)`;
+            optimizerStatus.textContent =
+              `Scanning ${comboIndex}/${totalCombos} combos... (no valid result yet)`;
           }
 
           if (comboIndex < totalCombos) {
+            // yield back to browser, keep UI responsive
             requestAnimationFrame(processBatch);
           } else {
+            // done
             optimiserRunning = false;
             optimiseFromCsvBtn.classList.remove("btn-disabled");
             runDayCsvBtn.classList.remove("btn-disabled");
@@ -1361,23 +1401,21 @@
               return;
             }
 
+            // set global AUTO_PARAMS
             AUTO_PARAMS = {
-              alphaBase: best.alphaBase,
-              lookback: best.lookback,
-              coverCount: best.coverCount
+              extraShift: best.extraShift,
+              aFixed: best.aFixed,
+              bFixed: best.bFixed
             };
 
             optimizerStatus.textContent =
-              `Done. Best parameters for low streaks: alpha=${best.alphaBase.toFixed(2)}, ` +
-              `lookback=${best.lookback <= 0 ? "ALL" : best.lookback}, coverCount=${best.coverCount}. ` +
-              `Worst losing streak=${best.totalWorstStreak}, losing days=${best.losingDays}, ` +
-              `avg worst/day=${best.avgWorstStreak.toFixed(2)}, hit=${best.totalHitRate == null ? "–" : best.totalHitRate.toFixed(2) + "%"}, ` +
-              `P&L=${formatMoney(best.totalProfit)}.`;
+              `Done. Best parameters: extraShift=${best.extraShift}, a=${best.aFixed.toFixed(2)}, b=${best.bFixed.toFixed(2)}. ` +
+              `Optimised over ${best.daysSimulated} days, ${totalCombos} combos. ` +
+              `Best total P&L=${formatMoney(best.totalProfit)}; Losing days=${best.losingDays}; ` +
+              `Worst losing streak=${best.totalWorstStreak}.`;
 
             updateCurrentParamsSummary(
-              `Optimised for low losing streaks across ${best.daysSimulated} days: ` +
-              `worst streak=${best.totalWorstStreak}, losing days=${best.losingDays}, avg worst/day=${best.avgWorstStreak.toFixed(2)}, ` +
-              `hit=${best.totalHitRate == null ? "–" : best.totalHitRate.toFixed(2) + "%"}, P&L=${formatMoney(best.totalProfit)}.`
+              `Optimised over ${best.daysSimulated} days. Best total P&L=${formatMoney(best.totalProfit)}, losing days=${best.losingDays}, worst losing streak=${best.totalWorstStreak}.`
             );
           }
         }
@@ -1386,12 +1424,10 @@
       });
     });
 
-    // ---------- INITIAL UI ----------
-
+    // initial UI
     updateHistoryUI();
     updateStatsUI();
     renderRecommendation(null);
-    updateCurrentParamsSummary("Using exact pocket-level Dirichlet model.");
   </script>
 </body>
 </html>
